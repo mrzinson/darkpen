@@ -1,0 +1,111 @@
+.login-container {
+  min-height: 100vh;
+  padding: var(--spacing-lg);
+  background: radial-gradient(circle at center, #1C1C1E 0%, #000000 100%);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  background: rgba(28, 28, 30, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-lg);
+  padding: 40px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.icon-container {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-full);
+  background: rgba(10, 132, 255, 0.1);
+  margin: 0 auto 20px;
+}
+
+.login-header h1 {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--text);
+  letter-spacing: -0.5px;
+}
+
+.login-header p {
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.error-message {
+  background: rgba(255, 69, 58, 0.1);
+  color: var(--danger);
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  margin-bottom: 24px;
+  text-align: center;
+  border: 1px solid rgba(255, 69, 58, 0.2);
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.input-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: 16px;
+  color: var(--text-muted);
+}
+
+.input-group input {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 16px 16px 16px 48px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 16px;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.input-group input:focus {
+  border-color: var(--primary);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.login-button {
+  background: var(--primary);
+  color: white;
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  font-weight: 600;
+  margin-top: 10px;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  gap: 8px;
+}
+
+.login-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  opacity: 0.9;
+}
+
+.login-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}

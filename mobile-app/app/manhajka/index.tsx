@@ -1,0 +1,268 @@
+import { AzureTheme } from '../../constants/AzureTheme';
+import { useTheme } from '../../context/ThemeContext';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ImageBackground, Dimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather, Ionicons } from '@expo/vector-icons';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { BlurView } from 'expo-blur';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Config from '../../constants/Config';
+
+const { width } = Dimensions.get('window');
+const cardWidth = (width - AzureTheme.spacing.xl * 2 - 16) / 2; // 2 columns
+
+const CATEGORIES = [
+  'All', 'Biology', 'History', 'Physics', 'Chemistry', 'Geography',
+  'Mathematics', 'Maths', 'Science', 'Social', 'English', 'English (sec)',
+  'Somali', 'Suugaan', 'Arabic', 'Arabic (sec)', 'Islamic', 'Islamic (sec)', 'General'
+];
+
+export default function ManhajkaScreen() {
+  const { colors, isDark, setTheme, theme } = useTheme();
+  const styles = getStyles(colors);
+
+  const router = useRouter();
+  const [activeCategory, setActiveCategory] = useState('All');
+  const [books, setBooks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchBooks = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // 1. Load from cache first
+      const cached = await AsyncStorage.getItem('manhajka_books');
+      if (cached) {
+        setBooks(JSON.parse(cached));
+        setLoading(false); // Stop loading if we have cached data
+      }
+
+      const token = await AsyncStorage.getItem('userToken');
+      const response = await fetch(`${Config.API_URL}/api/user/books`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (response.ok) {
+        if (Array.isArray(data)) {
+          setBooks(data);
+          // 2. Save to cache
+          await AsyncStorage.setItem('manhajka_books', JSON.stringify(data));
+        } else {
+          setError('API didn\'t return an array');
+        }
+      } else {
+        // If API fails but we have cache, don't show error
+        if (!cached) setError(data.message || 'Server error');
+      }
+    } catch (err: any) {
+      // If Network fails but we have cache, don't show error
+      const cached = await AsyncStorage.getItem('manhajka_books');
+      if (!cached) setError(err.message || 'Network error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchBooks();
+    }, [])
+  );
+  const filteredBooks = Array.isArray(books) ? books.filter(book => {
+    const matchesCategory = activeCategory === 'All' || (book.category && book.category === activeCategory);
+    return matchesCategory;
+  }) : [];
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <Feather name="arrow-left" size={20} color={colors.secondary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Buugta Manhajka</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <Text style={styles.pageTitle}>Dhammaan Buugaagta</Text>
+        <Text style={styles.pageSubtitle}>Dooro buugga aad doonayso inaad akhrido (Read Only).</Text>
+
+        {/* Filter Tabs */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+          {CATEGORIES.map((cat) => (
+            <TouchableOpacity
+              key={cat}
+              style={[styles.filterPill, activeCategory === cat && styles.filterPillActive]}
+              onPress={() => setActiveCategory(cat)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.filterText, activeCategory === cat && styles.filterTextActive]}>
+                {cat}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <View style={styles.grid}>
+          {loading ? (
+            <Text style={{ textAlign: 'center', width: '100%', marginTop: 20 }}>loading...</Text>
+          ) : filteredBooks.length > 0 ? (
+            filteredBooks.map(book => (
+              <TouchableOpacity
+                key={book.id}
+                style={styles.bookCardWrapper}
+                activeOpacity={0.8}
+                onPress={() => {
+                  if (book.pdf_url) {
+                    router.push({
+                      pathname: '/readerexam',
+                      params: {
+                        pdfUrl: `${Config.API_URL}${book.pdf_url}`,
+                        title: book.title
+                      }
+                    });
+                  } else {
+                    alert('Buuggan malaha PDF');
+                  }
+                }}
+              >
+                <ImageBackground
+                  source={{ uri: book.image_url ? `${Config.API_URL}${book.image_url}` : 'https://images.unsplash.com/photo-1596495578065-6e0763fa1178?q=80&w=300&auto=format&fit=crop' }}
+                  style={styles.bookImage}
+                  imageStyle={{ borderRadius: 16 }}
+                >
+                  <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(10, 132, 255, 0.25)', borderRadius: 16 }]} />
+
+                  <View style={styles.bookInfoContainer}>
+                    <BlurView intensity={70} tint="dark" style={styles.bookBlur}>
+                      <Ionicons name="book" size={20} color="white" style={styles.bookIconSmall} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.bookTitle} numberOfLines={1}>{book.title}</Text>
+                        <Text style={styles.bookGrade}>{book.grade || 'Form 4'}</Text>
+                      </View>
+                    </BlurView>
+                  </View>
+                </ImageBackground>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <Text style={{ textAlign: 'center', width: '100%', marginTop: 20 }}>Wax buug ah lama helin.</Text>
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const getStyles = (colors: any) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: AzureTheme.spacing.xl,
+    paddingTop: AzureTheme.spacing.m,
+    paddingBottom: AzureTheme.spacing.m,
+  },
+  backButton: {
+    backgroundColor: colors.background,
+    padding: 10,
+    borderRadius: 20,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.secondary,
+  },
+  content: {
+    padding: AzureTheme.spacing.xl,
+    paddingTop: 0,
+    paddingBottom: 40,
+  },
+  pageTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.secondary,
+    marginBottom: 4,
+  },
+  pageSubtitle: {
+    fontSize: 14,
+    color: colors.neutral,
+    marginBottom: AzureTheme.spacing.xxl,
+    lineHeight: 20,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  bookCardWrapper: {
+    width: cardWidth,
+    height: 220,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  bookImage: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  bookInfoContainer: {
+    width: '100%',
+    padding: 8,
+  },
+  bookBlur: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  bookIconSmall: {
+    marginRight: 8,
+  },
+  bookTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'white',
+    marginBottom: 2,
+  },
+  bookGrade: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '500',
+  },
+
+  // Filter Styles
+  filterScroll: {
+    paddingBottom: 20,
+    gap: 8,
+  },
+  filterPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: colors.background ,
+    borderWidth: 1,
+    borderColor: colors.border || '#333',
+  },
+  filterPillActive: {
+    backgroundColor: colors.secondary,
+    borderColor: colors.secondary,
+  },
+  filterText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textLight,
+  },
+  filterTextActive: {
+    color: colors.card,
+  }
+});
