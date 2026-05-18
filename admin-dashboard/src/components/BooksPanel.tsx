@@ -10,8 +10,8 @@ export default function BooksPanel() {
   const [uploading, setUploading] = useState(false);
 
   const CATEGORIES = [
-    'Biology', 'History', 'Physics', 'Chemistry', 'Geography', 
-    'Mathematics', 'Maths', 'Science', 'Social', 'English', 'English (sec)', 
+    'Biology', 'History', 'Physics', 'Chemistry', 'Geography',
+    'Mathematics', 'Maths', 'Science', 'Social', 'English', 'English (sec)',
     'Somali', 'Suugaan', 'Arabic', 'Arabic (sec)', 'Islamic', 'Islamic (sec)', 'General'
   ];
 
@@ -74,28 +74,28 @@ export default function BooksPanel() {
           <form onSubmit={handleSubmit} className="admin-form">
             <div className="input-group">
               <label>Book Title</label>
-              <input 
-                type="text" 
-                value={form.title} 
-                onChange={e => setForm({...form, title: e.target.value})} 
+              <input
+                type="text"
+                value={form.title}
+                onChange={e => setForm({ ...form, title: e.target.value })}
                 placeholder="Ex: Biology Form 4"
               />
             </div>
             <div className="input-group">
               <label>Author</label>
-              <input 
-                type="text" 
-                value={form.author} 
-                onChange={e => setForm({...form, author: e.target.value})} 
+              <input
+                type="text"
+                value={form.author}
+                onChange={e => setForm({ ...form, author: e.target.value })}
                 placeholder="Author name..."
               />
             </div>
             <div className="grid-2">
               <div className="input-group">
                 <label>Category (Subject)</label>
-                <select 
-                  value={form.category} 
-                  onChange={e => setForm({...form, category: e.target.value})}
+                <select
+                  value={form.category}
+                  onChange={e => setForm({ ...form, category: e.target.value })}
                   className="admin-select"
                 >
                   {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -103,10 +103,10 @@ export default function BooksPanel() {
               </div>
               <div className="input-group">
                 <label>Grade/Class</label>
-                <input 
-                  type="text" 
-                  value={form.grade} 
-                  onChange={e => setForm({...form, grade: e.target.value})} 
+                <input
+                  type="text"
+                  value={form.grade}
+                  onChange={e => setForm({ ...form, grade: e.target.value })}
                   placeholder="Ex: Form 4"
                 />
               </div>
