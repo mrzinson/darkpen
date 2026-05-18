@@ -40,7 +40,18 @@ app.use((req, res, next) => {
     });
     next();
 });
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve uploads folder statically with robust directory fallbacks
+const uploadsPath = path.join(__dirname, 'uploads');
+const rootUploadsPath = path.join(process.cwd(), 'uploads');
+const nestedUploadsPath = path.join(process.cwd(), 'backend', 'uploads');
+
+app.use('/uploads', express.static(uploadsPath));
+app.use('/uploads', express.static(rootUploadsPath));
+app.use('/uploads', express.static(nestedUploadsPath));
+
+app.use('/api/uploads', express.static(uploadsPath));
+app.use('/api/uploads', express.static(rootUploadsPath));
+app.use('/api/uploads', express.static(nestedUploadsPath));
 
 // Routes
 const authRoutes = require('./routes/authRoutes');

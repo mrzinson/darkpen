@@ -3,6 +3,28 @@ const router = express.Router();
 const db = require('../config/db');
 const auth = require('../middleware/auth');
 const userController = require('../controllers/userController');
+const multer = require('multer');
+const path = require('path');
+
+const fs = require('fs');
+
+// Robustly resolve and create uploads directory inside the backend folder
+const uploadDir = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// Multer Setup for Screenshot Uploads
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        cb(null, Date.now() + '-' + file.originalname);
+    }
+});
+
+const upload = multer({ storage });
 
 // Soo akhrinta Imtixaanaadka
 router.get('/exams', auth, async (req, res) => {
@@ -46,5 +68,195 @@ router.get('/search', auth, userController.searchUsers);
 
 // Cusboonaysiinta Profile-ka
 router.put('/profile', auth, userController.updateProfile);
+
+// Soo akhrinta Promotional Cards with Claim Status
+router.get('/promo-cards', auth, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const [cards] = await db.execute('SELECT * FROM promo_cards WHERE is_active = 1 ORDER BY created_at DESC');
+        
+        // Fetch all claims for this user
+        const [claims] = await db.execute('SELECT promo_card_id, status FROM user_claimed_promos WHERE user_id = ?', [userId]);
+        const claimMap = {};
+        claims.forEach(c => {
+            claimMap[c.promo_card_id] = c.status;
+        });
+
+        // Map claim info to cards
+        const cardsWithClaim = cards.map(card => ({
+            ...card,
+            claim_status: claimMap[card.id] || null,
+            is_claimed: claimMap[card.id] === 'approved'
+        }));
+
+        res.json(cardsWithClaim);
+    } catch (error) {
+        console.error('Error fetching promo cards:', error);
+        res.status(500).json({ message: 'Lama helin promotional cards' });
+    }
+});
+
+// Claim promo rewards (Submitting screenshot for verification)
+router.post('/promo-cards/:id/claim', auth, upload.single('screenshot'), async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const promoCardId = req.params.id;
+
+        // Verify that the promo card exists and has active rewards
+        const [card] = await db.execute('SELECT * FROM promo_cards WHERE id = ? AND is_active = 1', [promoCardId]);
+        if (card.length === 0) {
+            return res.status(404).json({ message: 'Xayaysiiskan lama helin ama ma shaqaynayo' });
+        }
+
+        const promo = card[0];
+        if (!promo.reward_credits || promo.reward_credits <= 0) {
+            return res.status(400).json({ message: 'Xayaysiiskan ma lahan wax abaalmarin ah' });
+        }
+
+        // Verify if user already submitted a claim
+        const [existing] = await db.execute(
+            'SELECT * FROM user_claimed_promos WHERE user_id = ? AND promo_card_id = ?',
+            [userId, promoCardId]
+        );
+
+        if (existing.length > 0) {
+            const claim = existing[0];
+            if (claim.status === 'approved') {
+                return res.status(400).json({ message: 'Hore ayaad u sheegatay abaalmarintan!' });
+            } else if (claim.status === 'pending') {
+                return res.status(400).json({ message: 'Dalabkaaga wuxuu ku jiraa sugitaan (Pending)!' });
+            } else {
+                // If rejected, we delete the old record and let them resubmit a new screenshot
+                await db.execute('DELETE FROM user_claimed_promos WHERE id = ?', [claim.id]);
+            }
+        }
+
+        // Must upload a screenshot
+        if (!req.file) {
+            return res.status(400).json({ message: 'Fadlan soo gali sawirka screenshot-ka si loo xaqiijiyo!' });
+        }
+
+        const screenshotUrl = `/uploads/${req.file.filename}`;
+
+        // Insert new claim request with 'pending' status
+        await db.execute(
+            'INSERT INTO user_claimed_promos (user_id, promo_card_id, screenshot_url, status) VALUES (?, ?, ?, "pending")',
+            [userId, promoCardId, screenshotUrl]
+        );
+
+        res.json({ 
+            status: 'success', 
+            message: 'Dalabkaaga si guul leh ayaa loo gudbiyey! Admin-ka ayaa ku ansixin doona waxyar gudaheed.' 
+        });
+
+    } catch (error) {
+        console.error('Error claiming promo rewards:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday inta lagu gudajiray sheegashada' });
+    }
+});
+
+// Get dynamic live notifications for the user
+router.get('/notifications', auth, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const notifications = [];
+
+        // 1. Fetch user creation date
+        const [user] = await db.execute('SELECT created_at FROM users WHERE id = ?', [userId]);
+        if (user.length > 0) {
+            notifications.push({
+                id: 'welcome',
+                title: 'Ku soo dhawaaw Darkpen',
+                message: 'Is-diiwaangelintaadu si guul leh ayay u dhacday. Ku raaxayso adeegyada premium-ka ah!',
+                time: user[0].created_at,
+                type: 'welcome'
+            });
+        }
+
+        // 2. Fetch payments
+        const [payments] = await db.execute(
+            'SELECT amount, status, created_at FROM payments WHERE user_id = ? ORDER BY created_at DESC',
+            [userId]
+        );
+        payments.forEach((p, idx) => {
+            let statusText = '';
+            if (p.status === 'approved') statusText = 'waa la ansixiyey! Adeegyadaadu hadda waa firfircoon yihiin.';
+            else if (p.status === 'pending') statusText = 'wuxuu ku jiraa sugitaan (Pending).';
+            else statusText = 'waa la diiday. Fadlan la xiriir caawiyaha.';
+
+            notifications.push({
+                id: `payment-${idx}`,
+                title: 'Dalabka Lacag-bixinta',
+                message: `Dalabkaaga lacag-bixinta ee $${p.amount} ${statusText}`,
+                time: p.created_at,
+                type: 'payment'
+            });
+        });
+
+        // 3. Fetch claimed promos
+        const [claims] = await db.execute(`
+            SELECT ucp.status, ucp.claimed_at, pc.title_so, pc.reward_credits, pc.reward_type 
+            FROM user_claimed_promos ucp
+            JOIN promo_cards pc ON ucp.promo_card_id = pc.id
+            WHERE ucp.user_id = ?
+            ORDER BY ucp.claimed_at DESC
+        `, [userId]);
+        claims.forEach((c, idx) => {
+            let statusText = '';
+            if (c.status === 'approved') {
+                statusText = `waa la ansixiyey! Waxaa lagugu shubay +${c.reward_credits} ${c.reward_type === 'shukaansi' ? 'Shukaansi' : 'Standard'} Credits.`;
+            } else if (c.status === 'pending') {
+                statusText = 'wuxuu ku jiraa sugitaan (Pending) si loo xaqiijiyo sawirka.';
+            } else {
+                statusText = 'waa la diiday. Fadlan dib u soo dir sawir ka duwan oo sax ah.';
+            }
+
+            notifications.push({
+                id: `claim-${idx}`,
+                title: `Abaalmarinta ${c.title_so}`,
+                message: `Dalabkaaga abaalmarinta ee ${c.title_so} ${statusText}`,
+                time: c.claimed_at,
+                type: 'claim'
+            });
+        });
+
+        // Sort notifications by time descending
+        notifications.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+
+        // Format dates into user-friendly time ago strings
+        const formattedNotifications = notifications.map(n => {
+            let date = new Date(n.time);
+            const now = new Date();
+            
+            // Fix for MySQL UTC to Local Timezone shift (e.g. +3 hours for Somalia)
+            const tzOffsetMs = date.getTimezoneOffset() * 60000; 
+            date = new Date(date.getTime() - tzOffsetMs);
+
+            let diffMs = now.getTime() - date.getTime();
+            if (diffMs < 0) diffMs = 0; // Fallback for slight clock desync
+
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMins / 60);
+            const diffDays = Math.floor(diffHours / 24);
+
+            let timeAgo = '';
+            if (diffMins < 1) timeAgo = 'Hada';
+            else if (diffMins < 60) timeAgo = `${diffMins} daqiiqo ka hor`;
+            else if (diffHours < 24) timeAgo = `${diffHours} saac ka hor`;
+            else if (diffDays === 1) timeAgo = 'Shalay';
+            else timeAgo = `${diffDays} casho ka hor`;
+
+            return {
+                ...n,
+                time: timeAgo
+            };
+        });
+
+        res.json(formattedNotifications);
+    } catch (error) {
+        console.error('Error fetching notifications:', error);
+        res.status(500).json({ message: 'Lama helin ogeysiisyada' });
+    }
+});
 
 module.exports = router;

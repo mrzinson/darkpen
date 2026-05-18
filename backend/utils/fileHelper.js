@@ -14,13 +14,13 @@ const saveBase64Image = (base64String, folder = 'general') => {
     }
 
     try {
-        const matches = base64String.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-        if (matches.length !== 3) {
+        const parts = base64String.split(';base64,');
+        if (parts.length !== 2) {
             return null;
         }
 
-        const mimeType = matches[1];
-        const base64Data = matches[2];
+        const mimeType = parts[0].split(':')[1] || 'image/jpeg';
+        const base64Data = parts[1];
         const extension = mimeType.split('/')[1] || 'jpg';
         
         const fileName = `${crypto.randomBytes(16).toString('hex')}.${extension}`;

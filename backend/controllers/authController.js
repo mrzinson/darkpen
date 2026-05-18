@@ -93,6 +93,10 @@ exports.login = async (req, res) => {
         }
 
         const user = users[0];
+        if (user.is_suspended) {
+            return res.status(403).json({ message: 'Koontadaada waa la laalay (Suspended). Tafasiil dheeri ah la xiriir maamulka.' });
+        }
+
         const isMatch = await bcrypt.compare(password, user.password);
         
         if (!isMatch) {

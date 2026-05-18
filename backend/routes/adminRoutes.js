@@ -4,10 +4,18 @@ const db = require('../config/db');
 const multer = require('multer');
 const path = require('path');
 
+const fs = require('fs');
+
+// Robustly resolve and create uploads directory inside the backend folder
+const uploadDir = path.join(__dirname, '..', 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
 // Multer Setup for File Uploads
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'uploads/');
+        cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
         cb(null, Date.now() + '-' + file.originalname);
@@ -63,10 +71,63 @@ router.get('/stats', async (req, res) => {
 // 2. Users Management
 router.get('/users', async (req, res) => {
     try {
-        const [users] = await db.execute('SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC');
+        const [users] = await db.execute(`
+            SELECT 
+                u.id, 
+                u.name, 
+                u.username, 
+                u.email, 
+                u.password, 
+                u.whatsapp_number, 
+                u.role, 
+                u.is_suspended, 
+                u.created_at,
+                COALESCE(uw.balance, 0) AS credits,
+                COALESCE(sw.balance, 0) AS shukaansi_credits,
+                (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id AND sender = 'user') AS private_messages_count,
+                (SELECT COUNT(*) FROM group_messages_v2 WHERE user_id = u.id) AS group_messages_count
+            FROM users u
+            LEFT JOIN user_wallet uw ON u.id = uw.user_id
+            LEFT JOIN shukaansi_wallet sw ON u.id = sw.user_id
+            ORDER BY u.created_at DESC
+        `);
         res.json(users);
     } catch (error) {
+        console.error('Error fetching admin users:', error);
         res.status(500).json({ message: 'Lama helin users-ka' });
+    }
+});
+
+// 2a. Suspend/Unsuspend User
+router.post('/users/:id/suspend', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const [users] = await db.execute('SELECT is_suspended FROM users WHERE id = ?', [id]);
+        if (users.length === 0) return res.status(404).json({ message: 'User-ka lama helin' });
+        
+        const newStatus = users[0].is_suspended ? 0 : 1;
+        await db.execute('UPDATE users SET is_suspended = ? WHERE id = ?', [newStatus, id]);
+        
+        res.json({ 
+            status: 'success', 
+            message: newStatus ? 'User-ka waa la laalay (Suspended)' : 'User-ka waa laga qaaday laaliddii (Active)', 
+            is_suspended: newStatus 
+        });
+    } catch (error) {
+        console.error('Error suspending user:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday laalida user-ka' });
+    }
+});
+
+// 2b. Delete User
+router.delete('/users/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await db.execute('DELETE FROM users WHERE id = ?', [id]);
+        res.json({ status: 'success', message: 'User-ka si guul leh ayaa loo tirtiray' });
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday tirtirista user-ka' });
     }
 });
 
@@ -267,6 +328,188 @@ router.delete('/groups/:id', async (req, res) => {
         res.json({ message: 'Group-ka waa la tirtiray!' });
     } catch (error) {
         res.status(500).json({ message: 'Cilad ayaa dhacday tirtirista' });
+    }
+});
+
+// ==========================================
+// 7. Dynamic Promotional Cards CRUD Endpoints
+// ==========================================
+
+router.get('/promo-cards', async (req, res) => {
+    try {
+        const [cards] = await db.execute('SELECT * FROM promo_cards ORDER BY created_at DESC');
+        res.json(cards);
+    } catch (error) {
+        res.status(500).json({ message: 'Lama helin promotional cards' });
+    }
+});
+
+router.post('/promo-cards', upload.single('image'), async (req, res) => {
+    try {
+        const { title_en, title_so, desc_en, desc_so, button_text_en, button_text_so, route, overlay_color_light, overlay_color_dark, reward_credits, reward_type, promo_type } = req.body;
+        const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
+
+        if (!imageUrl) {
+            return res.status(400).json({ message: 'Fadlan soo geli sawirka xayaysiiska.' });
+        }
+
+        await db.execute(
+            `INSERT INTO promo_cards (title_en, title_so, desc_en, desc_so, button_text_en, button_text_so, image_url, route, overlay_color_light, overlay_color_dark, reward_credits, reward_type, promo_type) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                title_en, title_so, desc_en, desc_so, 
+                button_text_en, button_text_so, imageUrl, route, 
+                overlay_color_light || 'rgba(29, 78, 216, 0.65)', 
+                overlay_color_dark || 'rgba(30, 41, 59, 0.75)',
+                parseInt(reward_credits) || 0,
+                reward_type || null,
+                promo_type || 'normal'
+            ]
+        );
+
+        res.json({ message: 'Xayaysiiska si guul leh ayaa loo soo geliyay!' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday soo gelinta xayaysiiska' });
+    }
+});
+
+router.put('/promo-cards/:id', upload.single('image'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title_en, title_so, desc_en, desc_so, button_text_en, button_text_so, route, overlay_color_light, overlay_color_dark, reward_credits, reward_type, promo_type } = req.body;
+        
+        let query = `UPDATE promo_cards SET title_en = ?, title_so = ?, desc_en = ?, desc_so = ?, button_text_en = ?, button_text_so = ?, route = ?, overlay_color_light = ?, overlay_color_dark = ?, reward_credits = ?, reward_type = ?, promo_type = ?`;
+        let params = [title_en, title_so, desc_en, desc_so, button_text_en, button_text_so, route, overlay_color_light, overlay_color_dark, parseInt(reward_credits) || 0, reward_type || null, promo_type || 'normal'];
+
+        if (req.file) {
+            const imageUrl = `/uploads/${req.file.filename}`;
+            query += `, image_url = ?`;
+            params.push(imageUrl);
+        }
+
+        query += ` WHERE id = ?`;
+        params.push(id);
+
+        await db.execute(query, params);
+        res.json({ message: 'Xayaysiiska waa la cusboonaysiiyay!' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday cusboonaysiinta' });
+    }
+});
+
+router.put('/promo-cards/:id/toggle', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await db.execute('UPDATE promo_cards SET is_active = NOT is_active WHERE id = ?', [id]);
+        res.json({ message: 'Status-ka xayaysiiska waa la bedelay!' });
+    } catch (error) {
+        res.status(500).json({ message: 'Cilad ayaa dhacday' });
+    }
+});
+
+router.delete('/promo-cards/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await db.execute('DELETE FROM promo_cards WHERE id = ?', [id]);
+        res.json({ message: 'Xayaysiiska waa la tirtiray!' });
+    } catch (error) {
+        res.status(500).json({ message: 'Cilad ayaa dhacday tirtirista' });
+    }
+});
+
+// ==========================================
+// 8. Dynamic Promotional Card Claims & Rewards
+// ==========================================
+
+router.get('/promo-claims', async (req, res) => {
+    try {
+        const [claims] = await db.execute(`
+            SELECT c.id, c.user_id, c.promo_card_id, c.screenshot_url, c.status, c.claimed_at,
+                   u.name as user_name, u.email as user_email, u.whatsapp_number as user_whatsapp,
+                   p.title_en as promo_title_en, p.title_so as promo_title_so, p.reward_credits, p.reward_type
+            FROM user_claimed_promos c
+            JOIN users u ON c.user_id = u.id
+            JOIN promo_cards p ON c.promo_card_id = p.id
+            ORDER BY c.claimed_at DESC
+        `);
+        res.json(claims);
+    } catch (error) {
+        console.error('Error fetching promo claims:', error);
+        res.status(500).json({ message: 'Lama helin dalabyada abaalmarinta' });
+    }
+});
+
+router.post('/promo-claims/:id/approve', async (req, res) => {
+    try {
+        const claimId = req.params.id;
+
+        // Fetch claim details
+        const [claimRows] = await db.execute('SELECT * FROM user_claimed_promos WHERE id = ?', [claimId]);
+        if (claimRows.length === 0) {
+            return res.status(404).json({ message: 'Dalabkan lama helin' });
+        }
+
+        const claim = claimRows[0];
+        if (claim.status === 'approved') {
+            return res.status(400).json({ message: 'Dalabkan mar hore ayaa la ansixiyey' });
+        }
+
+        // Fetch promo details
+        const [promoRows] = await db.execute('SELECT reward_credits, reward_type FROM promo_cards WHERE id = ?', [claim.promo_card_id]);
+        if (promoRows.length === 0) {
+            return res.status(404).json({ message: 'Xayaysiiskan asalka u ahaa lama helin' });
+        }
+
+        const promo = promoRows[0];
+
+        // Award credits to user
+        if (promo.reward_credits > 0) {
+            if (promo.reward_type === 'standard') {
+                const [walletRows] = await db.execute('SELECT * FROM user_wallet WHERE user_id = ?', [claim.user_id]);
+                if (walletRows.length === 0) {
+                    await db.execute('INSERT INTO user_wallet (user_id, balance) VALUES (?, ?)', [claim.user_id, promo.reward_credits]);
+                } else {
+                    await db.execute('UPDATE user_wallet SET balance = balance + ? WHERE user_id = ?', [promo.reward_credits, claim.user_id]);
+                }
+            } else if (promo.reward_type === 'shukaansi') {
+                const [walletRows] = await db.execute('SELECT * FROM shukaansi_wallet WHERE user_id = ?', [claim.user_id]);
+                if (walletRows.length === 0) {
+                    await db.execute('INSERT INTO shukaansi_wallet (user_id, balance) VALUES (?, ?)', [claim.user_id, promo.reward_credits]);
+                } else {
+                    await db.execute('UPDATE shukaansi_wallet SET balance = balance + ? WHERE user_id = ?', [promo.reward_credits, claim.user_id]);
+                }
+            }
+        }
+
+        // Mark claim as approved
+        await db.execute('UPDATE user_claimed_promos SET status = "approved" WHERE id = ?', [claimId]);
+
+        res.json({ message: 'Dalabka si guul leh ayaa loo ansixiyey, abaalmarintiina waa la siiyey!' });
+
+    } catch (error) {
+        console.error('Error approving claim:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday inta lagu guda jiray ansixinta' });
+    }
+});
+
+router.post('/promo-claims/:id/reject', async (req, res) => {
+    try {
+        const claimId = req.params.id;
+
+        const [claimRows] = await db.execute('SELECT * FROM user_claimed_promos WHERE id = ?', [claimId]);
+        if (claimRows.length === 0) {
+            return res.status(404).json({ message: 'Dalabkan lama helin' });
+        }
+
+        // Delete from database to clear the state and allow retry
+        await db.execute('DELETE FROM user_claimed_promos WHERE id = ?', [claimId]);
+
+        res.json({ message: 'Dalabkii waa la diiday, waana la tirtiray si uu qofku dib ugu soo upload-gareeyo.' });
+    } catch (error) {
+        console.error('Error rejecting claim:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday inta lagu guda jiray diidmada' });
     }
 });
 

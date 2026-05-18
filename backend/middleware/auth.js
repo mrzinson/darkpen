@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
+const db = require('../config/db');
 
-module.exports = (req, res, next) => {
+module.exports = async (req, res, next) => {
     // Ka raadi token-ka header-ka
     const authHeader = req.header('Authorization');
     
@@ -17,6 +18,13 @@ module.exports = (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        // Dynamic DB suspension check
+        const [users] = await db.execute('SELECT is_suspended FROM users WHERE id = ?', [decoded.id]);
+        if (users.length === 0 || users[0].is_suspended) {
+            return res.status(403).json({ message: 'Koontadaada waa la laalay (Suspended). Tafasiil dheeri ah la xiriir maamulka.' });
+        }
+
         req.user = decoded; // { id: ... }
         next();
     } catch (error) {

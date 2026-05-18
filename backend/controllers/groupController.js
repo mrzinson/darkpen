@@ -167,9 +167,14 @@ exports.sendGroupMessage = async (req, res) => {
         );
         if (!memberCheck.length) return res.status(403).json({ message: 'Not a member' });
 
+        let finalMessage = message;
+        if (type === 'image' && message && message.startsWith('data:image')) {
+            finalMessage = saveBase64Image(message, 'chats');
+        }
+
         const [result] = await db.query(
             'INSERT INTO group_messages_v2 (group_id, user_id, message, type) VALUES (?, ?, ?, ?)',
-            [groupId, userId, message, type || 'text']
+            [groupId, userId, finalMessage, type || 'text']
         );
         const messageId = result.insertId;
 
@@ -179,7 +184,7 @@ exports.sendGroupMessage = async (req, res) => {
             [messageId, groupId, userId]
         );
 
-        res.status(201).json({ status: 'success', messageId });
+        res.status(201).json({ status: 'success', messageId, message: finalMessage });
     } catch (err) {
         res.status(500).json({ status: 'error', message: err.message });
     }

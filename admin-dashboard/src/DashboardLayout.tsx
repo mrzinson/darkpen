@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { 
-  LogOut, CreditCard, Book, FileText, PieChart, LayoutDashboard, Users, Bot, Settings 
+  LogOut, CreditCard, Book, FileText, PieChart, LayoutDashboard, Users, Bot, Settings, Megaphone, CheckSquare
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import './Dashboard.css';
@@ -13,6 +13,8 @@ import ExamsPanel from './components/ExamsPanel';
 import BooksPanel from './components/BooksPanel';
 import ReportsPanel from './components/ReportsPanel';
 import GroupsPanel from './components/GroupsPanel';
+import PromoCardsPanel from './components/PromoCardsPanel';
+import PromoClaimsPanel from './components/PromoClaimsPanel';
 
 import { API_URL } from './config';
 
@@ -137,6 +139,8 @@ export default function DashboardLayout({ onLogout }: LayoutProps) {
     { path: '/payments', icon: <CreditCard size={20} />, label: 'Payments' },
     { path: '/exams', icon: <FileText size={20} />, label: 'Exams' },
     { path: '/books', icon: <Book size={20} />, label: 'Books' },
+    { path: '/promo-cards', icon: <Megaphone size={20} />, label: 'Promo Cards' },
+    { path: '/promo-claims', icon: <CheckSquare size={20} />, label: 'Promo Claims' },
     { path: '/ai-stats', icon: <Bot size={20} />, label: 'AI Stats' },
     { path: '/groups', icon: <Users size={20} />, label: 'Groups' },
     { path: '/reports', icon: <PieChart size={20} />, label: 'Reports' },
@@ -191,6 +195,8 @@ export default function DashboardLayout({ onLogout }: LayoutProps) {
             <Route path="/payments" element={<PaymentsPanel />} />
             <Route path="/exams" element={<ExamsPanel />} />
             <Route path="/books" element={<BooksPanel />} />
+            <Route path="/promo-cards" element={<PromoCardsPanel />} />
+            <Route path="/promo-claims" element={<PromoClaimsPanel />} />
             <Route path="/ai-stats" element={<AIPanel />} />
             <Route path="/groups" element={<GroupsPanel />} />
             <Route path="/reports" element={<ReportsPanel />} />
