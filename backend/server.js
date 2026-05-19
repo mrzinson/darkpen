@@ -70,6 +70,23 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'API-gu wuu shaqaynayaa!' });
 });
 
+app.get('/api/db-test', async (req, res) => {
+    const db = require('./config/db');
+    try {
+        const [result] = await db.execute('SELECT 1 + 1 AS result');
+        res.json({ status: 'success', message: 'Database connection successful!', data: result });
+    } catch (error) {
+        console.error('Database connection test failed:', error);
+        res.status(500).json({ 
+            status: 'error', 
+            message: 'Database connection failed!', 
+            error: error.message,
+            code: error.code,
+            errno: error.errno
+        });
+    }
+});
+
 // Socket.io Setup (Wada-sheekaysiga)
 const io = new Server(server, {
     cors: {
