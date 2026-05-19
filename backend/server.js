@@ -87,6 +87,17 @@ app.get('/api/db-test', async (req, res) => {
     }
 });
 
+app.get('/api/env-check', (req, res) => {
+    res.json({
+        DB_HOST: process.env.DB_HOST,
+        DB_USER: process.env.DB_USER,
+        DB_NAME: process.env.DB_NAME,
+        DB_PASSWORD_LENGTH: process.env.DB_PASSWORD ? process.env.DB_PASSWORD.length : 0,
+        DB_PASSWORD_FIRST_CHAR: process.env.DB_PASSWORD ? process.env.DB_PASSWORD.charAt(0) : 'none',
+        DB_PASSWORD_LAST_CHAR: process.env.DB_PASSWORD ? process.env.DB_PASSWORD.charAt(process.env.DB_PASSWORD.length - 1) : 'none',
+    });
+});
+
 // Socket.io Setup (Wada-sheekaysiga)
 const io = new Server(server, {
     cors: {
