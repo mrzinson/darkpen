@@ -5,7 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import * as IntentLauncher from 'expo-intent-launcher';
 
 export default function ReaderExamScreen() {
   const { colors, isDark } = useTheme();
@@ -14,60 +16,76 @@ export default function ReaderExamScreen() {
   const { pdfUrl, title } = useLocalSearchParams();
   const router = useRouter();
 
-  const [loadingStep, setLoadingStep] = useState('Checking files...');
-  const [isReady, setIsReady] = useState(false);
-  const [pdfFilename, setPdfFilename] = useState('');
+  const [downloading, setDownloading] = useState(false);
+  const [isCached, setIsCached] = useState(false);
+  const [localPath, setLocalPath] = useState<string | null>(null);
+
+  // JavaScript to hide the pop-out button on Google Docs Viewer
+  const injectedJS = `
+    const style = document.createElement('style');
+    style.innerHTML = '.ndfHFb-c4YZDc-GSQQnc-LgbsSe, .ndfHFb-c4YZDc-i5755e, div[aria-label="Pop-out"], a[aria-label="Pop-out"], div[role="button"][title*="popout"] { display: none !important; }';
+    document.head.appendChild(style);
+    
+    setInterval(() => {
+      const popoutBtn = document.querySelector('.ndfHFb-c4YZDc-GSQQnc-LgbsSe') || 
+                        document.querySelector('div[aria-label="Pop-out"]') || 
+                        document.querySelector('a[aria-label="Pop-out"]');
+      if (popoutBtn) {
+        popoutBtn.style.display = 'none';
+      }
+    }, 300);
+    true;
+  `;
 
   useEffect(() => {
     if (!pdfUrl) return;
 
-    const prepareReader = async () => {
+    const checkAndDownload = async () => {
       try {
         const urlStr = pdfUrl as string;
         const filename = urlStr.split('/').pop() || 'document.pdf';
-        setPdfFilename(filename);
+        const targetPath = `${FileSystem.documentDirectory}${filename}`;
+        setLocalPath(targetPath);
 
-        const pdfjsPath = `${FileSystem.documentDirectory}pdf.min.js`;
-        const workerPath = `${FileSystem.documentDirectory}pdf.worker.min.js`;
-        const pdfPath = `${FileSystem.documentDirectory}${filename}`;
-
-        // 1. Check/Download pdf.min.js
-        const pdfjsInfo = await FileSystem.getInfoAsync(pdfjsPath);
-        if (!pdfjsInfo.exists) {
-          setLoadingStep('Raryaya maktabada akhriska (1/3)...');
-          await FileSystem.downloadAsync(
-            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js',
-            pdfjsPath
-          );
+        const fileInfo = await FileSystem.getInfoAsync(targetPath);
+        if (fileInfo.exists) {
+          setIsCached(true);
+        } else {
+          // Download in background
+          setDownloading(true);
+          const downloadRes = await FileSystem.downloadAsync(urlStr, targetPath);
+          if (downloadRes.status === 200) {
+            setIsCached(true);
+          }
         }
-
-        // 2. Check/Download pdf.worker.min.js
-        const workerInfo = await FileSystem.getInfoAsync(workerPath);
-        if (!workerInfo.exists) {
-          setLoadingStep('Raryaya maktabada akhriska (2/3)...');
-          await FileSystem.downloadAsync(
-            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js',
-            workerPath
-          );
-        }
-
-        // 3. Check/Download PDF Document
-        const pdfInfo = await FileSystem.getInfoAsync(pdfPath);
-        if (!pdfInfo.exists) {
-          setLoadingStep('Soo dejinaya buugga/imtixaanka (3/3)...');
-          await FileSystem.downloadAsync(urlStr, pdfPath);
-        }
-
-        setLoadingStep('Diyaar');
-        setIsReady(true);
       } catch (err) {
-        console.error('Error preparing PDF reader:', err);
-        setLoadingStep('Cilad ayaa dhacday soo dejinta.');
+        console.error('Error checking/downloading PDF:', err);
+      } finally {
+        setDownloading(false);
       }
     };
 
-    prepareReader();
+    checkAndDownload();
   }, [pdfUrl]);
+
+  const handleOpenOffline = async () => {
+    if (!localPath) return;
+    if (Platform.OS === 'android') {
+      try {
+        const contentUri = await FileSystem.getContentUriAsync(localPath);
+        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+          data: contentUri,
+          flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+          type: 'application/pdf',
+        });
+      } catch (error) {
+        // Fallback to Sharing if default viewer fails
+        await Sharing.shareAsync(localPath);
+      }
+    } else if (Platform.OS === 'ios') {
+      await Sharing.shareAsync(localPath);
+    }
+  };
 
   if (!pdfUrl) {
     return (
@@ -80,88 +98,13 @@ export default function ReaderExamScreen() {
     );
   }
 
-  // Create our offline-capable PDF.js HTML viewer string
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-      <style>
-        body {
-          margin: 0;
-          padding: 0;
-          background-color: ${isDark ? '#090D16' : '#F8FAFC'};
-          color: ${isDark ? '#F8FAFC' : '#0F172A'};
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-          user-select: none;
-          -webkit-user-select: none;
-        }
-        #loading {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          height: 100vh;
-          font-size: 16px;
-        }
-        #canvas-container {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          padding: 10px 0;
-        }
-        canvas {
-          margin-bottom: 12px;
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
-          max-width: 98%;
-          height: auto !important;
-        }
-      </style>
-      <script src="pdf.min.js"></script>
-    </head>
-    <body>
-      <div id="loading">Faylka waa la diyaarinayaa...</div>
-      <div id="canvas-container"></div>
-
-      <script>
-        window.onload = function() {
-          try {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
-            
-            const loadingTask = pdfjsLib.getDocument('${pdfFilename}');
-            loadingTask.promise.then(function(pdf) {
-              document.getElementById('loading').style.display = 'none';
-              const container = document.getElementById('canvas-container');
-              
-              let renderQueue = Promise.resolve();
-              
-              for (let i = 1; i <= pdf.numPages; i++) {
-                renderQueue = renderQueue.then(() => {
-                  return pdf.getPage(i).then(function(page) {
-                    const viewport = page.getViewport({ scale: 1.5 });
-                    const canvas = document.createElement('canvas');
-                    const context = canvas.getContext('2d');
-                    canvas.height = viewport.height;
-                    canvas.width = viewport.width;
-                    container.appendChild(canvas);
-                    
-                    return page.render({
-                      canvasContext: context,
-                      viewport: viewport
-                    }).promise;
-                  });
-                });
-              }
-            }).catch(function(error) {
-              document.getElementById('loading').innerText = 'Cilad rarka PDF-ka: ' + error.message;
-            });
-          } catch (err) {
-            document.getElementById('loading').innerText = 'Cilad: ' + err.message;
-          }
-        }
-      </script>
-    </body>
-    </html>
-  `;
+  // Define what source to load in the WebView
+  let webViewSourceUri = pdfUrl as string;
+  if (Platform.OS === 'android') {
+    webViewSourceUri = `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(pdfUrl as string)}`;
+  } else if (Platform.OS === 'ios' && isCached && localPath) {
+    webViewSourceUri = localPath; // Loads local file instantly on iOS!
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -170,7 +113,9 @@ export default function ReaderExamScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.secondary} />
         </TouchableOpacity>
         <Text style={styles.title} numberOfLines={1}>{title || 'Exam Reader'}</Text>
-        <View style={{ width: 40 }} />
+        
+        {/* Offline reader shortcut button */}
+
       </View>
 
       <View style={styles.content}>
@@ -180,23 +125,38 @@ export default function ReaderExamScreen() {
             style={{ width: '100%', height: '100%', border: 'none' }} 
             title={title as string}
           />
-        ) : !isReady ? (
-          <View style={styles.loading}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={{ marginTop: 10, color: colors.text }}>{loadingStep}</Text>
-          </View>
         ) : (
           <WebView 
-            source={{ 
-              html: htmlContent, 
-              baseUrl: FileSystem.documentDirectory || undefined 
-            }}
+            source={{ uri: webViewSourceUri }}
             style={styles.webview}
+            startInLoadingState={true}
             javaScriptEnabled={true}
+            injectedJavaScript={injectedJS}
             originWhitelist={['*']}
             allowFileAccess={true}
             allowUniversalAccessFromFileURLs={true}
-            allowFileAccessFromFileURLs={true}
+            renderLoading={() => (
+              <View style={styles.loading}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={{ marginTop: 10, color: colors.text }}>Faylka waa la raryaa...</Text>
+                {downloading && (
+                  <Text style={{ fontSize: 12, color: colors.neutral, marginTop: 4 }}>
+                    Offline ahaan ayaa loo kaydinayaa si degdeg ah...
+                  </Text>
+                )}
+              </View>
+            )}
+            renderError={() => (
+              <View style={styles.errorContainer}>
+                <Ionicons name="wifi-outline" size={48} color={colors.primary} />
+                <Text style={{ marginTop: 12, color: colors.text, fontSize: 16, fontWeight: '700' }}>
+                  No Internet Connection
+                </Text>
+                <Text style={{ marginTop: 6, color: colors.secondary, fontSize: 14, textAlign: 'center', paddingHorizontal: 32 }}>
+                  Fadlan ku xidh internet-ka ama guji badhanka buugga ee sare si aad offline u akhrisato.
+                </Text>
+              </View>
+            )}
           />
         )}
       </View>
@@ -227,6 +187,10 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.primary,
     flex: 1,
     textAlign: 'center',
+  },
+  offlineBtn: {
+    padding: 8,
+    marginRight: 4,
   },
   content: {
     flex: 1,

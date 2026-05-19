@@ -97,121 +97,122 @@ export default function ExamsScreen() {
 
   return (
     <View style={styles.container}>
-
-      {/* HEADER SECTION (Original Design) */}
-      <View style={[styles.headerSection, { paddingTop: Math.max(insets.top, 20) }]}>
-        <View style={styles.headerTitles}>
-          <Text style={styles.mainTitle}>EXAM'S</Text>
-          <Text style={styles.subTitle}>Access your past papers and answer keys.</Text>
-        </View>
-
-        {/* Search Bar */}
-        <View style={styles.searchBox}>
-          <Ionicons name="search-outline" size={20} color={colors.primary} />
-          <TextInput
-            style={[styles.searchInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
-            placeholder="Search for an exam..."
-            placeholderTextColor="#9CA3AF"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={18} color="#9CA3AF" />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
-      {/* FILTER TABS (Categories) */}
-      <View style={styles.filterWrapper}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
-          {CATEGORIES.map((cat) => (
-            <TouchableOpacity
-              key={cat}
-              style={[styles.filterPill, activeCategory === cat && styles.filterPillActive]}
-              onPress={() => {
-                setActiveCategory(cat);
-                setActiveYear('All'); // Reset year when category changes
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.filterText, activeCategory === cat && styles.filterTextActive]}>
-                {cat}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* YEAR FILTER (Dynamic) */}
-      {availableYears.length > 1 && (
-        <View style={styles.yearFilterWrapper}>
-          <Text style={styles.yearLabel}>year's</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.yearScroll}>
-            {availableYears.map((year) => (
-              <TouchableOpacity
-                key={year}
-                style={[styles.yearPill, activeYear === year && styles.yearPillActive]}
-                onPress={() => setActiveYear(year)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.yearText, activeYear === year && styles.yearTextActive]}>
-                  {year}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* EXAM LIST (Custom Card Layout) */}
       <ScrollView
         style={styles.listContainer}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       >
-        {loading ? (
-          <Text style={{ textAlign: 'center', marginTop: 20 }}>loading...</Text>
-        ) : filteredExams.length > 0 ? (
-          filteredExams.map((exam) => (
-            <TouchableOpacity
-              key={exam.id}
-              style={styles.examCard}
-              onPress={() => {
-                if (exam.pdf_url) {
-                  router.push({
-                    pathname: '/readerexam',
-                    params: {
-                      pdfUrl: `${Config.API_URL}${exam.pdf_url}`,
-                      title: exam.title
-                    }
-                  });
-                } else {
-                  alert('Faylkan malaha PDF');
-                }
-              }}
-            >
-              <View style={[styles.accentBar, { backgroundColor: colors.primary }]} />
-              <View style={styles.cardContent}>
-                <Image
-                  source={{ uri: exam.image_url ? `${Config.API_URL}${exam.image_url}` : 'https://images.unsplash.com/photo-1546410531-df4cb71576bd?w=400&q=80' }}
-                  style={styles.examImage}
-                />
-                <View style={styles.cardInfo}>
-                  <Text style={styles.examTitle} numberOfLines={1}>{exam.title}</Text>
-                  <Text style={styles.examCategory}>{exam.category || 'General'} • {exam.year || '2025'}</Text>
-                </View>
-                <View style={styles.readBtn}>
-                  <Text style={styles.readBtnText}>Read</Text>
-                  <Ionicons name="chevron-forward" size={14} color={colors.primary} />
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))
-        ) : (
-          <Text style={{ textAlign: 'center', marginTop: 20 }}>Wax imtixaan ah lama helin.</Text>
+        {/* HEADER SECTION (Original Design) */}
+        <View style={[styles.headerSection, { paddingTop: Math.max(insets.top, 20) }]}>
+          <View style={styles.headerTitles}>
+            <Text style={styles.mainTitle}>EXAM'S</Text>
+            <Text style={styles.subTitle}>Access your past papers and answer keys.</Text>
+          </View>
+
+          {/* Search Bar */}
+          <View style={styles.searchBox}>
+            <Ionicons name="search-outline" size={20} color={colors.primary} />
+            <TextInput
+              style={[styles.searchInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
+              placeholder="Search for an exam..."
+              placeholderTextColor="#9CA3AF"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* FILTER TABS (Categories) */}
+        <View style={styles.filterWrapper}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
+            {CATEGORIES.map((cat) => (
+              <TouchableOpacity
+                key={cat}
+                style={[styles.filterPill, activeCategory === cat && styles.filterPillActive]}
+                onPress={() => {
+                  setActiveCategory(cat);
+                  setActiveYear('All'); // Reset year when category changes
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.filterText, activeCategory === cat && styles.filterTextActive]}>
+                  {cat}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* YEAR FILTER (Dynamic) */}
+        {availableYears.length > 1 && (
+          <View style={styles.yearFilterWrapper}>
+            <Text style={styles.yearLabel}>year's</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.yearScroll}>
+              {availableYears.map((year) => (
+                <TouchableOpacity
+                  key={year}
+                  style={[styles.yearPill, activeYear === year && styles.yearPillActive]}
+                  onPress={() => setActiveYear(year)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.yearText, activeYear === year && styles.yearTextActive]}>
+                    {year}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
         )}
+
+        {/* EXAM LIST (Custom Card Layout) */}
+        <View style={styles.examsGrid}>
+          {loading ? (
+            <Text style={{ textAlign: 'center', marginTop: 20 }}>loading...</Text>
+          ) : filteredExams.length > 0 ? (
+            filteredExams.map((exam) => (
+              <TouchableOpacity
+                key={exam.id}
+                style={styles.examCard}
+                onPress={() => {
+                  if (exam.pdf_url) {
+                    router.push({
+                      pathname: '/readerexam',
+                      params: {
+                        pdfUrl: `${Config.API_URL}${exam.pdf_url}`,
+                        title: exam.title
+                      }
+                    });
+                  } else {
+                    alert('Faylkan malaha PDF');
+                  }
+                }}
+              >
+                <View style={[styles.accentBar, { backgroundColor: colors.primary }]} />
+                <View style={styles.cardContent}>
+                  <Image
+                    source={{ uri: exam.image_url ? `${Config.API_URL}${exam.image_url}` : 'https://images.unsplash.com/photo-1546410531-df4cb71576bd?w=400&q=80' }}
+                    style={styles.examImage}
+                  />
+                  <View style={styles.cardInfo}>
+                    <Text style={styles.examTitle} numberOfLines={1}>{exam.title}</Text>
+                    <Text style={styles.examCategory}>{exam.category || 'General'} • {exam.year || '2025'}</Text>
+                  </View>
+                  <View style={styles.readBtn}>
+                    <Text style={styles.readBtnText}>Read</Text>
+                    <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <Text style={{ textAlign: 'center', marginTop: 20 }}>Wax imtixaan ah lama helin.</Text>
+          )}
+        </View>
         <View style={{ height: 40 }} />
       </ScrollView>
 
@@ -299,9 +300,13 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 0,
     paddingTop: 8,
     paddingBottom: 24,
+    gap: 0,
+  },
+  examsGrid: {
+    paddingHorizontal: 24,
     gap: 16,
   },
   examCard: {

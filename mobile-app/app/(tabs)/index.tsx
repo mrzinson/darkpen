@@ -7,7 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform, Image, Linking } from 'react-native';
+import { Platform, Image, Linking, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import Config from '../../constants/Config';
@@ -711,19 +711,30 @@ export default function HomeScreen() {
             <View style={styles.bottomSheetHandle} />
             <Text style={styles.bottomSheetTitle}>Nala Soo Xiriir (Help)</Text>
 
-            <TouchableOpacity style={styles.socialButton}>
+            <TouchableOpacity 
+              style={styles.socialButton}
+              onPress={() => {
+                setHelpVisible(false);
+                Linking.openURL('https://wa.me/252637930329').catch(() => {
+                  Alert.alert('Cilad', 'Ma awoodno inaan furno WhatsApp');
+                });
+              }}
+            >
               <Ionicons name="logo-whatsapp" size={24} color="#25D366" />
               <Text style={styles.socialText}>WhatsApp Support</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.socialButton}>
+            <TouchableOpacity 
+              style={styles.socialButton}
+              onPress={() => {
+                setHelpVisible(false);
+                Linking.openURL('mailto:team.darkpen@gmail.com').catch(() => {
+                  Alert.alert('Cilad', 'Ma awoodno inaan furno E-mail-ka');
+                });
+              }}
+            >
               <Ionicons name="mail" size={24} color="#EA4335" />
               <Text style={styles.socialText}>Email Us</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.socialButton}>
-              <Ionicons name="logo-facebook" size={24} color="#1877F2" />
-              <Text style={styles.socialText}>Facebook Page</Text>
             </TouchableOpacity>
 
             <SafeAreaView edges={['bottom']} />

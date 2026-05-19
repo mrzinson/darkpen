@@ -7,9 +7,10 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import Config from '../constants/Config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Clipboard from 'expo-clipboard';
 
 export default function PaymentScreen() {
-  const { colors, isDark, setTheme, theme, t } = useTheme();
+  const { colors, isDark, t } = useTheme();
   const styles = getStyles(colors, isDark);
 
   const router = useRouter();
@@ -19,6 +20,11 @@ export default function PaymentScreen() {
 
   const planTitle = Array.isArray(params.title) ? params.title[0] : (params.title || 'Adeegga App-ka');
   const priceDisplay = Array.isArray(params.price) ? params.price[0] : (params.price || '$1.0');
+
+  const handleCopy = async (num: string) => {
+    await Clipboard.setStringAsync(num);
+    Alert.alert('La koobiyeeyay', `Lambarada ${num} waa la koobiyeeyay.`);
+  };
 
   const handleSubmit = async () => {
     if (!senderNumber) return;
@@ -45,7 +51,7 @@ export default function PaymentScreen() {
           planId: params.planId,
           amount: params.price ? parseFloat((params.price as string).replace('$', '')) : 1.0,
           groupData: params.groupData ? JSON.parse(params.groupData as string) : null,
-          service_type: params.service_type // Pass it here
+          service_type: params.service_type
         })
       });
 
@@ -73,58 +79,96 @@ export default function PaymentScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Feather name="arrow-left" size={24} color={colors.secondary} />
           </TouchableOpacity>
+          <Text style={styles.headerTitle}>{t('payment_title')}</Text>
+          <View style={{ width: 44 }} />
         </View>
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
-          <View style={styles.iconContainer}>
-            <View style={styles.shieldIcon}>
-              <Ionicons name="card" size={32} color="white" />
+        <ScrollView 
+          style={{ flex: 1 }} 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Plan & Pricing Card */}
+          <View style={styles.planCard}>
+            <View style={styles.planHeader}>
+              <View style={styles.badgeContainer}>
+                <Ionicons name="sparkles" size={16} color="#3B82F6" />
+                <Text style={styles.planBadge}>{planTitle}</Text>
+              </View>
+            </View>
+
+            {/* Price section - premium coloring */}
+            <View style={styles.priceContainer}>
+              <Text style={styles.priceLabel}>Lacagta Laga Rabyo (Price)</Text>
+              <View style={styles.priceBadge}>
+                <Text style={styles.priceText}>{priceDisplay}</Text>
+              </View>
             </View>
           </View>
 
-          <Text style={styles.title}>{t('payment_title')}</Text>
-          <Text style={styles.subtitle}>{t('payment_subtitle')}</Text>
+          {/* Numbers list for sending payment */}
+          <View style={styles.numbersCard}>
+            <Text style={styles.cardSectionTitle}>Fadlan lacagta ku dir mid ka mid ah lambaradan:</Text>
+            
+            <View style={styles.numberItem}>
+              <View style={styles.numberTextContainer}>
+                <Ionicons name="phone-portrait-outline" size={18} color={colors.neutral} />
+                <Text style={styles.numberValue}>637930329</Text>
+              </View>
+              <TouchableOpacity style={styles.copyBtn} onPress={() => handleCopy('637930329')} activeOpacity={0.7}>
+                <Feather name="copy" size={16} color={colors.primary} />
+                <Text style={styles.copyBtnText}>Copy</Text>
+              </TouchableOpacity>
+            </View>
 
-          <View style={styles.infoCard}>
-            <Text style={styles.planName}>{planTitle}</Text>
-            <Text style={styles.infoCardText}>
-              {t('payment_send_msg')} <Text style={{fontWeight: 'bold'}}>{priceDisplay}</Text> )
-            </Text>
-            <View style={styles.numberBadge}>
-              <Text style={styles.numberBadgeText}>637930329</Text>
+            <View style={styles.numberItem}>
+              <View style={styles.numberTextContainer}>
+                <Ionicons name="phone-portrait-outline" size={18} color={colors.neutral} />
+                <Text style={styles.numberValue}>659119779</Text>
+              </View>
+              <TouchableOpacity style={styles.copyBtn} onPress={() => handleCopy('659119779')} activeOpacity={0.7}>
+                <Feather name="copy" size={16} color={colors.primary} />
+                <Text style={styles.copyBtnText}>Copy</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
-          <View style={styles.inputContainer}>
+          {/* Input field */}
+          <View style={styles.inputCard}>
             <Text style={styles.inputLabel}>{t('payment_input_label')}</Text>
             <View style={styles.inputWrapper}>
-              <Feather name="smartphone" size={20} color={colors.neutral} style={styles.inputIcon} />
+              <Feather name="hash" size={20} color={colors.neutral} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder={t('payment_input_placeholder')}
-                placeholderTextColor={colors.neutral}
+                placeholderTextColor={isDark ? 'rgba(255,255,255,0.3)' : '#94A3B8'}
                 keyboardType="phone-pad"
                 value={senderNumber}
                 onChangeText={setSenderNumber}
-                autoFocus={true}
               />
             </View>
+            <Text style={styles.noticeText}>
+              {t('payment_notice')}
+            </Text>
           </View>
-
-          <Text style={styles.noticeText}>
-            {t('payment_notice')}
-          </Text>
-
         </ScrollView>
 
         <View style={styles.footer}>
           <TouchableOpacity 
-            style={{ ...styles.button, ...((!senderNumber || loading) ? styles.buttonDisabled : {}) }}
+            style={StyleSheet.flatten([
+              styles.button,
+              (!senderNumber || loading) && styles.buttonDisabled
+            ])}
             onPress={handleSubmit}
             disabled={!senderNumber || loading}
             activeOpacity={0.8}
@@ -144,155 +188,207 @@ export default function PaymentScreen() {
 const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
   },
   header: {
-    paddingHorizontal: AzureTheme.spacing.l,
-    paddingTop: AzureTheme.spacing.m,
-    marginBottom: AzureTheme.spacing.m,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: isDark ? '#1E293B' : '#E2E8F0',
+    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
   },
   backButton: {
-    backgroundColor: colors.background,
-    padding: 10,
+    padding: 8,
     borderRadius: 20,
-    alignSelf: 'flex-start',
   },
-  scrollContent: {
-    flexGrow: 1,
-    alignItems: 'center',
-    paddingHorizontal: AzureTheme.spacing.xl,
-  },
-  iconContainer: {
-    marginBottom: AzureTheme.spacing.m,
-  },
-  shieldIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: colors.primary,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: colors.neutral,
-    marginBottom: AzureTheme.spacing.xxl,
-  },
-  infoCard: {
-    width: '100%',
-    backgroundColor: colors.tertiary,
-    borderRadius: AzureTheme.borderRadius.m,
-    padding: AzureTheme.spacing.xl,
-    alignItems: 'center',
-    marginBottom: AzureTheme.spacing.xxl,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  planName: {
-    fontSize: 16,
+  headerTitle: {
+    fontSize: 18,
     fontWeight: '700',
     color: colors.primary,
-    marginBottom: 10,
   },
-  infoCardText: {
-    fontSize: 13,
-    color: colors.neutral,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: AzureTheme.spacing.l,
+  scrollContent: {
+    padding: 16,
+    gap: 16,
   },
-  numberBadge: {
-    backgroundColor: colors.card,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: AzureTheme.borderRadius.pill,
+  planCard: {
+    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: isDark ? '#334155' : '#E2E8F0',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: isDark ? 0.3 : 0.05,
+    shadowRadius: 10,
     elevation: 2,
   },
-  numberBadgeText: {
+  planHeader: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  badgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.1)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+  },
+  planBadge: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#3B82F6',
+  },
+  priceContainer: {
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: isDark ? '#334155' : '#F1F5F9',
+    paddingTop: 16,
+  },
+  priceLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.neutral,
+    marginBottom: 8,
+  },
+  priceBadge: {
+    backgroundColor: '#10B981', // Premium green
+    paddingHorizontal: 32,
+    paddingVertical: 10,
+    borderRadius: 30,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  priceText: {
     fontSize: 28,
     fontWeight: '800',
-    
-    color: colors.primary,
-    letterSpacing: 2,
+    color: '#FFFFFF',
   },
-  inputContainer: {
-    width: '100%',
-    marginBottom: AzureTheme.spacing.xl,
+  numbersCard: {
+    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: isDark ? '#334155' : '#E2E8F0',
+    gap: 12,
   },
-  inputLabel: {
+  cardSectionTitle: {
     fontSize: 13,
     fontWeight: '600',
     color: colors.secondary,
-    marginBottom: 8,
+    textAlign: 'center',
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  numberItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: isDark ? '#334155' : '#E2E8F0',
+  },
+  numberTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  numberValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.text,
+    letterSpacing: 1,
+  },
+  copyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  copyBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  inputCard: {
+    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: isDark ? '#334155' : '#E2E8F0',
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.secondary,
+    marginBottom: 10,
     textAlign: 'center',
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.background,
-    borderRadius: AzureTheme.borderRadius.pill,
-    paddingHorizontal: 20,
+    backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
+    borderRadius: 12,
+    paddingHorizontal: 16,
     borderWidth: 1.5,
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0',
+    borderColor: isDark ? '#334155' : '#CBD5E1',
+    marginBottom: 10,
   },
   inputIcon: {
-    position: 'absolute',
-    left: 20,
+    marginRight: 10,
   },
   input: {
     flex: 1,
-    paddingVertical: 18,
-    fontSize: 17,
+    paddingVertical: 14,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
-    textAlign: 'center',
   },
   noticeText: {
     fontSize: 11,
-    color: colors.textLight,
+    color: colors.neutral,
     textAlign: 'center',
     lineHeight: 16,
-    paddingHorizontal: AzureTheme.spacing.l,
   },
   footer: {
-    paddingHorizontal: AzureTheme.spacing.xl,
-    paddingBottom: AzureTheme.spacing.xl,
+    padding: 16,
+    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: isDark ? '#334155' : '#E2E8F0',
   },
   button: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#3B82F6',
     width: '100%',
-    paddingVertical: 18,
-    borderRadius: AzureTheme.borderRadius.pill,
+    paddingVertical: 16,
+    borderRadius: 12,
     alignItems: 'center',
-    shadowColor: colors.primary,
+    shadowColor: '#3B82F6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 5,
+    elevation: 4,
   },
   buttonDisabled: {
-    backgroundColor: colors.border,
+    backgroundColor: isDark ? '#334155' : '#E2E8F0',
     shadowOpacity: 0,
     elevation: 0,
   },
   buttonText: {
     color: 'white',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
   }
 });

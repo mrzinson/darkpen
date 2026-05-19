@@ -2,9 +2,9 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, ViewStyle, StyleSheet, View } from 'react-native';
 
 interface SkeletonProps {
-  width: number | string;
-  height: number | string;
-  style?: ViewStyle;
+  width: any;
+  height: any;
+  style?: any;
   borderRadius?: number;
 }
 

@@ -5,6 +5,7 @@ import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { BlurView } from 'expo-blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const AnimatedIcon = ({ iconName, isFocused, label }: any) => {
   const { colors, isDark } = useTheme();
@@ -36,6 +37,7 @@ const AnimatedIcon = ({ iconName, isFocused, label }: any) => {
 export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const { colors, isDark, setTheme, theme } = useTheme();
   const styles = getStyles(colors);
+  const insets = useSafeAreaInsets();
 
   const router = useRouter();
 
@@ -56,7 +58,7 @@ export function CustomTabBar({ state, descriptors, navigation }: BottomTabBarPro
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { bottom: insets.bottom > 0 ? insets.bottom + 8 : (Platform.OS === 'ios' ? 24 : 16) }]}>
       <View style={styles.blurWrapper}>
         <BlurView intensity={90} tint={isDark ? "dark" : "light"} style={styles.blurContainer}>
           <View style={styles.colorTint} />
