@@ -5,6 +5,7 @@ import { StyleSheet, Text, View, TextInput, TouchableOpacity, KeyboardAvoidingVi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Config from '../constants/Config';
 
 export default function ResetPasswordScreen() {
   const { colors, isDark, setTheme, theme } = useTheme();
@@ -33,7 +34,7 @@ export default function ResetPasswordScreen() {
     setErrorMsg('');
     
     try {
-      const apiUrl = Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://localhost:5000';
+      const apiUrl = Config.API_URL;
       
       const response = await fetch(`${apiUrl}/api/auth/reset-password`, {
         method: 'POST',

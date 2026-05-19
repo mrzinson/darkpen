@@ -5,6 +5,7 @@ import { StyleSheet, Text, View, TextInput, TouchableOpacity, KeyboardAvoidingVi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import Config from '../constants/Config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function TermsScreen() {
@@ -29,7 +30,7 @@ export default function TermsScreen() {
       const token = await AsyncStorage.getItem('userToken');
       if (!token) throw new Error("Fadlan dib u gal App-ka (Login)");
 
-      const apiUrl = Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://localhost:5000';
+      const apiUrl = Config.API_URL;
       const response = await fetch(`${apiUrl}/api/auth/terms`, {
         method: 'POST',
         headers: { 

@@ -5,6 +5,7 @@ import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Config from '../constants/Config';
 import { Picker } from '@react-native-picker/picker';
 
 export default function GroupRegisterScreen() {
@@ -21,7 +22,7 @@ export default function GroupRegisterScreen() {
   const [selectedSection, setSelectedSection] = useState<string>('');
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/auth/schools')
+    fetch(`${Config.API_URL}/api/auth/schools`)
       .then(res => res.json())
       .then(data => {
         setSchools(data);
@@ -36,7 +37,7 @@ export default function GroupRegisterScreen() {
   useEffect(() => {
     if (selectedSchool) {
       setLoading(true);
-      fetch(`http://localhost:5000/api/auth/classes/${selectedSchool}`)
+      fetch(`${Config.API_URL}/api/auth/classes/${selectedSchool}`)
         .then(res => res.json())
         .then(data => {
           setClasses(data);

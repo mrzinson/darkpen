@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { 
-  LogOut, CreditCard, Book, FileText, PieChart, LayoutDashboard, Users, Bot, Settings, Megaphone, CheckSquare
+  LogOut, CreditCard, Book, FileText, PieChart, LayoutDashboard, Users, Bot, Settings, Megaphone, CheckSquare, Menu, X
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import './Dashboard.css';
@@ -132,6 +132,11 @@ const SettingsPanel = () => <div><h2>Settings</h2><p className="text-muted">Syst
 
 export default function DashboardLayout({ onLogout }: LayoutProps) {
   const location = useLocation();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
 
   const navItems = [
     { path: '/', icon: <LayoutDashboard size={20} />, label: 'Overview' },
@@ -149,10 +154,23 @@ export default function DashboardLayout({ onLogout }: LayoutProps) {
 
   return (
     <div className="dashboard-container">
+      {/* Mobile Sidebar Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="sidebar-overlay" 
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="sidebar">
-        <div className="sidebar-header">
+      <aside className={`sidebar ${isMobileMenuOpen ? 'mobile-active' : ''}`}>
+        <div className="sidebar-header" style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
           <h2>Darkpen<span className="text-primary">Admin</span></h2>
+          {isMobileMenuOpen && (
+            <button className="mobile-close-btn" onClick={() => setIsMobileMenuOpen(false)}>
+              <X size={24} />
+            </button>
+          )}
         </div>
 
         <nav className="sidebar-nav">
@@ -179,8 +197,16 @@ export default function DashboardLayout({ onLogout }: LayoutProps) {
       {/* Main Content */}
       <main className="main-content">
         <header className="top-header">
-          <div className="header-title">
-            {navItems.find(i => i.path === location.pathname)?.label || 'Dashboard'}
+          <div className="flex-center" style={{ gap: '12px' }}>
+            <button 
+              className="mobile-menu-btn" 
+              onClick={() => setIsMobileMenuOpen(true)}
+            >
+              <Menu size={24} />
+            </button>
+            <div className="header-title">
+              {navItems.find(i => i.path === location.pathname)?.label || 'Dashboard'}
+            </div>
           </div>
           <div className="admin-profile">
             <div className="avatar">A</div>

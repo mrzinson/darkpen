@@ -9,13 +9,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Config from '../constants/Config';
 
 export default function LoginScreen() {
   const { colors } = useTheme();
   const styles = getStyles(colors);
   const router = useRouter();
 
-  const [form, setForm] = useState({ email: 'admin@1.com', password: '1234' });
+  const [form, setForm] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('Please enter your email and password');
   const [emailFocused, setEmailFocused] = useState(false);
@@ -48,22 +49,10 @@ export default function LoginScreen() {
     setErrorMsg('');
     setLoading(true);
 
-    // Bypass login if default credentials are used
-    if (form.email === 'admin@1.com' && form.password === '1234') {
-      try {
-        await AsyncStorage.setItem('userToken', 'local-bypass-token');
-        await AsyncStorage.setItem('userData', JSON.stringify({ email: 'admin@1.com', name: 'Admin', role: 'admin' }));
-        router.push('/(tabs)');
-      } catch (err: any) {
-        setErrorMsg('Failed to save local session.');
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
+
 
     try {
-      const apiUrl = Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://localhost:5000';
+      const apiUrl = Config.API_URL;
       const response = await fetch(`${apiUrl}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -3,7 +3,8 @@ import { useTheme } from '../context/ThemeContext';
 import React, { useState, useRef } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import Config from '../constants/Config';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -49,7 +50,7 @@ export default function VerifyScreen() {
       const token = await AsyncStorage.getItem('userToken');
       if (!token) throw new Error("Fadlan dib ugu noqo signup/login");
 
-      const apiUrl = Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://localhost:5000';
+      const apiUrl = Config.API_URL;
       const response = await fetch(`${apiUrl}/api/auth/verify-email`, {
         method: 'POST',
         headers: { 
@@ -78,7 +79,7 @@ export default function VerifyScreen() {
       const token = await AsyncStorage.getItem('userToken');
       if (!token) throw new Error("Fadlan dib ugu noqo signup/login");
 
-      const apiUrl = Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://localhost:5000';
+      const apiUrl = Config.API_URL;
       const response = await fetch(`${apiUrl}/api/auth/resend-code`, {
         method: 'POST',
         headers: { 

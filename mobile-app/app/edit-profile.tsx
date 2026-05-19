@@ -5,6 +5,7 @@ import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, Platfo
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Config from '../constants/Config';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthGuard } from '../components/AuthGuard';
@@ -62,7 +63,7 @@ export default function EditProfileScreen() {
       const token = await AsyncStorage.getItem('userToken');
       if (!token) throw new Error("Authentication error");
 
-      const apiUrl = Platform.OS === 'android' ? 'http://10.0.2.2:5000' : 'http://localhost:5000';
+      const apiUrl = Config.API_URL;
       
       const updateData: any = {};
       if (form.name) updateData.name = form.name;

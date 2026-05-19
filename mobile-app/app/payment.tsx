@@ -5,6 +5,7 @@ import { StyleSheet, Text, View, TextInput, TouchableOpacity, KeyboardAvoidingVi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
+import Config from '../constants/Config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function PaymentScreen() {
@@ -33,7 +34,7 @@ export default function PaymentScreen() {
         return;
       }
 
-      const res = await fetch('http://localhost:5000/api/auth/submit-payment', {
+      const res = await fetch(`${Config.API_URL}/api/auth/submit-payment`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
