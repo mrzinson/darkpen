@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { API_URL } from '../config';
-import { 
-  Users, Ban, Trash2, RotateCcw, Copy, Check, 
-  Eye, EyeOff, X, DollarSign, MessageSquare, 
-  User, Mail, Phone, Calendar, ShieldAlert,
+import {
+  Users, Ban, Trash2, RotateCcw, Copy, Check,
+  Eye, EyeOff, X, DollarSign, MessageSquare,
+  User, Mail, Phone, Calendar,
   Lock as LockIcon
 } from 'lucide-react';
 
@@ -13,7 +13,7 @@ export default function UsersPanel() {
   const [search, setSearch] = useState('');
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  
+
   // Toast Alert State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'danger' | 'info' } | null>(null);
   // Copy feedback state tracker
@@ -92,8 +92,8 @@ export default function UsersPanel() {
     }
   };
 
-  const filteredUsers = users.filter(u => 
-    u.name?.toLowerCase().includes(search.toLowerCase()) || 
+  const filteredUsers = users.filter(u =>
+    u.name?.toLowerCase().includes(search.toLowerCase()) ||
     u.email?.toLowerCase().includes(search.toLowerCase()) ||
     u.username?.toLowerCase().includes(search.toLowerCase()) ||
     u.whatsapp_number?.toLowerCase().includes(search.toLowerCase())
@@ -108,7 +108,7 @@ export default function UsersPanel() {
 
   return (
     <div className="panel-container" style={{ position: 'relative' }}>
-      
+
       {/* Premium Integrated Toast */}
       {toast && (
         <div style={{
@@ -148,9 +148,9 @@ export default function UsersPanel() {
         </div>
         <div className="flex-center" style={{ gap: '12px' }}>
           <div className="input-group" style={{ margin: 0 }}>
-             <input 
-              type="text" 
-              placeholder="Search users by name, email, username..." 
+            <input
+              type="text"
+              placeholder="Search users by name, email, username..."
               className="admin-input"
               style={{ padding: '8px 12px', width: '280px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 'var(--radius-sm)', color: '#FFF' }}
               value={search}
@@ -210,20 +210,20 @@ export default function UsersPanel() {
               </tr>
             ) : filteredUsers.map(u => (
               <tr key={u.id} onClick={() => { setSelectedUser(u); setShowPassword(false); }} style={{ cursor: 'pointer' }}>
-                
+
                 {/* Profile column */}
                 <td>
                   <div className="flex-center" style={{ justifyContent: 'flex-start', gap: '12px' }}>
-                    <div 
-                      className="avatar-sm animate-pulse" 
-                      style={{ 
-                        backgroundColor: getUserColor(u.name), 
-                        borderRadius: '50%', 
-                        color: '#FFF', 
-                        fontWeight: 'bold', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center' 
+                    <div
+                      className="avatar-sm animate-pulse"
+                      style={{
+                        backgroundColor: getUserColor(u.name),
+                        borderRadius: '50%',
+                        color: '#FFF',
+                        fontWeight: 'bold',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
                       }}
                     >
                       {u.name?.charAt(0).toUpperCase()}
@@ -240,7 +240,7 @@ export default function UsersPanel() {
                   {u.username ? (
                     <div className="flex-center" style={{ justifyContent: 'flex-start', gap: '6px' }}>
                       <span style={{ fontWeight: 500, color: 'var(--primary)' }}>@{u.username}</span>
-                      <button 
+                      <button
                         onClick={(e) => handleCopy(e, u.username, `uname-${u.id}`)}
                         style={{ opacity: 0.6, cursor: 'pointer' }}
                         title="Copy username"
@@ -261,7 +261,7 @@ export default function UsersPanel() {
                   {u.whatsapp_number ? (
                     <div className="flex-center" style={{ justifyContent: 'flex-start', gap: '6px' }}>
                       <span style={{ fontWeight: 500 }}>{u.whatsapp_number}</span>
-                      <button 
+                      <button
                         onClick={(e) => handleCopy(e, u.whatsapp_number, `wa-${u.id}`)}
                         style={{ opacity: 0.6, cursor: 'pointer' }}
                         title="Copy WhatsApp"
@@ -276,9 +276,9 @@ export default function UsersPanel() {
 
                 {/* Status Column */}
                 <td>
-                  <span 
+                  <span
                     onClick={(e) => handleToggleSuspend(e, u.id)}
-                    className={`badge ${u.is_suspended ? 'danger' : 'success'}`} 
+                    className={`badge ${u.is_suspended ? 'danger' : 'success'}`}
                     style={{ cursor: 'pointer', transition: 'all 0.2s' }}
                     title="Click to toggle status"
                   >
@@ -301,15 +301,15 @@ export default function UsersPanel() {
                 {/* Actions Column */}
                 <td style={{ textAlign: 'right' }}>
                   <div className="action-btns" style={{ justifyContent: 'flex-end', gap: '6px' }}>
-                    <button 
+                    <button
                       className="icon-btn success"
                       title="More details"
                       onClick={() => { setSelectedUser(u); setShowPassword(false); }}
                     >
                       <Eye size={15} />
                     </button>
-                    <button 
-                      className="icon-btn danger" 
+                    <button
+                      className="icon-btn danger"
                       title="Delete User"
                       onClick={(e) => { e.stopPropagation(); handleDeleteUser(u.id, u.name); }}
                     >
@@ -321,7 +321,7 @@ export default function UsersPanel() {
             ))}
           </tbody>
         </table>
-        
+
         {filteredUsers.length === 0 && !loading && (
           <div style={{ padding: '40px', textAlign: 'center' }} className="text-muted">
             No users match your search query.
@@ -359,7 +359,7 @@ export default function UsersPanel() {
             flexDirection: 'column',
             overflow: 'hidden'
           }} className="animate-zoom">
-            
+
             {/* Modal Header (Fixed at Top) */}
             <div style={{
               display: 'flex',
@@ -371,7 +371,7 @@ export default function UsersPanel() {
               flexShrink: 0
             }} className="flex-between">
               <div className="flex-center" style={{ justifyContent: 'flex-start', gap: '16px' }}>
-                <div 
+                <div
                   style={{
                     width: '48px',
                     height: '48px',
@@ -406,7 +406,7 @@ export default function UsersPanel() {
                   </div>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setSelectedUser(null)}
                 style={{
                   padding: '8px',
@@ -430,7 +430,7 @@ export default function UsersPanel() {
               padding: '24px',
               boxSizing: 'border-box'
             }} className="custom-scrollbar">
-              
+
               {/* Profile details category */}
               <div style={{ marginBottom: '24px' }}>
                 <div className="text-muted" style={{ fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>
@@ -445,7 +445,7 @@ export default function UsersPanel() {
                   padding: '16px',
                   borderRadius: 'var(--radius-md)'
                 }}>
-                  
+
                   {/* Username */}
                   <div>
                     <div className="text-muted" style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
@@ -456,7 +456,7 @@ export default function UsersPanel() {
                         {selectedUser.username ? `@${selectedUser.username}` : 'Not set'}
                       </span>
                       {selectedUser.username && (
-                        <button 
+                        <button
                           onClick={(e) => handleCopy(e, selectedUser.username, 'modal-uname')}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.6 }}
                         >
@@ -484,7 +484,7 @@ export default function UsersPanel() {
                         {selectedUser.whatsapp_number || 'Not set'}
                       </span>
                       {selectedUser.whatsapp_number && (
-                        <button 
+                        <button
                           onClick={(e) => handleCopy(e, selectedUser.whatsapp_number, 'modal-wa')}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.6 }}
                         >
@@ -528,13 +528,13 @@ export default function UsersPanel() {
                       }}>
                         {showPassword ? selectedUser.password : '••••••••••••••••••••••••••••••••••••••••'}
                       </div>
-                      <button 
+                      <button
                         onClick={() => setShowPassword(!showPassword)}
                         style={{ cursor: 'pointer', opacity: 0.7, padding: '2px' }}
                       >
                         {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                       </button>
-                      <button 
+                      <button
                         onClick={(e) => handleCopy(e, selectedUser.password, 'modal-pass')}
                         style={{ cursor: 'pointer', opacity: 0.7, padding: '2px' }}
                       >
@@ -556,7 +556,7 @@ export default function UsersPanel() {
                   gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
                   gap: '12px'
                 }}>
-                  
+
                   {/* Credits */}
                   <div style={{
                     background: 'rgba(10, 132, 255, 0.03)',
@@ -644,9 +644,9 @@ export default function UsersPanel() {
               backgroundColor: 'rgba(0, 0, 0, 0.15)',
               flexShrink: 0
             }}>
-              
+
               {/* Suspend/Unsuspend Toggle Button */}
-              <button 
+              <button
                 onClick={(e) => handleToggleSuspend(e, selectedUser.id)}
                 className={`btn ${selectedUser.is_suspended ? 'success' : 'warning'}`}
                 style={{
@@ -669,7 +669,7 @@ export default function UsersPanel() {
               </button>
 
               {/* Delete Button */}
-              <button 
+              <button
                 onClick={() => handleDeleteUser(selectedUser.id, selectedUser.name)}
                 style={{
                   display: 'flex',

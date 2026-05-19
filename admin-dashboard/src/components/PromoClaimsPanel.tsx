@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { API_URL } from '../config';
-import { 
-  Check, X, Eye, Phone, Mail, RotateCcw, 
-  Copy, Image as ImageIcon, ExternalLink, Award 
+import {
+  Check, X, Mail, RotateCcw,
+  Copy, Image as ImageIcon, ExternalLink, Award
 } from 'lucide-react';
 
 export default function PromoClaimsPanel() {
@@ -10,7 +10,7 @@ export default function PromoClaimsPanel() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
-  
+
   // Toast notifications state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'danger' | 'info' } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -88,8 +88,8 @@ export default function PromoClaimsPanel() {
     }
   };
 
-  const filteredClaims = claims.filter(c => 
-    c.user_name?.toLowerCase().includes(search.toLowerCase()) || 
+  const filteredClaims = claims.filter(c =>
+    c.user_name?.toLowerCase().includes(search.toLowerCase()) ||
     c.user_email?.toLowerCase().includes(search.toLowerCase()) ||
     c.promo_title_so?.toLowerCase().includes(search.toLowerCase()) ||
     c.promo_title_en?.toLowerCase().includes(search.toLowerCase())
@@ -97,7 +97,7 @@ export default function PromoClaimsPanel() {
 
   return (
     <div className="panel-container" style={{ position: 'relative' }}>
-      
+
       {/* Premium Alert Toast */}
       {toast && (
         <div style={{
@@ -132,9 +132,9 @@ export default function PromoClaimsPanel() {
         </div>
         <div className="flex-center" style={{ gap: '12px' }}>
           <div className="input-group" style={{ margin: 0 }}>
-            <input 
-              type="text" 
-              placeholder="Baadh magac, email ama promo..." 
+            <input
+              type="text"
+              placeholder="Baadh magac, email ama promo..."
               className="admin-input"
               style={{ padding: '8px 12px', width: '260px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 'var(--radius-sm)', color: '#FFF' }}
               value={search}
@@ -200,7 +200,7 @@ export default function PromoClaimsPanel() {
 
               return (
                 <tr key={c.id}>
-                  
+
                   {/* User Profile */}
                   <td>
                     <div style={{ fontWeight: 600 }}>{c.user_name}</div>
@@ -214,7 +214,7 @@ export default function PromoClaimsPanel() {
                     {c.user_whatsapp ? (
                       <div className="flex-center" style={{ justifyContent: 'flex-start', gap: '6px' }}>
                         <span style={{ fontSize: '13px' }}>{c.user_whatsapp}</span>
-                        <button 
+                        <button
                           onClick={(e) => handleCopy(e, c.user_whatsapp, `wa-${c.id}`)}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.6 }}
                         >
@@ -241,12 +241,12 @@ export default function PromoClaimsPanel() {
 
                   {/* Screenshot Thumbnail */}
                   <td>
-                    <div 
+                    <div
                       onClick={() => setSelectedScreenshot(screenshotUrl)}
-                      style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '8px', 
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
                         cursor: 'pointer',
                         padding: '4px 8px',
                         background: 'rgba(255,255,255,0.02)',
@@ -279,14 +279,14 @@ export default function PromoClaimsPanel() {
                   <td style={{ textAlign: 'right' }}>
                     {c.status === 'pending' ? (
                       <div className="action-btns" style={{ justifyContent: 'flex-end', gap: '6px' }}>
-                        <button 
+                        <button
                           className="icon-btn success"
                           title="Ansixi (Approve)"
                           onClick={() => handleApprove(c.id)}
                         >
                           <Check size={14} />
                         </button>
-                        <button 
+                        <button
                           className="icon-btn danger"
                           title="Diid (Reject & Delete)"
                           onClick={() => handleReject(c.id)}
@@ -330,13 +330,13 @@ export default function PromoClaimsPanel() {
           padding: '24px',
           boxSizing: 'border-box'
         }}>
-          
+
           {/* Modal Header */}
           <div className="flex-between" style={{ width: '100%', maxWidth: '640px', marginBottom: '16px' }}>
             <span style={{ fontWeight: 'bold', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <ImageIcon size={16} /> Screenshot Proof Verification
             </span>
-            <button 
+            <button
               onClick={() => setSelectedScreenshot(null)}
               style={{
                 backgroundColor: 'rgba(255,255,255,0.06)',
@@ -364,9 +364,9 @@ export default function PromoClaimsPanel() {
             overflow: 'hidden',
             border: '2px solid rgba(255,255,255,0.1)'
           }}>
-            <img 
-              src={selectedScreenshot} 
-              alt="Screenshot Proof" 
+            <img
+              src={selectedScreenshot}
+              alt="Screenshot Proof"
               style={{
                 maxWidth: '640px',
                 width: '100%',
@@ -378,9 +378,9 @@ export default function PromoClaimsPanel() {
           </div>
 
           <div style={{ marginTop: '16px', display: 'flex', gap: '12px' }}>
-            <a 
-              href={selectedScreenshot} 
-              target="_blank" 
+            <a
+              href={selectedScreenshot}
+              target="_blank"
               rel="noreferrer"
               className="btn secondary"
               style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px', fontSize: '13px', borderRadius: 'var(--radius-sm)' }}
