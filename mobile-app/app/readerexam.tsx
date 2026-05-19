@@ -44,7 +44,7 @@ export default function ReaderExamScreen() {
           />
         ) : (
           <WebView 
-            source={{ uri: pdfUrl as string }}
+            source={{ uri: Platform.OS === 'android' ? `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(pdfUrl as string)}` : pdfUrl as string }}
             style={styles.webview}
             startInLoadingState={true}
             renderLoading={() => (

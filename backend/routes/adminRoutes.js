@@ -188,6 +188,14 @@ router.post('/payments/:id/approve', async (req, res) => {
             await db.execute('UPDATE group_registrations SET status = "approved" WHERE id = ?', [groupReg[0].id]);
         }
 
+        // Send push notification
+        const pushService = require('../services/pushNotificationService');
+        await pushService.sendPushNotification(
+            p.user_id,
+            'Dalabka Lacag-bixinta',
+            `Dalabkaaga lacag-bixinta ee $${p.amount} waa la ansixiyey! Adeegyadaadu hadda waa firfircoon yihiin.`
+        );
+
         res.json({ message: 'Lacag-bixinta waa la oggolaaday, xogta user-ka waa la cusboonaysiiyay!' });
     } catch (error) {
         console.error(error);
@@ -198,7 +206,21 @@ router.post('/payments/:id/approve', async (req, res) => {
 router.post('/payments/:id/reject', async (req, res) => {
     try {
         const { id } = req.params;
+        const [payment] = await db.execute('SELECT * FROM payments WHERE id = ?', [id]);
+        if (payment.length === 0) return res.status(404).json({ message: 'Lama helin lacag-bixintan' });
+        const p = payment[0];
+
         await db.execute('UPDATE payments SET status = "rejected" WHERE id = ?', [id]);
+        await db.execute('UPDATE users SET payment_status = "rejected" WHERE id = ?', [p.user_id]);
+
+        // Send push notification
+        const pushService = require('../services/pushNotificationService');
+        await pushService.sendPushNotification(
+            p.user_id,
+            'Dalabka Lacag-bixinta',
+            `Dalabkaaga lacag-bixinta ee $${p.amount} waa la diiday. Fadlan la xiriir caawiyaha.`
+        );
+
         res.json({ message: 'Lacag-bixinta waa la diiday!' });
     } catch (error) {
         res.status(500).json({ message: 'Cilad ayaa dhacday' });
@@ -486,6 +508,14 @@ router.post('/promo-claims/:id/approve', async (req, res) => {
         // Mark claim as approved
         await db.execute('UPDATE user_claimed_promos SET status = "approved" WHERE id = ?', [claimId]);
 
+        // Send push notification
+        const pushService = require('../services/pushNotificationService');
+        await pushService.sendPushNotification(
+            claim.user_id,
+            `Abaalmarinta ${claim.promo_title_so || 'Xayaysiiska'}`,
+            `Dalabkaaga abaalmarinta waa la ansixiyey! Waxaa lagugu shubay +${promo.reward_credits} Credits.`
+        );
+
         res.json({ message: 'Dalabka si guul leh ayaa loo ansixiyey, abaalmarintiina waa la siiyey!' });
 
     } catch (error) {
@@ -498,13 +528,27 @@ router.post('/promo-claims/:id/reject', async (req, res) => {
     try {
         const claimId = req.params.id;
 
-        const [claimRows] = await db.execute('SELECT * FROM user_claimed_promos WHERE id = ?', [claimId]);
+        const [claimRows] = await db.execute(`
+            SELECT c.*, p.title_so as promo_title_so 
+            FROM user_claimed_promos c
+            JOIN promo_cards p ON c.promo_card_id = p.id
+            WHERE c.id = ?
+        `, [claimId]);
         if (claimRows.length === 0) {
             return res.status(404).json({ message: 'Dalabkan lama helin' });
         }
+        const claim = claimRows[0];
 
         // Delete from database to clear the state and allow retry
         await db.execute('DELETE FROM user_claimed_promos WHERE id = ?', [claimId]);
+
+        // Send push notification
+        const pushService = require('../services/pushNotificationService');
+        await pushService.sendPushNotification(
+            claim.user_id,
+            'Dalabka Abaalmarinta',
+            `Dalabkaaga abaalmarinta ee ${claim.promo_title_so || 'xayaysiiska'} waa la diiday. Fadlan dib u soo dir sawir ka duwan oo sax ah.`
+        );
 
         res.json({ message: 'Dalabkii waa la diiday, waana la tirtiray si uu qofku dib ugu soo upload-gareeyo.' });
     } catch (error) {
