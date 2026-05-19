@@ -354,7 +354,7 @@ export default function ShukaansiScreen() {
         </View>
 
         <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.headerIconBox} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.headerIconBox} onPress={() => router.push('/voice-call')} activeOpacity={0.7}>
             <Ionicons name="call-outline" size={22} color={colors.secondary} />
           </TouchableOpacity>
           
