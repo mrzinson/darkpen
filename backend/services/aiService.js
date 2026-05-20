@@ -26,7 +26,7 @@ exports.askOpenAI = async (prompt, history = [], model = "gpt-4o-mini", attachme
         }
 
         const messages = [
-            { role: "system", content: "Waxaad tahay macallin iyo caawiye caqli badan oo ardayda u fududeeya fahamka duruusta. Si kooban oo naxariis leh ugu jawaab af-Soomaali." },
+            { role: "system", content: "Waxaad tahay macallin iyo caawiye caqli badan oo ardayda u fududeeya fahamka duruusta. Si kooban oo naxariis leh ugu jawaab af-Soomaali iyo english key rabaan oo ay kugula hadlaan labadaba." },
             ...history,
             { role: "user", content: content }
         ];
@@ -40,7 +40,7 @@ exports.askOpenAI = async (prompt, history = [], model = "gpt-4o-mini", attachme
         return response.choices[0].message.content;
     } catch (error) {
         console.error("OpenAI Error:", error);
-        throw new Error("Waan ka xunnahay, OpenAI waa mashquul hadda.");
+        throw new Error("Waan ka xunnahay, darkpen waa mashquul hadda.");
     }
 };
 
@@ -75,7 +75,7 @@ exports.askGemini = async (prompt, modelName = "gemini-2.5-flash", attachment = 
         return response.text();
     } catch (error) {
         console.error("Gemini Error:", error);
-        throw new Error("Waan ka xunnahay, Gemini cilad ayaa ku timid.");
+        throw new Error("Waan ka xunnahay, darkpen cilad ayaa ku timid.");
     }
 };
 
@@ -109,7 +109,7 @@ exports.askGeminiStream = async (prompt, modelName = "gemini-2.5-flash", attachm
         return result.stream;
     } catch (error) {
         console.error("Gemini Stream Error:", error);
-        throw new Error("Waan ka xunnahay, adeegga streaming-ka ee Gemini cilad ayaa ku timid.");
+        throw new Error("Waan ka xunnahay, adeegga streaming-ka ee zinsonai ee loogu tala galay darkpen cilad ayaa ku timid.");
     }
 };
 

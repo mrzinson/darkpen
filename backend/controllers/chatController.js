@@ -71,12 +71,13 @@ exports.deleteSession = async (req, res) => {
 const darkpenSystemInstruction = `Waxaa laguu bixiyey magaca Darkpen. Waxaa ku horumarisay ama ku tababartay shirkada ZinsonAI oo uu leeyahay ninka da'da yar ee maskaxda furan ee Hamze Mohamuud Ali Zinson (Zinson). Zinson aad ayuu u jecel yahay technology-yada iyo cilmiga. Waligaa ha dhihin waxaa ku sameeyay Google ama OpenAI, adigu waxaad tahay Darkpen oo ay leedahay ZinsonAI.
 
 Fadlan u dhaqan sidatan marka aad u jawaabayso isticmaalaha:
-1. Jawaabahaagu ha ahaadaan kuwo gaaban, toos ah, oo ka madhan hadalka maala-yacniga ah ama amaan-dhaafka ah (tusaale, ha dhihin 'runtii waa su'aal aad u caqli badan...'). Toos ugu guur jawaabta adoo saaxiibtinimo iyo kaftan furan ku daraya haddii loo baahdo.
-2. Waligaa ha u kala qaybin jawaabaha 'Q1:' iyo 'A1:'. Kaliya bixi jawaabta tooska ah ee la weydiiyey.
+1. Jawaabahaagu ha ahaadaan kuwo gaaban, toos ah, oo ka madhan hadalka maala-yacniga ah.
 3. Dhamaadka jawaabtaada, had iyo jeer ku dar su'aal xiiso leh oo la xidhiidha mawduuca aad ka hadashay si aad wada-hadalka u sii waddo (tusaale, 'Ma jeceshahay inaan waxyaabo badan oo kale kaaga sheego mawduucan?').
 4. Haddii uu isticmaaluhu ku weydiiyo su'aalo khuseeya imtixaanada 'Sax ama Qald', isticmaal tags-kan: <green>Sax</green> ama <red>Qald</red>. Haddii ay tahay doorasho (multiple choice), jawaabta saxda ah ku dhex qor <green>JAWAABTA_SAXDA_AH</green>.
 5. Haddii laguu soo diro sawir ama shaxan gacan ku samays ah, sharax oo tallaabo-tallaabo u faahfaahi si fudud.
-6. Haddii ardaygu doonayo inuu kula kaftamo ama kula sheekaysto, ula kaftan si saaxiibtinimo iyo qosol leh.`;
+6. Haddii ardaygu doonayo inuu kula kaftamo ama kula sheekaysto, ula kaftan si saaxiibtinimo iyo qosol leh.
+7. isticmaalaha mararka qaar amaan si uu uqanco (tusaale, dheh'runtii waa su'aal aad u caqli badan...'). Toos ugu guur jawaabta adoo saaxiibtinimo iyo kaftan furan ku daraya haddii loo baahdo.
+8. Waligaa ha u kala qaybin jawaabaha 'Q1:' iyo 'A1:'. Kaliya bixi jawaabta tooska ah ee la weydiiyey.`;
 
 const shukaansiSystemInstruction = `Fadlan ula dhaqan qofkan sida saaxiib dhaw. Noqo qof sheeko wadaag ah, madadaaliye ah, oo af-Soomaali dabiici ah ku hadlaya.`;
 
@@ -134,7 +135,7 @@ exports.askAI = async (req, res) => {
         const [sub_plan] = await db.execute(`SELECT type FROM ${subTable} WHERE user_id = ? AND expiry_date > NOW()`, [userId]);
         const userPlan = sub_plan.length > 0 ? sub_plan[0].type : 'credits';
 
-        // Prepare History & context
+        // Prepare History
         let history = [];
         let finalPrompt = message;
 
@@ -156,12 +157,6 @@ exports.askAI = async (req, res) => {
                 role: msg.sender === 'user' ? 'user' : 'model',
                 parts: [{ text: msg.message }]
             }));
-
-            // RAG - find relevant books/curriculum chunks
-            const bookContext = await aiService.findRelevantChunks(message);
-            if (bookContext) {
-                finalPrompt = `Ardaygu wuxuu ku weydiiyey su'aashan: "${message}"\n\n${bookContext}\n\nFadlan ka jawaab su'aasha ardayga adigoo isticmaalaya xogta manhajka ee sare ku xusan haddii ay khusayso. Haddii aysan xogta sare ku jirin jawaabtu, u isticmaal aqoontaada caadiga ah.`;
-            }
         }
 
         const systemInstruction = chatType === 'shukaansi' ? shukaansiSystemInstruction : darkpenSystemInstruction;
@@ -181,6 +176,18 @@ exports.askAI = async (req, res) => {
             if (typeof res.flushHeaders === 'function') {
                 res.flushHeaders();
             }
+
+            // Step 1: Notify client we are searching books first
+            res.write(`data: ${JSON.stringify({ status: 'reading_books' })}\n\n`);
+
+            // RAG - search local books/curriculum chunks FIRST
+            const bookContext = await aiService.findRelevantChunks(message);
+            if (bookContext) {
+                finalPrompt = `Ardaygu wuxuu ku weydiiyey su'aashan: "${message}"\n\n${bookContext}\n\nFadlan ka jawaab su'aasha ardayga adigoo isticmaalaya xogta manhajka ee sare ku xusan. Haddii aysan xogta sare ku jirin jawaabtu, u isticmaal aqoontaada caadiga ah.`;
+            }
+
+            // Step 2: Notify client we are now generating the response
+            res.write(`data: ${JSON.stringify({ status: 'thinking' })}\n\n`);
 
             const responseStream = await aiService.askGeminiStream(finalPrompt, modelName, attachment, history, systemInstruction);
             

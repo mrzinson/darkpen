@@ -287,7 +287,7 @@ export default function ChatScreen() {
         });
         setIsAttachOpen(false);
       } catch (err) {
-        alert('Cilad ayaa dhacday soo akhrinta faylka.');
+        alert('fyle masoo galin kartid waayo upgrade ma haysatid si uu kuugu shaqeeyo inaad fyle soo galisid iibso premium ');
       }
     }
   };
@@ -444,11 +444,11 @@ export default function ChatScreen() {
 
     setMessages(prev => [...prev, newUserMsg, newAiMsg]);
 
-    // Start dynamic status updates
-    setThinkingStatus(currentAttachment ? 'Analyzing image...' : 'Searching curriculum...');
+    // Initial status (for attachment, always analyzing image)
+    setThinkingStatus(currentAttachment ? 'Analyzing image...' : 'Reading books...');
     const statusTimeout = setTimeout(() => {
       setThinkingStatus('Thinking...');
-    }, 2000);
+    }, 8000); // fallback in case no server status received
 
     if (userText === '112233') {
       clearTimeout(statusTimeout);
@@ -522,7 +522,7 @@ export default function ChatScreen() {
             }
           }
 
-          // Parse SSE stream format: data: {"text": "..."}
+          // Parse SSE stream format: data: {"text": "...", "status": "...", "error": "..."}
           const lines = chunk.split('\n');
           for (const line of lines) {
             const trimmedLine = line.trim();
@@ -533,12 +533,18 @@ export default function ChatScreen() {
               }
               try {
                 const parsed = JSON.parse(dataStr);
-                if (parsed.error) {
+                // Handle server-sent status events
+                if (parsed.status === 'reading_books') {
+                  clearTimeout(statusTimeout);
+                  setThinkingStatus('Reading books...');
+                } else if (parsed.status === 'thinking') {
+                  clearTimeout(statusTimeout);
+                  setThinkingStatus('Thinking...');
+                } else if (parsed.error) {
                   accumulatedText = "Cilad: " + parsed.error;
                   setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: accumulatedText, status: 'complete' } : m));
                   break;
-                }
-                if (parsed.text) {
+                } else if (parsed.text) {
                   accumulatedText += parsed.text;
                   setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: accumulatedText, status: 'streaming' } : m));
                 }
