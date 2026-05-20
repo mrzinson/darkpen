@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../config/db');
 const auth = require('../middleware/auth');
 const userController = require('../controllers/userController');
+const { checkAndExpireWallet } = require('../utils/walletHelper');
 const multer = require('multer');
 const path = require('path');
 
@@ -50,8 +51,12 @@ router.get('/books', auth, async (req, res) => {
 router.get('/profile', auth, async (req, res) => {
     try {
         const userId = req.user.id;
+        // Expire pay-as-you-go balance if inactive for 1 month
+        await checkAndExpireWallet(userId);
+
         const [user] = await db.execute(`
             SELECT u.id, u.name, u.email, u.username, u.profile_picture, u.role,
+                   u.payment_status, u.payment_reference,
                    (SELECT balance FROM user_wallet WHERE user_id = u.id) as balance,
                    (SELECT type FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() LIMIT 1) as subscription_type
             FROM users u WHERE u.id = ?
@@ -159,6 +164,9 @@ router.post('/promo-cards/:id/claim', auth, upload.single('screenshot'), async (
 router.get('/notifications', auth, async (req, res) => {
     try {
         const userId = req.user.id;
+        // Expire pay-as-you-go balance if inactive for 1 month
+        await checkAndExpireWallet(userId);
+
         const notifications = [];
 
         // 1. Fetch user creation date
@@ -217,6 +225,21 @@ router.get('/notifications', auth, async (req, res) => {
                 message: `Dalabkaaga abaalmarinta ee ${c.title_so} ${statusText}`,
                 time: c.claimed_at,
                 type: 'claim'
+            });
+        });
+
+        // 4. Fetch wallet expirations (Pay as you go inactivity)
+        const [expirations] = await db.execute(
+            'SELECT expired_balance, expired_at FROM wallet_expirations WHERE user_id = ? ORDER BY expired_at DESC',
+            [userId]
+        );
+        expirations.forEach((e, idx) => {
+            notifications.push({
+                id: `expiration-${idx}`,
+                title: 'Credits-kii oo dhacay (Expired)',
+                message: `Credits-kaagii (Pay as you go) oo ahaa ${e.expired_balance} waa uu dhacay sababtoo ah ma aadan isticmaalin muddo 1 bil ah. Fadlan ku shubo credits cusub si aad u sii wadato adeegga.`,
+                time: e.expired_at,
+                type: 'expiration'
             });
         });
 

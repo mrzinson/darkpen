@@ -241,6 +241,67 @@ export default function GroupDetailsScreen() {
           {groupInfo?.description && <Text style={styles.groupDesc}>{groupInfo.description}</Text>}
         </View>
 
+        {/* Rules/Xeerarka Section */}
+        <View style={[styles.section, { borderBottomWidth: 1, borderBottomColor: isDark ? '#374151' : '#E5E7EB' }]}>
+          <Text style={styles.sectionTitle}>Xeerarka AI-ga ee Kooxda</Text>
+          
+          <View style={{
+            backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
+            borderRadius: 12,
+            padding: 16,
+            borderWidth: 1,
+            borderColor: isDark ? '#374151' : '#E5E7EB'
+          }}>
+            <Text style={{
+              fontSize: 14,
+              color: colors.text,
+              fontWeight: '600',
+              marginBottom: 10,
+              lineHeight: 20
+            }}>
+              Si aad AI-ga Darkpen ugula hadasho kooxdan, fadlan ogow qiimayaasha credit-ka:
+            </Text>
+
+            <View style={{ gap: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.primary} />
+                <Text style={{ fontSize: 13, color: colors.text }}>
+                  Su'aalaha Qoraalka ah: <Text style={{ fontWeight: 'bold' }}>10 Credit</Text> (laga jarayo qofka weydiiyey)
+                </Text>
+              </View>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="image-outline" size={18} color={colors.primary} />
+                <Text style={{ fontSize: 13, color: colors.text }}>
+                  Su'aalaha Sawirada ah: <Text style={{ fontWeight: 'bold' }}>20 Credit</Text> (laga jarayo qofka weydiiyey)
+                </Text>
+              </View>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="people-outline" size={18} color={colors.primary} />
+                <Text style={{ fontSize: 13, color: colors.text }}>
+                  Kuwa Kale (Helaya jawaabta): <Text style={{ fontWeight: 'bold' }}>5 Credit</Text> (laga jarayo xubnaha kale ee kooxda)
+                </Text>
+              </View>
+            </View>
+
+            <View style={{
+              marginTop: 14,
+              paddingTop: 10,
+              borderTopWidth: 1,
+              borderTopColor: isDark ? '#374151' : '#E5E7EB'
+            }}>
+              <Text style={{
+                fontSize: 12,
+                color: '#9CA3AF',
+                lineHeight: 18
+              }}>
+                * Fiiro gaar ah: Credit-kaaga waxaad sidoo kale u isticmaali kartaa chat-ka caadiga ah. Haddii credit-kaagu madhan yahay, ma awoodi doontid inaad fariin u dirto kooxda.
+              </Text>
+            </View>
+          </View>
+        </View>
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Members</Text>
           {members.length === 0 && !loading && <Text style={styles.emptyText}>No members found.</Text>}

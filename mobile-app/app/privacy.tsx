@@ -77,6 +77,10 @@ export default function PrivacyScreen() {
         {
           heading: "13. Contact Information",
           text: "For privacy-related questions:\nEmail: team.darkpen@gmail.com\nCompany: darkpen"
+        },
+        {
+          heading: "14. Group Chats and Monetization Data Processing",
+          text: "We process transaction data, wallet balances, and subscriptions to enforce credit limits and automatic expiration rules. For Pay As You Go users, inactivity timestamps are processed to calculate the 1-month expiration of unused credits. Wallet balances are adjusted dynamically when interacting with AI features in Group Chats (e.g., credit deductions for text, image, and group observation)."
         }
       ]
     },
@@ -136,6 +140,10 @@ export default function PrivacyScreen() {
         {
           heading: "13. Macluumaadka Xiriirka",
           text: "Wixii su'aalo ah oo la xiriira qarsoodiga:\nEmail: team.darkpen@gmail.com\nCompany: darkpen"
+        },
+        {
+          heading: "14. Habaynta Xogta Kooxaha iyo Qaybta Lacagta",
+          text: "Waxaan u habaynaa xogta macaamilka, dhibcaha wallet-ka, iyo qorshayaasha si aan u dhaqangalino xaddidaadaha dhibcaha iyo xeerarka dhicitaanka tooska ah. Isticmaalayaasha Pay As You Go, waxaa la falanqeeyaa taariikhda u dambaysay ee dhaqdhaqaaqooda si loo xisaabiyo dhicitaanka 1-da bilood ah ee dhibcaha aan la isticmaalin. Dhibcaha wallet-ka waxaa loo cusboonaysiiyaa si dynamic ah markaad la macaamilayso AI-ga ku dhex jira Group Chats (sida jarista dhibcaha ee qoraalka, sawirka, iyo daawashada kooxda)."
         }
       ]
     }

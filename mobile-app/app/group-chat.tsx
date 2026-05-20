@@ -186,6 +186,42 @@ export default function GroupChatScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const socket = useRef<any>(null);
 
+  // Credits & Block States
+  const [credits, setCredits] = useState<number | null>(null);
+  const [noCreditsModalVisible, setNoCreditsModalVisible] = useState(false);
+  const [noCreditsModalMsg, setNoCreditsModalMsg] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+  const [paymentReference, setPaymentReference] = useState<string | null>(null);
+
+  const fetchCredits = async () => {
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const response = await fetch(`${Config.API_URL}/api/user/profile`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      if (response.ok && data.user) {
+        const bal = data.user.balance || 0;
+        setCredits(bal);
+        setPaymentStatus(data.user.payment_status || null);
+        setPaymentReference(data.user.payment_reference || null);
+        
+        if (bal <= 0) {
+          if (data.user.payment_status === 'pending') {
+            setNoCreditsModalMsg(`Dalabkaaga wuu qabsoomay (Pending).\n\nFadlan sug, lacagtii aad ka dirtay ${data.user.payment_reference || ''} waa la hubinayaa hadda si credit loogu shubo koontadaada.`);
+          } else {
+            setNoCreditsModalMsg('Ma isticmaali kartid group-ka haddii uusan credit (lacag) kuu dhex jirin. Credit-kaaga waxaad sidoo kale u isticmaali kartaa chat-ka caadiga ah.');
+          }
+          setNoCreditsModalVisible(true);
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching credits:", e);
+    }
+  };
+
   // Image Preview States
   const [previewVisible, setPreviewVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -208,6 +244,7 @@ export default function GroupChatScreen() {
     loadCache();
     fetchMessages(false);
     setupSocket();
+    fetchCredits();
     return () => {
       if (socket.current) socket.current.disconnect();
     };
@@ -281,9 +318,17 @@ export default function GroupChatScreen() {
            return newMsgs;
         });
         socket.current.emit('send_message', { room: `group_${id}`, ...newMessage });
+      } else {
+        const errData = await res.json();
+        if (errData.needsPayment) {
+          setNoCreditsModalMsg(errData.message);
+          setNoCreditsModalVisible(true);
+        } else {
+          Alert.alert('Error', errData.message || 'Waa la soo diri waayay fariinta');
+        }
       }
     } catch (err) {
-      alert('Error sending message');
+      Alert.alert('Error', 'Waa la soo diri waayay fariinta');
     }
   };
 
@@ -420,6 +465,29 @@ export default function GroupChatScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 60}
       >
+        {/* Pending Payment Notice Banner */}
+        {paymentStatus === 'pending' && (
+          <View style={{
+            backgroundColor: isDark ? '#1F2937' : '#FEF3C7',
+            borderBottomWidth: 1,
+            borderColor: isDark ? '#374151' : '#FCD34D',
+            padding: 12,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12
+          }}>
+            <Ionicons name="time" size={24} color="#D97706" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontWeight: 'bold', color: colors.text }}>
+                Dalabkaaga wuu qabsoomay (Pending)
+              </Text>
+              <Text style={{ fontSize: 11, color: isDark ? '#D1D5DB' : '#4B5563', marginTop: 2 }}>
+                Fadlan sug, lacagtii aad ka dirtay {paymentReference} waa la hubinayaa hadda si credit loogu shubo koontadaada.
+              </Text>
+            </View>
+          </View>
+        )}
+
         <ScrollView 
           ref={scrollViewRef}
           style={styles.chatArea}
@@ -429,6 +497,7 @@ export default function GroupChatScreen() {
         >
           {messages.map((msg, index) => {
             const isMe = msg.user_id === currentUserId;
+            const isAi = msg.sender_name === 'Darkpen' || msg.sender_username === 'darkpen';
             const showSender = !isMe && (index === 0 || messages[index-1].user_id !== msg.user_id);
             
             return (
@@ -437,10 +506,17 @@ export default function GroupChatScreen() {
                 <View style={StyleSheet.flatten([styles.messageRow, isMe ? styles.myRow : styles.otherRow])}>
                   <View style={StyleSheet.flatten([
                     styles.bubble, 
-                    isMe ? styles.myBubble : styles.otherBubble,
+                    isMe ? styles.myBubble : (isAi ? { backgroundColor: 'transparent', borderWidth: 0, shadowOpacity: 0, elevation: 0, maxWidth: '95%', paddingHorizontal: 4 } : styles.otherBubble),
                     msg.type === 'image' ? { padding: 4, borderRadius: 12 } : {}
                   ])}>
-                    {showSender && <Text style={StyleSheet.flatten([styles.senderName, { color: getUserColor(msg.sender_name) }])}>{msg.sender_name}</Text>}
+                    {showSender && (
+                      <Text style={StyleSheet.flatten([
+                        styles.senderName, 
+                        { color: isAi ? colors.primary : getUserColor(msg.sender_name) }
+                      ])}>
+                        {msg.sender_name} {isAi ? '🤖' : ''}
+                      </Text>
+                    )}
                     
                     {msg.type === 'image' ? (
                       <Image source={{ uri: msg.message.startsWith('http') || msg.message.startsWith('data:image') ? msg.message : `${Config.API_URL.endsWith('/') ? Config.API_URL.slice(0, -1) : Config.API_URL}${msg.message.startsWith('/') ? msg.message : '/' + msg.message}` }} style={styles.messageImage} resizeMode="cover" />
@@ -520,6 +596,115 @@ export default function GroupChatScreen() {
               </TouchableOpacity>
             </View>
           </SafeAreaView>
+        </View>
+      </Modal>
+
+      {/* Insufficient Credits Blocking Modal */}
+      <Modal
+        visible={noCreditsModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          setNoCreditsModalVisible(false);
+          router.back();
+        }}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: 20
+        }}>
+          <View style={{
+            backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+            borderRadius: 16,
+            padding: 24,
+            width: '100%',
+            maxWidth: 340,
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 10
+          }}>
+            {/* Warning Icon Container */}
+            <View style={{
+              width: 60,
+              height: 60,
+              borderRadius: 30,
+              backgroundColor: isDark ? '#374151' : '#F3F4F6',
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginBottom: 16
+            }}>
+              <Ionicons name="card-outline" size={32} color={colors.primary} />
+            </View>
+
+            {/* Title */}
+            <Text style={{
+              fontSize: 18,
+              fontWeight: 'bold',
+              color: colors.text,
+              textAlign: 'center',
+              marginBottom: 12
+            }}>
+              Ma Isticmaali Kartid Group-ka
+            </Text>
+
+            {/* Description */}
+            <Text style={{
+              fontSize: 14,
+              color: isDark ? '#D1D5DB' : '#4B5563',
+              textAlign: 'center',
+              lineHeight: 22,
+              marginBottom: 24
+            }}>
+              {noCreditsModalMsg || 'Ma isticmaali kartid group-ka haddii uusan credit (lacag) kuu dhex jirin. Credit-kaaga waxaad sidoo kale u isticmaali kartaa chat-ka caadiga ah.'}
+            </Text>
+
+            {/* Buttons */}
+            <TouchableOpacity
+              onPress={() => {
+                setNoCreditsModalVisible(false);
+                router.push('/billing');
+              }}
+              style={{
+                backgroundColor: colors.primary,
+                borderRadius: 8,
+                paddingVertical: 12,
+                width: '100%',
+                alignItems: 'center',
+                marginBottom: 10
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: '#FFFFFF', fontWeight: 'bold', fontSize: 15 }}>
+                Ku Shubo Credit (Top Up)
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                setNoCreditsModalVisible(false);
+                router.back();
+              }}
+              style={{
+                borderWidth: 1,
+                borderColor: isDark ? '#4B5563' : '#D1D5DB',
+                borderRadius: 8,
+                paddingVertical: 12,
+                width: '100%',
+                alignItems: 'center'
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: colors.text, fontWeight: '600', fontSize: 15 }}>
+                Ka Bax (Go Back)
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
     </View>

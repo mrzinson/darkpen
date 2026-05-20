@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const aiService = require('../services/aiService');
 const { saveBase64Image } = require('../utils/fileHelper');
+const { checkAndExpireWallet } = require('../utils/walletHelper');
 
 // 1. Create a new chat session
 exports.createSession = async (req, res) => {
@@ -171,6 +172,11 @@ exports.askAI = async (req, res) => {
 
         if (!message && !attachment) {
             return res.status(400).json({ message: 'Fariintu waa madhan tahay' });
+        }
+
+        // Expire pay-as-you-go balance if inactive for 1 month
+        if (chatType !== 'shukaansi') {
+            await checkAndExpireWallet(userId);
         }
 
         // Check Monetization

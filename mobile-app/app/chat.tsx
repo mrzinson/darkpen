@@ -258,6 +258,8 @@ export default function ChatScreen() {
   const [thinkingStatus, setThinkingStatus] = useState<string>('');
   const [viewerImage, setViewerImage] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string>('');
+  const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+  const [paymentReference, setPaymentReference] = useState<string | null>(null);
 
   // Sidebar State
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -390,9 +392,11 @@ export default function ChatScreen() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
-      if (response.ok) {
+      if (response.ok && data.user) {
         setCredits(data.user.balance || 0);
         setSubscriptionType(data.user.subscription_type || null);
+        setPaymentStatus(data.user.payment_status || null);
+        setPaymentReference(data.user.payment_reference || null);
       }
     } catch (error) {
       console.error('Error fetching credits:', error);
@@ -818,6 +822,29 @@ export default function ChatScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 60}
         >
+          {/* Pending Payment Notice Banner */}
+          {paymentStatus === 'pending' && (
+            <View style={{
+              backgroundColor: isDark ? '#1F2937' : '#FEF3C7',
+              borderBottomWidth: 1,
+              borderColor: isDark ? '#374151' : '#FCD34D',
+              padding: 12,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 12
+            }}>
+              <Ionicons name="time" size={24} color="#D97706" />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 13, fontWeight: 'bold', color: colors.text }}>
+                  Dalabkaaga wuu qabsoomay (Pending)
+                </Text>
+                <Text style={{ fontSize: 11, color: isDark ? '#D1D5DB' : '#4B5563', marginTop: 2 }}>
+                  Fadlan sug, lacagtii aad ka dirtay {paymentReference} waa la hubinayaa hadda si credit loogu shubo koontadaada.
+                </Text>
+              </View>
+            </View>
+          )}
+
           <ScrollView
             ref={scrollViewRef}
             style={{ flex: 1 }}

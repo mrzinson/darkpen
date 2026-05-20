@@ -1,10 +1,12 @@
 import { AzureTheme } from '../constants/AzureTheme';
 import { useTheme } from '../context/ThemeContext';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Config from '../constants/Config';
 
 export default function BillingScreen() {
   const { colors, isDark, setTheme, theme } = useTheme();
@@ -12,6 +14,29 @@ export default function BillingScreen() {
 
   const router = useRouter();
   const { chatType } = useLocalSearchParams();
+
+  const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+  const [paymentReference, setPaymentReference] = useState<string | null>(null);
+
+  const fetchProfile = async () => {
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const response = await fetch(`${Config.API_URL}/api/user/profile`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (response.ok && data.user) {
+        setPaymentStatus(data.user.payment_status || null);
+        setPaymentReference(data.user.payment_reference || null);
+      }
+    } catch (error) {
+      console.error('Error fetching profile in billing:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
 
   const plans = [
     {
@@ -67,6 +92,29 @@ export default function BillingScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Pending Payment Notice Card */}
+        {paymentStatus === 'pending' && (
+          <View style={{
+            backgroundColor: isDark ? '#1F2937' : '#FEF3C7',
+            borderWidth: 1,
+            borderColor: isDark ? '#374151' : '#FCD34D',
+            borderRadius: 16,
+            padding: 16,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12
+          }}>
+            <Ionicons name="time" size={28} color="#D97706" />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: 'bold', color: colors.text }}>
+                Dalabkaaga wuu qabsoomay (Pending)
+              </Text>
+              <Text style={{ fontSize: 12, color: isDark ? '#D1D5DB' : '#4B5563', marginTop: 4, lineHeight: 18 }}>
+                Fadlan sug, lacagtii aad ka dirtay {paymentReference} waa la hubinayaa hadda si credit loogu shubo koontadaada.
+              </Text>
+            </View>
+          </View>
+        )}
         {plans.map((plan) => (
           <TouchableOpacity 
             key={plan.id} 

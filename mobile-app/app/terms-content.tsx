@@ -81,6 +81,10 @@ export default function TermsContentScreen() {
         {
           heading: "14. Contact Information",
           text: "For questions regarding these Terms:\nEmail: team.darkpen@gmail.com\nCompany: darkpen"
+        },
+        {
+          heading: "15. Monetization and Credit Expiry Rules",
+          text: "Depending on your plan, monetization and credit rules apply as follows:\n\n• Pay As You Go Plan: Credits purchased under this plan have an expiration period of one (1) month from their purchase/last activity date. If you do not use your credits within this 1-month period, the team assumes inactivity, and your remaining credits will expire and be reset to 0. You will receive a notification prompting you to top up.\n• Subscription Plans (Basic/Premium): These packages expire automatically at the end of their respective monthly cycles.\n• Group Chat AI Rules:\n  - AI text questions deduct 10 credits from your wallet.\n  - AI image questions deduct 20 credits from your wallet.\n  - Group viewing/observing for non-active members deducts 5 credits."
         }
       ]
     },
@@ -144,6 +148,10 @@ export default function TermsContentScreen() {
         {
           heading: "14. Contact Information (Macluumaadka Xiriirka)",
           text: "Wixii su'aalo ah oo ku saabsan Shuruudahan:\nEmail: team.darkpen@gmail.com\nCompany: darkpen"
+        },
+        {
+          heading: "15. Xeerarka Lacag-bixinta iyo Dhicitaanka Credits-ka",
+          text: "Iyadoo ku xiran qorshahaaga (plan), xeerarka dhibcaha (credits) iyo lacag-bixinta waxay u shaqeeyaan sidii soo socota:\n\n• Qorshaha Pay As You Go: Dhibcaha (credits) aad ku shubato qorshahan waxay shaqeynayaan muddo hal (1) bil ah laga bilaabo taariikhda ku shubashada/dhaqdhaqaaqa u dambeeyay. Haddii aadan isticmaalin dhibcahaaga muddo 1 bil ah, maamulka app-ku wuxuu u qaadanayaa in aadan u jeedin app-ka, dhibcahaaga harayna wey dhacayaan (waxaa laga dhigayaa 0). Waxaad heli doontaa ogeysiis ah inay lacagtaadu dhacday oo aad ku shubato mid cusub.\n• Qorshayaasha Bisha (Basic/Premium): Qorshayaashan waxay si toos ah u dhacayaan marka ay bishu dhamaato.\n• Xeerarka AI-ga ee Kooxda (Group Chat AI Rules):\n  - Weydiinta su'aalaha qoraalka AI waxay jartaa 10 credits.\n  - Weydiinta su'aalaha sawirada AI waxay jartaa 20 credits.\n  - Daawashada/akhrinta fariimaha kooxda ee xubnaha aan firfirconayn waxay jartaa 5 credits."
         }
       ]
     }

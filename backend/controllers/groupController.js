@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const { saveBase64Image } = require('../utils/fileHelper');
 const aiService = require('../services/aiService');
+const { checkAndExpireWallet } = require('../utils/walletHelper');
 
 // Helper to get or create AI user
 async function getOrCreateAIUser() {
@@ -42,7 +43,7 @@ function shouldAIRespond(message) {
 }
 
 // Helper for AI background responses in group chat
-async function handleAIGroupResponse(req, groupId, userId, senderName, userMessage, aiUserId) {
+async function handleAIGroupResponse(req, groupId, userId, senderName, userMessage, aiUserId, type = 'text', attachment = null) {
     try {
         // 1. Fetch recent messages for context (limit 15 for better context)
         const [recentMessages] = await db.query(
@@ -62,17 +63,21 @@ async function handleAIGroupResponse(req, groupId, userId, senderName, userMessa
             };
         });
 
-        const groupSystemInstruction = `Waxaa laguu bixiyey magaca Darkpen. Waxaa ku horumarisay ama ku tababartay shirkada ZinsonAI oo uu leeyahay ninka da'da yar ee maskaxda furan ee Hamze Mohamuud Ali Zinson (Zinson).
-Waxaad ku dhex jirtaa Group Chat (koox wada-hadal ah) oo ay ku wada jiraan arday iyo macalimiin wada hadlaya.
-U jawaab qof kasta oo su'aal weydiiya adigoo isticmaalaya luqadda uu ku weydiiyey (gaar ahaan af-Somali haddii uu Somali ku weydiiyey).
-Jawaabtaadu ha ahaato mid kooban, waxtar leh, cilmiyeed, oo dhiirigelin u ah ardayda.
+        const groupSystemInstruction = `Waxaa laguu bixiyey magaca Darkpen. Waxaa ku horumarisay ama ku tababartay shirkada ZinsonAI oo uu leeyahay Hamze Mohamuud Ali Zinson (Zinson).
+Waxaad ku dhex jirtaa Group Chat (koox wada-hadal ah).
+Fadlan ku qor jawaabtaada qaab aad ku mention-garaynayso qofka su'aasha weydiiyey adigoo ku bilaabaya: @${senderName}.
+Ha galin wax hadal dambe ah ama salaan iyo sheeko dheeraad ah, si toos ah u bixi jawaabta saxda ah oo kooban, waxtarna leh.
 Waligaa ha dhihin Google ama OpenAI ayaa ku sameeyay. Adigu waxaad tahay Darkpen oo ay leedahay ZinsonAI.`;
 
         // 2. Call Gemini
+        const promptText = type === 'image' 
+            ? `${senderName} ayaa soo diray sawir. Fadlan sharax ama ka jawaab su'aasha ku jirta sawirkan.` 
+            : `${senderName}: ${userMessage}`;
+
         const aiReply = await aiService.askGemini(
-            `${senderName}: ${userMessage}`,
+            promptText,
             "gemini-flash-latest",
-            null,
+            attachment,
             history,
             groupSystemInstruction
         );
@@ -104,7 +109,18 @@ Waligaa ha dhihin Google ama OpenAI ayaa ku sameeyay. Adigu waxaad tahay Darkpen
             created_at: new Date().toISOString()
         };
 
-        // 5. Emit via Socket.io
+        // 5. Deduct 5 credits from all other active members in the group (excluding sender and AI itself)
+        await db.query(
+            `UPDATE user_wallet 
+             SET balance = GREATEST(0, balance - 5) 
+             WHERE user_id IN (
+                 SELECT user_id FROM group_members 
+                 WHERE group_id = ? AND user_id != ? AND user_id != ?
+             )`,
+            [groupId, userId, aiUserId]
+        );
+
+        // 6. Emit via Socket.io
         const io = req.app.get('socketio');
         if (io) {
             io.to(`group_${groupId}`).emit('receive_message', aiSocketMessage);
@@ -291,9 +307,60 @@ exports.sendGroupMessage = async (req, res) => {
         );
         if (!memberCheck.length) return res.status(403).json({ message: 'Not a member' });
 
+        // Expire pay-as-you-go balance if inactive for 1 month
+        await checkAndExpireWallet(userId);
+
+        // 1. Fetch user's current wallet balance
+        const [walletRows] = await db.query('SELECT balance FROM user_wallet WHERE user_id = ?', [userId]);
+        const senderBalance = walletRows.length > 0 ? walletRows[0].balance : 0;
+
+        // If balance is 0 or less, they cannot use the group chat at all
+        if (senderBalance <= 0) {
+            return res.status(403).json({
+                status: 'error',
+                needsPayment: true,
+                message: 'Ma isticmaali kartid group-ka haddii uusan credit (lacag) kuu dhex jirin. Fadlan ku shubo credit.'
+            });
+        }
+
+        // Determine if it is a question and its cost
+        const isTextQuestion = (type !== 'image' && shouldAIRespond(message));
+        const isImageQuestion = (type === 'image');
+        
+        let cost = 0;
+        if (isTextQuestion) cost = 10;
+        else if (isImageQuestion) cost = 20;
+
+        // Check if user has sufficient credits for this question
+        if (cost > 0 && senderBalance < cost) {
+            return res.status(403).json({
+                status: 'error',
+                needsPayment: true,
+                message: `Lacag kugu filan kuguma jirto. Su'aalaha ${isTextQuestion ? 'qoraalka' : 'sawirada'} ah waxay ka gooyaan ${cost} credits wallet-kaaga. Fadlan ku shubo credit.`
+            });
+        }
+
+        // Prepare attachment for Gemini if it's an image
+        let aiAttachment = null;
+        if (isImageQuestion && message && message.startsWith('data:image')) {
+            const mimeMatch = message.match(/^data:([^;]+);base64,/);
+            const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+            const base64Data = message.replace(/^data:[^;]+;base64,/, '');
+            aiAttachment = {
+                base64: base64Data,
+                mimeType: mimeType
+            };
+        }
+
+        // 2. Save base64 image if type is image
         let finalMessage = message;
         if (type === 'image' && message && message.startsWith('data:image')) {
             finalMessage = saveBase64Image(message, 'chats');
+        }
+
+        // 3. Deduct credit from sender's wallet
+        if (cost > 0) {
+            await db.query('UPDATE user_wallet SET balance = GREATEST(0, balance - ?) WHERE user_id = ?', [cost, userId]);
         }
 
         const [result] = await db.query(
@@ -311,11 +378,11 @@ exports.sendGroupMessage = async (req, res) => {
         // Check if AI should respond
         try {
             const aiUserId = await getOrCreateAIUser();
-            if (userId !== aiUserId && shouldAIRespond(finalMessage) && (type || 'text') !== 'image') {
+            if (userId !== aiUserId && (isTextQuestion || isImageQuestion)) {
                 const [senderRows] = await db.query('SELECT name FROM users WHERE id = ?', [userId]);
                 const senderName = senderRows.length > 0 ? senderRows[0].name : 'Student';
                 
-                handleAIGroupResponse(req, groupId, userId, senderName, finalMessage, aiUserId).catch(err => {
+                handleAIGroupResponse(req, groupId, userId, senderName, finalMessage, aiUserId, type || 'text', aiAttachment).catch(err => {
                     console.error("Error in AI group response task:", err);
                 });
             }
