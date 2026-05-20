@@ -53,6 +53,36 @@ app.use('/api/uploads', express.static(uploadsPath));
 app.use('/api/uploads', express.static(rootUploadsPath));
 app.use('/api/uploads', express.static(nestedUploadsPath));
 
+// Fallback to proxy/redirect missing uploads from production Render backend
+const https = require('https');
+const productionUploadsFallback = (req, res, next) => {
+    if (req.path === '/' || req.path === '') {
+        return next();
+    }
+    // Prevent infinite loop on the production Render server
+    const host = req.headers.host || '';
+    if (host.includes('onrender.com')) {
+        return res.status(404).send('Cannot GET ' + req.originalUrl);
+    }
+    const productionUrl = `https://darkpen-backend.onrender.com/uploads${req.path}`;
+    https.get(productionUrl, (proxyRes) => {
+        if (proxyRes.statusCode === 200) {
+            res.setHeader('Content-Type', proxyRes.headers['content-type'] || 'application/octet-stream');
+            if (proxyRes.headers['content-length']) {
+                res.setHeader('Content-Length', proxyRes.headers['content-length']);
+            }
+            proxyRes.pipe(res);
+        } else {
+            res.status(404).send('Cannot GET ' + req.originalUrl);
+        }
+    }).on('error', (err) => {
+        console.error('[Upload Fallback Proxy Error]:', err.message);
+        next();
+    });
+};
+app.use('/uploads', productionUploadsFallback);
+app.use('/api/uploads', productionUploadsFallback);
+
 // Routes
 const authRoutes = require('./routes/authRoutes');
 const chatRoutes = require('./routes/chatRoutes');
