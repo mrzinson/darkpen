@@ -36,10 +36,56 @@ const INITIAL_MESSAGES: Message[] = [];
 
 const renderFormattedText = (text: string) => {
   if (!text) return null;
-  const regex = /(<table_data>[\s\S]*?<\/table_data>|<blue>[\s\S]*?<\/blue>|<green>[\s\S]*?<\/green>|<red>[\s\S]*?<\/red>|\*\*.*?\*\*|Q\d+:|A\d+:)/g;
+  const regex = /(```[\s\S]*?```|<table_data>[\s\S]*?<\/table_data>|<callout>[\s\S]*?<\/callout>|<blue>[\s\S]*?<\/blue>|<green>[\s\S]*?<\/green>|<red>[\s\S]*?<\/red>|\*\*.*?\*\*|^#{1,3}\s+.*$|Q\d+:|A\d+:)/gm;
   const parts = text.split(regex);
   return parts.map((part, index) => {
     if (!part) return null;
+    
+    if (part.startsWith('```') && part.endsWith('```')) {
+      const match = part.match(/^```(\w*)\n([\s\S]*?)```$/);
+      const language = match && match[1] ? match[1] : 'code';
+      const codeContent = match ? match[2] : part.replace(/```/g, '');
+      return (
+        <View key={index} style={{ backgroundColor: '#1e1e1e', borderRadius: 8, marginVertical: 8, overflow: 'hidden', width: '100%' }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#2d2d2d', paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' }}>
+            <Text style={{ color: '#a3a3a3', fontSize: 12, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>{language}</Text>
+            <TouchableOpacity 
+              onPress={() => {
+                Clipboard.setStringAsync(codeContent.trim());
+                Alert.alert('Copied', 'Code copied to clipboard');
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center' }}
+            >
+              <Ionicons name="copy-outline" size={14} color="#a3a3a3" />
+              <Text style={{ color: '#a3a3a3', fontSize: 12, marginLeft: 4 }}>Copy</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={true} style={{ padding: 12 }}>
+            <Text style={{ color: '#e5e7eb', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 13, lineHeight: 20 }}>
+              {codeContent.trim()}
+            </Text>
+          </ScrollView>
+        </View>
+      );
+    }
+    
+    if (part.startsWith('<callout>') && part.endsWith('</callout>')) {
+      const innerText = part.replace(/<\/?callout>/g, '').trim();
+      return (
+        <View key={index} style={{ backgroundColor: '#f3f4f6', borderLeftWidth: 4, borderLeftColor: '#6b7280', padding: 12, marginVertical: 8, borderRadius: 4, width: '100%' }}>
+          <Text style={{ color: '#374151', fontSize: 14, fontStyle: 'italic', lineHeight: 22 }}>{innerText}</Text>
+        </View>
+      );
+    }
+
+    if (/^#{1,3}\s+/.test(part)) {
+      const level = part.match(/^(#{1,3})/)?.[1].length || 1;
+      const innerText = part.replace(/^#{1,3}\s+/, '');
+      const fontSize = level === 1 ? 20 : level === 2 ? 18 : 16;
+      const marginTop = level === 1 ? 16 : 12;
+      return <Text key={index} style={{ fontSize, fontWeight: 'bold', color: '#111827', marginTop, marginBottom: 8 }}>{innerText}</Text>;
+    }
+
     if (part.startsWith('<table_data>') && part.endsWith('</table_data>')) {
       const innerText = part.replace(/<\/?table_data>/g, '').trim();
       const rows = innerText.split('\n').filter(r => r.trim() !== '');
