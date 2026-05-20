@@ -41,7 +41,33 @@ const renderFormattedText = (text: string) => {
   return parts.map((part, index) => {
     if (!part) return null;
     if (part.startsWith('<green>') && part.endsWith('</green>')) {
-      return <Text key={index} style={{ color: '#22c55e', fontWeight: 'bold' }}>{part.replace(/<\/?green>/g, '')}</Text>;
+      const innerText = part.replace(/<\/?green>/g, '');
+      const optionMatch = innerText.match(/^([a-zA-Z])\s*[\.\)]\s*(.*)$/);
+      if (optionMatch) {
+        const letter = optionMatch[1].toUpperCase();
+        const restOfText = optionMatch[2];
+        return (
+          <Text key={index}>
+            <View style={{
+              backgroundColor: '#22c55e', 
+              borderRadius: 12, 
+              width: 24, 
+              height: 24, 
+              justifyContent: 'center', 
+              alignItems: 'center',
+              marginRight: 6,
+              transform: [{ translateY: 4 }]
+            }}>
+              <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 13, textAlign: 'center', lineHeight: 22 }}>
+                {letter}
+              </Text>
+            </View>
+            {" "}
+            <Text style={{ color: '#22c55e', fontWeight: 'bold' }}>{restOfText}</Text>
+          </Text>
+        );
+      }
+      return <Text key={index} style={{ color: '#22c55e', fontWeight: 'bold' }}>{innerText}</Text>;
     }
     if (part.startsWith('<red>') && part.endsWith('</red>')) {
       return <Text key={index} style={{ color: '#ef4444', fontWeight: 'bold' }}>{part.replace(/<\/?red>/g, '')}</Text>;
@@ -445,7 +471,7 @@ export default function ChatScreen() {
     setMessages(prev => [...prev, newUserMsg, newAiMsg]);
 
     // Initial status (for attachment, always analyzing image)
-    setThinkingStatus(currentAttachment ? 'Analyzing image...' : 'Reading books...');
+    setThinkingStatus(currentAttachment ? 'Analyzing image...' : 'Thinking...');
     const statusTimeout = setTimeout(() => {
       setThinkingStatus('Thinking...');
     }, 8000); // fallback in case no server status received

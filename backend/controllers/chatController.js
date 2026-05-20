@@ -77,9 +77,41 @@ Fadlan u dhaqan sidatan marka aad u jawaabayso isticmaalaha:
 5. Haddii laguu soo diro sawir ama shaxan gacan ku samays ah, sharax oo tallaabo-tallaabo u faahfaahi si fudud.
 6. Haddii ardaygu doonayo inuu kula kaftamo ama kula sheekaysto, ula kaftan si saaxiibtinimo iyo qosol leh.
 7. isticmaalaha mararka qaar amaan si uu uqanco (tusaale, dheh'runtii waa su'aal aad u caqli badan...'). Toos ugu guur jawaabta adoo saaxiibtinimo iyo kaftan furan ku daraya haddii loo baahdo.
-8. Waligaa ha u kala qaybin jawaabaha 'Q1:' iyo 'A1:'. Kaliya bixi jawaabta tooska ah ee la weydiiyey.`;
+8. Waligaa ha u kala qaybin jawaabaha 'Q1:' iyo 'A1:'. Kaliya bixi jawaabta tooska ah ee la weydiiyey.
+9. Had iyo jeer u jawaab isticmaalaha adoo adeegsanaya luuqadda uu su'aasha ku weydiiyey (tusaale, haddii uu kugu la hadlo English, ku jawaab English; haddii uu kugu la hadlo Somali, ku jawaab Somali). Tani waa mid aad iyo aad muhiim u ah!`;
 
 const shukaansiSystemInstruction = `Fadlan ula dhaqan qofkan sida saaxiib dhaw. Noqo qof sheeko wadaag ah, madadaaliye ah, oo af-Soomaali dabiici ah ku hadlaya.`;
+
+function isSubstantiveQuery(text) {
+    if (!text) return false;
+    const clean = text.trim().toLowerCase().replace(/[?,.!]/g, '');
+    if (clean.length < 3) return false;
+    
+    const greetings = [
+        'hi', 'hello', 'hey', 'yo', 'hola', 'dear', 'darpen', 'darkpen',
+        'soo dhawoow', 'soo dhawaada', 'soo dhawoow darkpen', 'soo dhawaada darkpen',
+        'asc', 'ascs', 'assalamu alaykum', 'assalamualaikum', 'assalaamu alaykum',
+        'see tahay', 'see tihiin', 'setahay', 'ka waran', 'karan', 'ka waran darkpen',
+        'mahadsanid', 'mahadsantahay', 'waad mahadsantahay', 'thanks', 'thank you',
+        'ok', 'okay', 'yes', 'no', 'haye', 'haa', 'maya', 'good morning', 'good evening', 'good afternoon',
+        'subax wanaagsan', 'galab wanaagsan', 'habeen wanaagsan', 'hi there', 'hello there'
+    ];
+    
+    if (greetings.includes(clean)) {
+        return false;
+    }
+    
+    // If it's 2 words or less and matches some common casual words, skip RAG
+    const words = clean.split(/\s+/);
+    if (words.length <= 2) {
+        const casualWords = ['hi', 'hello', 'hey', 'asc', 'haye', 'ok', 'okay', 'thanks', 'great', 'wow', 'good', 'wlc', 'welcome'];
+        if (words.every(w => casualWords.includes(w))) {
+            return false;
+        }
+    }
+    
+    return true;
+}
 
 // La sheekaysiga AI-da (Private Chat)
 exports.askAI = async (req, res) => {
@@ -177,13 +209,16 @@ exports.askAI = async (req, res) => {
                 res.flushHeaders();
             }
 
-            // Step 1: Notify client we are searching books first
-            res.write(`data: ${JSON.stringify({ status: 'reading_books' })}\n\n`);
+            let bookContext = null;
+            if (message && isSubstantiveQuery(message)) {
+                // Step 1: Notify client we are searching books first
+                res.write(`data: ${JSON.stringify({ status: 'reading_books' })}\n\n`);
+                // RAG - search local books/curriculum chunks FIRST
+                bookContext = await aiService.findRelevantChunks(message);
+            }
 
-            // RAG - search local books/curriculum chunks FIRST
-            const bookContext = await aiService.findRelevantChunks(message);
             if (bookContext) {
-                finalPrompt = `Ardaygu wuxuu ku weydiiyey su'aashan: "${message}"\n\n${bookContext}\n\nFadlan ka jawaab su'aasha ardayga adigoo isticmaalaya xogta manhajka ee sare ku xusan. Haddii aysan xogta sare ku jirin jawaabtu, u isticmaal aqoontaada caadiga ah.`;
+                finalPrompt = `User question: "${message}"\n\nRelevant Curriculum/Book Context:\n${bookContext}\n\nPlease answer the user's question using the relevant context above. If the context doesn't contain the answer, use your general knowledge. Respond in the exact language the user used to ask the question (e.g., English for English, Somali for Somali).`;
             }
 
             // Step 2: Notify client we are now generating the response
