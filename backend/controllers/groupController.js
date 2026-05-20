@@ -1,5 +1,118 @@
 const db = require('../config/db');
 const { saveBase64Image } = require('../utils/fileHelper');
+const aiService = require('../services/aiService');
+
+// Helper to get or create AI user
+async function getOrCreateAIUser() {
+    const [rows] = await db.query('SELECT id FROM users WHERE email = ?', ['darkpen-ai@darkpen.app']);
+    if (rows.length > 0) {
+        return rows[0].id;
+    }
+    const [result] = await db.query(
+        `INSERT INTO users (name, email, password, username, role, is_verified, profile_picture) 
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        ['Darkpen', 'darkpen-ai@darkpen.app', 'dummy_darkpen_ai_password_hash', 'darkpen', 'admin', true, 'uploads/profiles/darkpen_logo.png']
+    );
+    const aiUserId = result.insertId;
+    // Create wallet for the AI
+    await db.query('INSERT IGNORE INTO user_wallet (user_id, balance) VALUES (?, 999999)', [aiUserId]);
+    return aiUserId;
+}
+
+// Helper to check if AI should respond to message
+function shouldAIRespond(message) {
+    if (!message) return false;
+    const cleanMsg = message.toLowerCase().trim();
+    
+    // Explicit mention
+    if (cleanMsg.includes('@darkpen') || cleanMsg.includes('darkpen')) return true;
+    
+    // Question marks
+    if (cleanMsg.includes('?')) return true;
+    
+    // Common questioning words at start
+    const questionWords = [
+        'maxaa', 'sidee', 'goormee', 'halkee', 'kuma', 'ma', 'miyaa',
+        'what', 'how', 'why', 'when', 'where', 'who', 'which', 'is', 'can'
+    ];
+    const words = cleanMsg.split(/\s+/);
+    if (words.length > 0 && questionWords.includes(words[0])) return true;
+    
+    return false;
+}
+
+// Helper for AI background responses in group chat
+async function handleAIGroupResponse(req, groupId, userId, senderName, userMessage, aiUserId) {
+    try {
+        // 1. Fetch recent messages for context (limit 15 for better context)
+        const [recentMessages] = await db.query(
+            `SELECT m.*, u.name as sender_name 
+             FROM group_messages_v2 m
+             JOIN users u ON m.user_id = u.id
+             WHERE m.group_id = ?
+             ORDER BY m.created_at DESC LIMIT 15`,
+            [groupId]
+        );
+
+        // Map recent messages to Gemini chat history format
+        const history = recentMessages.reverse().map(msg => {
+            return {
+                role: msg.user_id === aiUserId ? "model" : "user",
+                parts: [{ text: `${msg.sender_name}: ${msg.message}` }]
+            };
+        });
+
+        const groupSystemInstruction = `Waxaa laguu bixiyey magaca Darkpen. Waxaa ku horumarisay ama ku tababartay shirkada ZinsonAI oo uu leeyahay ninka da'da yar ee maskaxda furan ee Hamze Mohamuud Ali Zinson (Zinson).
+Waxaad ku dhex jirtaa Group Chat (koox wada-hadal ah) oo ay ku wada jiraan arday iyo macalimiin wada hadlaya.
+U jawaab qof kasta oo su'aal weydiiya adigoo isticmaalaya luqadda uu ku weydiiyey (gaar ahaan af-Somali haddii uu Somali ku weydiiyey).
+Jawaabtaadu ha ahaato mid kooban, waxtar leh, cilmiyeed, oo dhiirigelin u ah ardayda.
+Waligaa ha dhihin Google ama OpenAI ayaa ku sameeyay. Adigu waxaad tahay Darkpen oo ay leedahay ZinsonAI.`;
+
+        // 2. Call Gemini
+        const aiReply = await aiService.askGemini(
+            `${senderName}: ${userMessage}`,
+            "gemini-flash-latest",
+            null,
+            history,
+            groupSystemInstruction
+        );
+
+        if (!aiReply) return;
+
+        // 3. Save AI message to database
+        const [insertResult] = await db.query(
+            'INSERT INTO group_messages_v2 (group_id, user_id, message, type) VALUES (?, ?, ?, "text")',
+            [groupId, aiUserId, aiReply]
+        );
+        const aiMessageId = insertResult.insertId;
+
+        // 4. Retrieve AI sender details
+        const [aiUserRow] = await db.query(
+            'SELECT name, username, profile_picture FROM users WHERE id = ?',
+            [aiUserId]
+        );
+
+        const aiSocketMessage = {
+            id: aiMessageId,
+            group_id: groupId,
+            user_id: aiUserId,
+            message: aiReply,
+            type: 'text',
+            sender_name: aiUserRow[0].name || 'Darkpen',
+            sender_username: aiUserRow[0].username || 'darkpen',
+            sender_avatar: aiUserRow[0].profile_picture || null,
+            created_at: new Date().toISOString()
+        };
+
+        // 5. Emit via Socket.io
+        const io = req.app.get('socketio');
+        if (io) {
+            io.to(`group_${groupId}`).emit('receive_message', aiSocketMessage);
+        }
+    } catch (err) {
+        console.error("Error generating/sending AI group response:", err);
+    }
+}
 
 // 1. Create Group
 exports.createGroup = async (req, res) => {
@@ -23,6 +136,17 @@ exports.createGroup = async (req, res) => {
             'INSERT INTO group_members (group_id, user_id, role) VALUES (?, ?, ?)',
             [groupId, userId, 'admin']
         );
+
+        // Add Darkpen AI as member
+        try {
+            const aiUserId = await getOrCreateAIUser();
+            await db.query(
+                'INSERT IGNORE INTO group_members (group_id, user_id, role) VALUES (?, ?, ?)',
+                [groupId, aiUserId, 'member']
+            );
+        } catch (aiErr) {
+            console.error("Error adding AI to group:", aiErr);
+        }
 
         res.status(201).json({ status: 'success', message: 'Group created successfully', groupId });
     } catch (err) {
@@ -184,6 +308,21 @@ exports.sendGroupMessage = async (req, res) => {
             [messageId, groupId, userId]
         );
 
+        // Check if AI should respond
+        try {
+            const aiUserId = await getOrCreateAIUser();
+            if (userId !== aiUserId && shouldAIRespond(finalMessage) && (type || 'text') !== 'image') {
+                const [senderRows] = await db.query('SELECT name FROM users WHERE id = ?', [userId]);
+                const senderName = senderRows.length > 0 ? senderRows[0].name : 'Student';
+                
+                handleAIGroupResponse(req, groupId, userId, senderName, finalMessage, aiUserId).catch(err => {
+                    console.error("Error in AI group response task:", err);
+                });
+            }
+        } catch (aiErr) {
+            console.error("Error determining if AI should respond to group message:", aiErr);
+        }
+
         res.status(201).json({ status: 'success', messageId, message: finalMessage });
     } catch (err) {
         res.status(500).json({ status: 'error', message: err.message });
@@ -251,5 +390,26 @@ exports.updateGroup = async (req, res) => {
     } catch (err) {
         console.error(`[UPDATE GROUP] Error:`, err);
         res.status(500).json({ status: 'error', message: err.message });
+    }
+};
+
+// 10. Ensure AI Presence In All Groups
+exports.ensureAIPresenceInAllGroups = async () => {
+    try {
+        const aiUserId = await getOrCreateAIUser();
+        
+        // Fetch all active group IDs
+        const [groups] = await db.query('SELECT id FROM groups_list WHERE is_active = TRUE');
+        
+        // Add AI to each group
+        for (const group of groups) {
+            await db.query(
+                'INSERT IGNORE INTO group_members (group_id, user_id, role) VALUES (?, ?, "member")',
+                [group.id, aiUserId]
+            );
+        }
+        console.log(`[AI PRESENCE] Successfully ensured Darkpen AI is in all ${groups.length} groups.`);
+    } catch (err) {
+        console.error('[AI PRESENCE] Error during initialization:', err);
     }
 };

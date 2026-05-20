@@ -9,12 +9,168 @@ import Config from '../constants/Config';
 import { io } from 'socket.io-client';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import * as Clipboard from 'expo-clipboard';
 
 const CACHE_KEY_PREFIX = 'cached_messages_';
 
 const USER_COLORS = [
   '#2563EB', '#7C3AED', '#DB2777', '#DC2626', '#EA580C', '#D97706', '#059669', '#0891B2'
 ];
+
+const renderFormattedText = (text: string, isDark: boolean, colors: any, defaultTextColor?: string) => {
+  if (!text) return null;
+  const textColor = defaultTextColor || colors.text;
+
+  // Split by block-level elements
+  const blockRegex = /(```[\s\S]*?```|<table_data>[\s\S]*?<\/table_data>|<callout>[\s\S]*?<\/callout>|^#{1,3}\s+[^\n]+)/gm;
+  const blocks = text.split(blockRegex);
+
+  const renderInlineText = (inlineText: string, keyPrefix: string) => {
+    const inlineRegex = /(\*\*.*?\*\*|<blue>[\s\S]*?<\/blue>|<green>[\s\S]*?<\/green>|<red>[\s\S]*?<\/red>|Q\d+:|A\d+:)/g;
+    const parts = inlineText.split(inlineRegex);
+
+    return parts.map((part, index) => {
+      if (!part) return null;
+      const key = `${keyPrefix}-inline-${index}`;
+
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <Text key={key} style={{ fontWeight: 'bold', color: textColor }}>{part.replace(/\*\*/g, '')}</Text>;
+      }
+      if (part.startsWith('<blue>') && part.endsWith('</blue>')) {
+        return <Text key={key} style={{ color: '#3B82F6', fontWeight: '500' }}>{part.replace(/<\/?blue>/g, '')}</Text>;
+      }
+      if (part.startsWith('<green>') && part.endsWith('</green>')) {
+        const innerText = part.replace(/<\/?green>/g, '');
+        const optionMatch = innerText.match(/^([a-zA-Z])\s*[\.\)]\s*(.*)$/);
+        if (optionMatch) {
+          const letter = optionMatch[1].toUpperCase();
+          const restOfText = optionMatch[2];
+          return (
+            <Text key={key}>
+              <View style={{
+                backgroundColor: '#22c55e', 
+                borderRadius: 10, 
+                width: 20, 
+                height: 20, 
+                justifyContent: 'center', 
+                alignItems: 'center',
+                marginRight: 6,
+                transform: [{ translateY: 3 }]
+              }}>
+                <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 11, textAlign: 'center', lineHeight: 18 }}>
+                  {letter}
+                </Text>
+              </View>
+              {" "}
+              <Text style={{ color: '#22c55e', fontWeight: 'bold' }}>{restOfText}</Text>
+            </Text>
+          );
+        }
+        return <Text key={key} style={{ color: '#22c55e', fontWeight: 'bold' }}>{innerText}</Text>;
+      }
+      if (part.startsWith('<red>') && part.endsWith('</red>')) {
+        return <Text key={key} style={{ color: '#ef4444', fontWeight: 'bold' }}>{part.replace(/<\/?red>/g, '')}</Text>;
+      }
+      if (/^Q\d+:$/.test(part)) {
+        return <Text key={key} style={{ fontWeight: 'bold', color: '#3B82F6' }}>{part}</Text>;
+      }
+      if (/^A\d+:$/.test(part)) {
+        return <Text key={key} style={{ fontWeight: 'bold', color: '#10B981' }}>{part}</Text>;
+      }
+      return <Text key={key} style={{ color: textColor }}>{part}</Text>;
+    });
+  };
+
+  return blocks.map((block, index) => {
+    if (!block) return null;
+    const blockKey = `block-${index}`;
+
+    // 1. Code Block
+    if (block.startsWith('```') && block.endsWith('```')) {
+      const match = block.match(/^```(\w*)\n([\s\S]*?)```$/);
+      const language = match && match[1] ? match[1] : 'code';
+      const codeContent = match ? match[2] : block.replace(/```/g, '');
+      return (
+        <View key={blockKey} style={{ backgroundColor: '#1e1e1e', borderRadius: 8, marginVertical: 8, overflow: 'hidden', width: '100%' }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#2d2d2d', paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' }}>
+            <Text style={{ color: '#a3a3a3', fontSize: 12, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>{language}</Text>
+            <TouchableOpacity 
+              onPress={() => {
+                Clipboard.setStringAsync(codeContent.trim());
+                Alert.alert('Copied', 'Code copied to clipboard');
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center' }}
+            >
+              <Ionicons name="copy-outline" size={14} color="#a3a3a3" />
+              <Text style={{ color: '#a3a3a3', fontSize: 12, marginLeft: 4 }}>Copy</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={true} style={{ padding: 12 }}>
+            <Text style={{ color: '#e5e7eb', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 13, lineHeight: 20 }}>
+              {codeContent.trim()}
+            </Text>
+          </ScrollView>
+        </View>
+      );
+    }
+
+    // 2. Callout Block
+    if (block.startsWith('<callout>') && block.endsWith('</callout>')) {
+      const innerText = block.replace(/<\/?callout>/g, '').trim();
+      return (
+        <View key={blockKey} style={{ backgroundColor: isDark ? '#2a2b2f' : '#f3f4f6', borderLeftWidth: 4, borderLeftColor: colors.primary, padding: 12, marginVertical: 8, borderRadius: 4, width: '100%' }}>
+          <Text style={{ color: textColor, fontSize: 14, fontStyle: 'italic', lineHeight: 22 }}>
+            {innerText}
+          </Text>
+        </View>
+      );
+    }
+
+    // 3. Table Block
+    if (block.startsWith('<table_data>') && block.endsWith('</table_data>')) {
+      const innerText = block.replace(/<\/?table_data>/g, '').trim();
+      const rows = innerText.split('\n').filter(r => r.trim() !== '');
+      if (rows.length === 0) return null;
+      return (
+        <View key={blockKey} style={{ borderWidth: 1, borderColor: colors.border || '#e5e7eb', borderRadius: 8, marginVertical: 8, overflow: 'hidden', width: '100%' }}>
+          {rows.map((row, rIndex) => {
+            const cols = row.split('|');
+            return (
+              <View key={rIndex} style={{ flexDirection: 'row', backgroundColor: rIndex === 0 ? (isDark ? '#27282c' : '#f3f4f6') : (isDark ? '#1e1f22' : '#ffffff'), borderBottomWidth: rIndex < rows.length - 1 ? 1 : 0, borderBottomColor: colors.border || '#e5e7eb' }}>
+                {cols.map((col, cIndex) => (
+                  <View key={cIndex} style={{ flex: 1, padding: 8, borderRightWidth: cIndex < cols.length - 1 ? 1 : 0, borderRightColor: colors.border || '#e5e7eb' }}>
+                    <Text style={{ fontWeight: rIndex === 0 ? 'bold' : 'normal', color: rIndex === 0 ? colors.text : textColor, fontSize: 13 }}>{col.trim()}</Text>
+                  </View>
+                ))}
+              </View>
+            );
+          })}
+        </View>
+      );
+    }
+
+    // 4. Headers
+    if (block.startsWith('#')) {
+      const level = (block.match(/^#+/g) || ['#'])[0].length;
+      const headerText = block.replace(/^#+\s+/, '').trim();
+      const fontSize = level === 1 ? 18 : level === 2 ? 16 : 14;
+      return (
+        <View key={blockKey} style={{ marginVertical: 6 }}>
+          <Text style={{ fontWeight: 'bold', color: textColor, fontSize }}>{headerText}</Text>
+        </View>
+      );
+    }
+
+    // 5. Default/Paragraph block with inline formatting
+    return (
+      <View key={blockKey} style={{ marginVertical: 2 }}>
+        <Text style={{ lineHeight: 20 }}>
+          {renderInlineText(block, blockKey)}
+        </Text>
+      </View>
+    );
+  });
+};
 
 export default function GroupChatScreen() {
   const { colors, isDark, setTheme, theme } = useTheme();
@@ -289,7 +445,7 @@ export default function GroupChatScreen() {
                     {msg.type === 'image' ? (
                       <Image source={{ uri: msg.message.startsWith('http') || msg.message.startsWith('data:image') ? msg.message : `${Config.API_URL.endsWith('/') ? Config.API_URL.slice(0, -1) : Config.API_URL}${msg.message.startsWith('/') ? msg.message : '/' + msg.message}` }} style={styles.messageImage} resizeMode="cover" />
                     ) : (
-                      <Text style={StyleSheet.flatten([styles.messageText, isMe ? { color: '#FFFFFF' } : { color: isDark ? '#FFFFFF' : '#1F2937' }])}>{msg.message}</Text>
+                      renderFormattedText(msg.message, isDark, colors, isMe ? '#FFFFFF' : (isDark ? '#FFFFFF' : '#1F2937'))
                     )}
                     
                     <Text style={StyleSheet.flatten([styles.time, isMe ? { color: 'rgba(255,255,255,0.7)' } : { color: isDark ? 'rgba(255,255,255,0.6)' : '#64748B' }])}>

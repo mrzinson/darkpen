@@ -105,6 +105,7 @@ const io = new Server(server, {
         methods: ["GET", "POST"]
     }
 });
+app.set('socketio', io);
 
 io.on('connection', (socket) => {
     console.log(`Qof ayaa soo xidhmay: ${socket.id}`);
@@ -130,6 +131,9 @@ const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
     console.log(`Server-ku wuxuu ka shaqaynayaa PORT ${PORT}`);
+    // Run AI group presence check
+    const groupController = require('./controllers/groupController');
+    groupController.ensureAIPresenceInAllGroups().catch(console.error);
 });
 
 // Global Error Handling
