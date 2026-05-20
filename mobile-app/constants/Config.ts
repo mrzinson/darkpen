@@ -1,8 +1,8 @@
 import { Platform } from 'react-native';
 
 const Config = {
-  // Hadda app-ku wuxuu si toos ah ugu xirnaan doonaa backend-kaaga live-ka ah ee Render
-  API_URL: 'https://darkpen-backend.onrender.com',
+  // In development, connect to local backend (using PC IP), in production use Render
+  API_URL: __DEV__ ? 'http://192.168.111.5:5000' : 'https://darkpen-backend.onrender.com',
 };
 
 export default Config;
