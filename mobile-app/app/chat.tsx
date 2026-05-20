@@ -36,10 +36,34 @@ const INITIAL_MESSAGES: Message[] = [];
 
 const renderFormattedText = (text: string) => {
   if (!text) return null;
-  const regex = /(<green>.*?<\/green>|<red>.*?<\/red>|\*\*.*?\*\*|Q\d+:|A\d+:)/g;
+  const regex = /(<table_data>[\s\S]*?<\/table_data>|<blue>[\s\S]*?<\/blue>|<green>[\s\S]*?<\/green>|<red>[\s\S]*?<\/red>|\*\*.*?\*\*|Q\d+:|A\d+:)/g;
   const parts = text.split(regex);
   return parts.map((part, index) => {
     if (!part) return null;
+    if (part.startsWith('<table_data>') && part.endsWith('</table_data>')) {
+      const innerText = part.replace(/<\/?table_data>/g, '').trim();
+      const rows = innerText.split('\n').filter(r => r.trim() !== '');
+      if (rows.length === 0) return null;
+      return (
+        <View key={index} style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, marginVertical: 8, overflow: 'hidden', width: '100%' }}>
+          {rows.map((row, rIndex) => {
+            const cols = row.split('|');
+            return (
+              <View key={rIndex} style={{ flexDirection: 'row', backgroundColor: rIndex === 0 ? '#f3f4f6' : '#ffffff', borderBottomWidth: rIndex < rows.length - 1 ? 1 : 0, borderBottomColor: '#e5e7eb' }}>
+                {cols.map((col, cIndex) => (
+                  <View key={cIndex} style={{ flex: 1, padding: 8, borderRightWidth: cIndex < cols.length - 1 ? 1 : 0, borderRightColor: '#e5e7eb' }}>
+                    <Text style={{ fontWeight: rIndex === 0 ? 'bold' : 'normal', color: '#1f2937', fontSize: 13 }}>{col.trim()}</Text>
+                  </View>
+                ))}
+              </View>
+            );
+          })}
+        </View>
+      );
+    }
+    if (part.startsWith('<blue>') && part.endsWith('</blue>')) {
+      return <Text key={index} style={{ color: '#3B82F6', fontWeight: '500' }}>{part.replace(/<\/?blue>/g, '')}</Text>;
+    }
     if (part.startsWith('<green>') && part.endsWith('</green>')) {
       const innerText = part.replace(/<\/?green>/g, '');
       const optionMatch = innerText.match(/^([a-zA-Z])\s*[\.\)]\s*(.*)$/);
@@ -108,6 +132,7 @@ export default function ChatScreen() {
   const [credits, setCredits] = useState<number | null>(null);
   const [subscriptionType, setSubscriptionType] = useState<string | null>(null);
   const [thinkingStatus, setThinkingStatus] = useState<string>('');
+  const [viewerImage, setViewerImage] = useState<string | null>(null);
 
   // Sidebar State
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -669,13 +694,13 @@ export default function ChatScreen() {
                     isUser ? styles.messageContentUser : styles.messageContentAi
                   ])}>
                     {msg.image && (
-                      <View style={styles.chatImageContainer}>
+                      <TouchableOpacity activeOpacity={0.8} onPress={() => setViewerImage(msg.image || null)} style={styles.chatImageContainer}>
                         <Image
                           source={{ uri: msg.image }}
                           style={styles.chatImage}
                           contentFit="cover"
                         />
-                      </View>
+                      </TouchableOpacity>
                     )}
 
                     {isUser ? (
@@ -918,6 +943,17 @@ export default function ChatScreen() {
             </View>
           </View>
         </Animated.View>
+
+        <Modal visible={!!viewerImage} transparent={true} animationType="fade" onRequestClose={() => setViewerImage(null)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' }}>
+            <TouchableOpacity style={{ position: 'absolute', top: 50, right: 20, zIndex: 10, padding: 10 }} onPress={() => setViewerImage(null)}>
+              <Ionicons name="close" size={32} color="#ffffff" />
+            </TouchableOpacity>
+            {viewerImage && (
+              <Image source={{ uri: viewerImage }} style={{ width: '100%', height: '80%' }} contentFit="contain" />
+            )}
+          </View>
+        </Modal>
       </View>
     </AuthGuard>
   );

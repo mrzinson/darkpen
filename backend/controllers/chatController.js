@@ -181,17 +181,20 @@ exports.askAI = async (req, res) => {
                 parts: [{ text: msg.message }]
             }));
         } else {
-            const [hist] = await db.execute(
-                'SELECT sender, message FROM messages_private WHERE user_id = ? AND session_id = ? ORDER BY created_at DESC LIMIT 5',
-                [userId, sessionId || null]
-            );
+            const historyQuery = sessionId 
+                ? 'SELECT sender, message FROM messages_private WHERE user_id = ? AND session_id = ? ORDER BY created_at DESC LIMIT 5'
+                : 'SELECT sender, message FROM messages_private WHERE user_id = ? AND session_id IS NULL ORDER BY created_at DESC LIMIT 5';
+            const queryParams = sessionId ? [userId, sessionId] : [userId];
+            const [hist] = await db.execute(historyQuery, queryParams);
             history = hist.reverse().map(msg => ({
                 role: msg.sender === 'user' ? 'user' : 'model',
                 parts: [{ text: msg.message }]
             }));
         }
 
-        const systemInstruction = chatType === 'shukaansi' ? shukaansiSystemInstruction : darkpenSystemInstruction;
+        const darkpenSystemInstructionUpdated = darkpenSystemInstruction + `\n10. Haddii lagaa soo weydiiyo su'aalo cashar ah, imtixaan, ama sawir ah, jawaabaha aad bixinayso gabi ahaanba ku dhex qor tags-kan <blue>halkan ku qor jawaabta</blue> si ay midab buluug ah u yeeshaan oo uga soocnaadaan su'aasha asalka ah. Waana in tags-kan <blue> uu ku xirnaadaa bilawga iyo dhamaadka jawaabta.\n11. Haddii lagu weydiiyo in aad laba shay isku barbardhigto (compare), isku beegto, ama aad shaxan (table) samayso, WAA IN AAD u soo bandhigtaa habkan gaarka ah:\n<table_data>\nMadaxa1|Madaxa2\nXogta1|Xogta2\n</table_data>\nWaligaa ha isticmaalin Markdown table format (|---|), KALIYA isticmaal <table_data> tags-ka iyo sumadda | si aad u kala qaybiso columns-ka. Inta kale qoraal caadi ah ku qor.`;
+
+        const systemInstruction = chatType === 'shukaansi' ? shukaansiSystemInstruction : darkpenSystemInstructionUpdated;
         const modelName = "gemini-flash-latest";
 
         // Handle streaming response if requested and not shukaansi
