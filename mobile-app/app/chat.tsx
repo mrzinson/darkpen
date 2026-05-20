@@ -81,6 +81,7 @@ export default function ChatScreen() {
   const [attachment, setAttachment] = useState<{ uri: string, base64: string, mimeType: string, name: string } | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
   const [subscriptionType, setSubscriptionType] = useState<string | null>(null);
+  const [thinkingStatus, setThinkingStatus] = useState<string>('');
 
   // Sidebar State
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -443,7 +444,14 @@ export default function ChatScreen() {
 
     setMessages(prev => [...prev, newUserMsg, newAiMsg]);
 
+    // Start dynamic status updates
+    setThinkingStatus(currentAttachment ? 'Analyzing image...' : 'Searching curriculum...');
+    const statusTimeout = setTimeout(() => {
+      setThinkingStatus('Thinking...');
+    }, 2000);
+
     if (userText === '112233') {
+      clearTimeout(statusTimeout);
       setTimeout(() => {
         setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: 'Waxaan ahay AI Darkpen Pro', status: 'complete' } : m));
         setIsAiTyping(false);
@@ -454,7 +462,7 @@ export default function ChatScreen() {
     try {
       const token = await AsyncStorage.getItem('userToken');
 
-      // Attempt fetch with a shorter timeout or handle network error
+      // Attempt fetch with stream enabled
       const response = await fetch(`${Config.API_URL}/api/chat/ask`, {
         method: 'POST',
         headers: {
@@ -464,6 +472,7 @@ export default function ChatScreen() {
         body: JSON.stringify({
           message: userText,
           chatType: 'education',
+          stream: true,
           attachment: currentAttachment ? {
             base64: currentAttachment.base64,
             mimeType: currentAttachment.mimeType,
@@ -473,19 +482,81 @@ export default function ChatScreen() {
       });
 
       if (response.status === 402) {
+        clearTimeout(statusTimeout);
         // Payment Required
         setMessages(prev => prev.filter(m => m.id !== aiMsgId));
         setIsAiTyping(false);
         return router.push('/billing');
       }
 
-      const data = await response.json();
-      if (response.ok) {
-        setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: data.message, status: 'complete' } : m));
-        // Refresh credits from server to ensure real-time accuracy
+      if (!response.ok) {
+        clearTimeout(statusTimeout);
+        const data = await response.json();
+        setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: 'Cilad ayaa dhacday: ' + data.message, status: 'complete' } : m));
+        setIsAiTyping(false);
+        return;
+      }
+
+      // Check if body is readable for streaming
+      const reader = response.body ? (response.body as any).getReader() : null;
+      const decoder = typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8') : null;
+
+      if (reader) {
+        let accumulatedText = "";
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          // Decode Uint8Array correctly
+          let chunk = "";
+          if (decoder) {
+            chunk = decoder.decode(value, { stream: true });
+          } else {
+            try {
+              chunk = decodeURIComponent(escape(String.fromCharCode.apply(null, Array.from(value))));
+            } catch (e) {
+              for (let i = 0; i < value.length; i++) {
+                chunk += String.fromCharCode(value[i]);
+              }
+            }
+          }
+
+          // Parse SSE stream format: data: {"text": "..."}
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (trimmedLine.startsWith('data: ')) {
+              const dataStr = trimmedLine.slice(6).trim();
+              if (dataStr === '[DONE]') {
+                break;
+              }
+              try {
+                const parsed = JSON.parse(dataStr);
+                if (parsed.error) {
+                  accumulatedText = "Cilad: " + parsed.error;
+                  setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: accumulatedText, status: 'complete' } : m));
+                  break;
+                }
+                if (parsed.text) {
+                  accumulatedText += parsed.text;
+                  setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: accumulatedText, status: 'streaming' } : m));
+                }
+              } catch (err) {
+                // Partial JSON chunk, wait for next buffer
+              }
+            }
+          }
+        }
+
+        // Streaming complete
+        setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: accumulatedText, status: 'complete' } : m));
         fetchCredits();
       } else {
-        setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: 'Cilad ayaa dhacday: ' + data.message, status: 'complete' } : m));
+        // Fallback for non-streaming environments
+        const data = await response.json();
+        setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: data.message, status: 'complete' } : m));
+        fetchCredits();
       }
     } catch (error) {
       setMessages(prev => prev.map(m => m.id === aiMsgId ? {
@@ -494,6 +565,7 @@ export default function ChatScreen() {
         status: 'complete'
       } : m));
     } finally {
+      clearTimeout(statusTimeout);
       setIsAiTyping(false);
     }
   };
@@ -584,10 +656,13 @@ export default function ChatScreen() {
                       <View style={styles.aiContentContainer}>
                         <View style={styles.messageBubbleAi}>
                           {msg.status === 'thinking' ? (
-                            <View style={styles.thinkingContainer}>
-                              <Animated.View style={StyleSheet.flatten([styles.thinkingDot, { transform: [{ translateY: thinkingDot1 }] }])} />
-                              <Animated.View style={StyleSheet.flatten([styles.thinkingDot, { transform: [{ translateY: thinkingDot2 }] }])} />
-                              <Animated.View style={StyleSheet.flatten([styles.thinkingDot, { transform: [{ translateY: thinkingDot3 }] }])} />
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              <View style={styles.thinkingContainer}>
+                                <Animated.View style={StyleSheet.flatten([styles.thinkingDot, { transform: [{ translateY: thinkingDot1 }] }])} />
+                                <Animated.View style={StyleSheet.flatten([styles.thinkingDot, { transform: [{ translateY: thinkingDot2 }] }])} />
+                                <Animated.View style={StyleSheet.flatten([styles.thinkingDot, { transform: [{ translateY: thinkingDot3 }] }])} />
+                              </View>
+                              {thinkingStatus ? <Text style={styles.thinkingText}>{thinkingStatus}</Text> : null}
                             </View>
                           ) : (
                             <View style={styles.aiTextContainer}>

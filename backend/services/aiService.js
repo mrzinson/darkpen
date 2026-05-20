@@ -47,11 +47,14 @@ exports.askOpenAI = async (prompt, history = [], model = "gpt-4o-mini", attachme
 /**
  * La hadal Gemini
  */
-exports.askGemini = async (prompt, modelName = "gemini-2.5-flash", attachment = null, history = []) => {
+exports.askGemini = async (prompt, modelName = "gemini-2.5-flash", attachment = null, history = [], systemInstruction = null) => {
     try {
-        const model = genAI.getGenerativeModel({ model: modelName });
+        const model = genAI.getGenerativeModel({ 
+            model: modelName,
+            systemInstruction: systemInstruction
+        });
         
-        let parts = [{ text: `Fadlan ula dhaqan qofkan sida saaxiib dhaw. Noqo qof sheeko wadaag ah, madadaaliye ah, oo af-Soomaali dabiici ah ku hadlaya. \n\n User says: ${prompt}` }];
+        let parts = [{ text: prompt }];
 
         if (attachment) {
             parts.push({
@@ -62,9 +65,6 @@ exports.askGemini = async (prompt, modelName = "gemini-2.5-flash", attachment = 
             });
         }
 
-        // Combine history and current message
-        // For Gemini generateContent, it expects a list of history objects if using chat, 
-        // but here we can just pass the whole sequence if we want to keep it simple.
         const result = await model.generateContent({
             contents: [
                 ...history,
@@ -76,6 +76,40 @@ exports.askGemini = async (prompt, modelName = "gemini-2.5-flash", attachment = 
     } catch (error) {
         console.error("Gemini Error:", error);
         throw new Error("Waan ka xunnahay, Gemini cilad ayaa ku timid.");
+    }
+};
+
+/**
+ * La hadal Gemini adigoo ku jawaabaya qaab Streaming ah
+ */
+exports.askGeminiStream = async (prompt, modelName = "gemini-2.5-flash", attachment = null, history = [], systemInstruction = null) => {
+    try {
+        const model = genAI.getGenerativeModel({ 
+            model: modelName,
+            systemInstruction: systemInstruction
+        });
+        
+        let parts = [{ text: prompt }];
+
+        if (attachment) {
+            parts.push({
+                inlineData: {
+                    data: attachment.base64,
+                    mimeType: attachment.mimeType
+                }
+            });
+        }
+
+        const result = await model.generateContentStream({
+            contents: [
+                ...history,
+                { role: "user", parts: parts }
+            ]
+        });
+        return result.stream;
+    } catch (error) {
+        console.error("Gemini Stream Error:", error);
+        throw new Error("Waan ka xunnahay, adeegga streaming-ka ee Gemini cilad ayaa ku timid.");
     }
 };
 

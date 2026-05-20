@@ -68,11 +68,23 @@ exports.deleteSession = async (req, res) => {
     }
 };
 
+const darkpenSystemInstruction = `Waxaa laguu bixiyey magaca Darkpen. Waxaa ku horumarisay ama ku tababartay shirkada ZinsonAI oo uu leeyahay ninka da'da yar ee maskaxda furan ee Hamze Mohamuud Ali Zinson (Zinson). Zinson aad ayuu u jecel yahay technology-yada iyo cilmiga. Waligaa ha dhihin waxaa ku sameeyay Google ama OpenAI, adigu waxaad tahay Darkpen oo ay leedahay ZinsonAI.
+
+Fadlan u dhaqan sidatan marka aad u jawaabayso isticmaalaha:
+1. Jawaabahaagu ha ahaadaan kuwo gaaban, toos ah, oo ka madhan hadalka maala-yacniga ah ama amaan-dhaafka ah (tusaale, ha dhihin 'runtii waa su'aal aad u caqli badan...'). Toos ugu guur jawaabta adoo saaxiibtinimo iyo kaftan furan ku daraya haddii loo baahdo.
+2. Waligaa ha u kala qaybin jawaabaha 'Q1:' iyo 'A1:'. Kaliya bixi jawaabta tooska ah ee la weydiiyey.
+3. Dhamaadka jawaabtaada, had iyo jeer ku dar su'aal xiiso leh oo la xidhiidha mawduuca aad ka hadashay si aad wada-hadalka u sii waddo (tusaale, 'Ma jeceshahay inaan waxyaabo badan oo kale kaaga sheego mawduucan?').
+4. Haddii uu isticmaaluhu ku weydiiyo su'aalo khuseeya imtixaanada 'Sax ama Qald', isticmaal tags-kan: <green>Sax</green> ama <red>Qald</red>. Haddii ay tahay doorasho (multiple choice), jawaabta saxda ah ku dhex qor <green>JAWAABTA_SAXDA_AH</green>.
+5. Haddii laguu soo diro sawir ama shaxan gacan ku samays ah, sharax oo tallaabo-tallaabo u faahfaahi si fudud.
+6. Haddii ardaygu doonayo inuu kula kaftamo ama kula sheekaysto, ula kaftan si saaxiibtinimo iyo qosol leh.`;
+
+const shukaansiSystemInstruction = `Fadlan ula dhaqan qofkan sida saaxiib dhaw. Noqo qof sheeko wadaag ah, madadaaliye ah, oo af-Soomaali dabiici ah ku hadlaya.`;
+
 // La sheekaysiga AI-da (Private Chat)
 exports.askAI = async (req, res) => {
     try {
         const userId = req.user.id;
-        const { message, chatType, attachment, sessionId } = req.body; 
+        const { message, chatType, attachment, sessionId, stream } = req.body; 
 
         if (!message && !attachment) {
             return res.status(400).json({ message: 'Fariintu waa madhan tahay' });
@@ -111,7 +123,7 @@ exports.askAI = async (req, res) => {
             savedImageUrl = saveBase64Image(base64Str, 'chats');
         }
 
-        // Kaydi fariinta qofka
+        // Kaydi fariinta qofka (Shukaansi)
         if (chatType === 'shukaansi') {
             await db.execute(
                 'INSERT INTO shukaansi_messages (user_id, sender, message, image_url) VALUES (?, "user", ?, ?)',
@@ -119,61 +131,94 @@ exports.askAI = async (req, res) => {
             );
         }
 
-        let aiResponseText = "";
         const [sub_plan] = await db.execute(`SELECT type FROM ${subTable} WHERE user_id = ? AND expiry_date > NOW()`, [userId]);
         const userPlan = sub_plan.length > 0 ? sub_plan[0].type : 'credits';
 
-        if (chatType === 'shukaansi' || attachment) {
-            const modelName = userPlan === 'monthly_11' ? "gemini-2.5-pro" : "gemini-2.5-flash";
-            
-            // Fetch Shukaansi history if applicable (excluding the message we just saved)
-            let history = [];
-            if (chatType === 'shukaansi') {
-                const [hist] = await db.execute(
-                    'SELECT sender, message FROM shukaansi_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 10 OFFSET 1',
-                    [userId]
-                );
-                history = hist.reverse().map(msg => ({
-                    role: msg.sender === 'user' ? 'user' : 'model',
-                    parts: [{ text: msg.message }]
-                }));
-            }
+        // Prepare History & context
+        let history = [];
+        let finalPrompt = message;
 
-            const formattingPrompt = "\n\nQARIN (SHURUUDAHA JAWAABTA): Haddii sawir (sida warqad imtixaan, sawir gacan ku samays ah, iwm) ama qoraal lagugu soo diro, u dhaqan sidatan: 1) Su'aalaha u kala qaybi 'Q1:', 'A1:'. 2) Haddii ay tahay 'Sax ama Qald', isticmaal tags: <green>Sax</green> ama <red>Qald</red>. 3) Haddii ay tahay 'Goobo geli' ama 'Dooro jawaabta saxda ah' (Multiple Choice), jawaabta saxda ah ku dhex qor <green>JAWAABTA_SAXDA_AH</green> si ay cagaar ugu soo baxdo, kuwa kalena iska dhaaf ama <red> ku qor. 4) Haddii sawir gacan ku samays ah (drawing/diagram) la soo diro, faahfaahi oo xariijimo/tallaabooyin u kala dhig si ardaygu u fahmo. 5) Su'aalaha tooska ah (Direct answers), jawaab cad oo qeexan bixi.";
-            const finalPrompt = message ? message + formattingPrompt : "Waa maxay sawirkani?" + formattingPrompt;
-            aiResponseText = await aiService.askGemini(finalPrompt, modelName, attachment, history);
+        if (chatType === 'shukaansi') {
+            const [hist] = await db.execute(
+                'SELECT sender, message FROM shukaansi_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 10 OFFSET 1',
+                [userId]
+            );
+            history = hist.reverse().map(msg => ({
+                role: msg.sender === 'user' ? 'user' : 'model',
+                parts: [{ text: msg.message }]
+            }));
         } else {
-            const [history] = await db.execute(
+            const [hist] = await db.execute(
                 'SELECT sender, message FROM messages_private WHERE user_id = ? AND session_id = ? ORDER BY created_at DESC LIMIT 5',
                 [userId, sessionId || null]
             );
-            
-            const geminiHistory = history.reverse().map(msg => ({
+            history = hist.reverse().map(msg => ({
                 role: msg.sender === 'user' ? 'user' : 'model',
                 parts: [{ text: msg.message }]
             }));
 
-            // Raadi xogta buugaagta (RAG)
-            let finalPrompt = message;
+            // RAG - find relevant books/curriculum chunks
             const bookContext = await aiService.findRelevantChunks(message);
-            
-            const formattingPrompt = "\n\nQARIN (SHURUUDAHA JAWAABTA): Haddii sawir ama qoraal imtixaan ah la soo diro: 1) U kala qaybi 'Q1:', 'A1:'. 2) Su'aalaha 'Sax ama Qald', isticmaal tags: <green>Sax</green> ama <red>Qald</red>. 3) Su'aalaha 'Goobo geli/Dooro' (Multiple Choice), jawaabta saxda ah ku dhex qor <green>JAWAABTA_SAXDA_AH</green>. 4) Sawirada/shaxanka gacan-ku-samayska ah, faahfaahi oo xariijimo ku sharax. 5) Su'aalaha tooska ah si cad u qeex.";
-            
             if (bookContext) {
-                finalPrompt = `Ardaygu wuxuu ku weydiiyey su'aashan: "${message}"\n\n${bookContext}\n\nFadlan ka jawaab su'aasha ardayga adigoo isticmaalaya xogta manhajka ee sare ku xusan haddii ay khusayso. Haddii aysan xogta sare ku jirin jawaabtu, u isticmaal aqoontaada caadiga ah.${formattingPrompt}`;
-            } else {
-                finalPrompt += formattingPrompt;
+                finalPrompt = `Ardaygu wuxuu ku weydiiyey su'aashan: "${message}"\n\n${bookContext}\n\nFadlan ka jawaab su'aasha ardayga adigoo isticmaalaya xogta manhajka ee sare ku xusan haddii ay khusayso. Haddii aysan xogta sare ku jirin jawaabtu, u isticmaal aqoontaada caadiga ah.`;
             }
-
-            const modelNameGemini = userPlan === 'monthly_11' ? "gemini-2.5-pro" : "gemini-2.5-flash";
-            aiResponseText = await aiService.askGemini(finalPrompt, modelNameGemini, null, geminiHistory);
         }
 
-        // Kaydi fariinta AI-da (kaliya shukaansiga)
+        const systemInstruction = chatType === 'shukaansi' ? shukaansiSystemInstruction : darkpenSystemInstruction;
+        const modelName = userPlan === 'monthly_11' ? "gemini-2.5-pro" : "gemini-2.5-flash";
+
+        // Handle streaming response if requested and not shukaansi
+        if (stream === true && chatType !== 'shukaansi') {
+            // Save User message to messages_private
+            await db.execute(
+                'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "user", ?)',
+                [userId, sessionId || null, message || "[Attachment]"]
+            );
+
+            res.setHeader('Content-Type', 'text/event-stream');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Connection', 'keep-alive');
+            if (typeof res.flushHeaders === 'function') {
+                res.flushHeaders();
+            }
+
+            const responseStream = await aiService.askGeminiStream(finalPrompt, modelName, attachment, history, systemInstruction);
+            
+            let aiResponseText = "";
+            for await (const chunk of responseStream) {
+                const chunkText = chunk.text();
+                aiResponseText += chunkText;
+                res.write(`data: ${JSON.stringify({ text: chunkText })}\n\n`);
+            }
+
+            res.write('data: [DONE]\n\n');
+            res.end();
+
+            // Save AI response to messages_private
+            await db.execute(
+                'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "ai", ?)',
+                [userId, sessionId || null, aiResponseText]
+            );
+            return;
+        }
+
+        // Non-streaming response
+        const aiResponseText = await aiService.askGemini(finalPrompt, modelName, attachment, history, systemInstruction);
+
         if (chatType === 'shukaansi') {
             await db.execute(
                 'INSERT INTO shukaansi_messages (user_id, sender, message) VALUES (?, "ai", ?)',
                 [userId, aiResponseText]
+            );
+        } else {
+            // Save User and AI messages for private chat
+            await db.execute(
+                'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "user", ?)',
+                [userId, sessionId || null, message || "[Attachment]"]
+            );
+            await db.execute(
+                'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "ai", ?)',
+                [userId, sessionId || null, aiResponseText]
             );
         }
 
@@ -181,7 +226,13 @@ exports.askAI = async (req, res) => {
 
     } catch (error) {
         console.error("AskAI Error:", error);
-        res.status(500).json({ message: 'Cilad ayaa dhacday', error: error.message });
+        if (req.body.stream === true && req.body.chatType !== 'shukaansi' && !res.headersSent) {
+            res.setHeader('Content-Type', 'text/event-stream');
+            res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+            res.end();
+        } else if (!res.headersSent) {
+            res.status(500).json({ message: 'Cilad ayaa dhacday', error: error.message });
+        }
     }
 };
 
