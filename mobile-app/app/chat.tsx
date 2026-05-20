@@ -24,12 +24,14 @@ const { width } = Dimensions.get('window');
 const SIDEBAR_WIDTH = width * 0.75;
 
 type MessageStatus = 'thinking' | 'streaming' | 'complete';
+type Attachment = { uri: string; base64: string; mimeType: string; name: string };
 type Message = {
   id: string;
   text: string;
   sender: 'user' | 'ai';
   status?: MessageStatus;
   image?: string;
+  images?: string[];
 };
 
 const INITIAL_MESSAGES: Message[] = [];
@@ -174,7 +176,7 @@ export default function ChatScreen() {
   const [isAiTyping, setIsAiTyping] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
-  const [attachment, setAttachment] = useState<{ uri: string, base64: string, mimeType: string, name: string } | null>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [credits, setCredits] = useState<number | null>(null);
   const [subscriptionType, setSubscriptionType] = useState<string | null>(null);
   const [thinkingStatus, setThinkingStatus] = useState<string>('');
@@ -322,21 +324,28 @@ export default function ChatScreen() {
       return;
     }
 
+    const remaining = 5 - attachments.length;
+    if (remaining <= 0) {
+      Alert.alert('Xad', 'Waxaad dooran kartaa ugu badan 5 sawir.');
+      return;
+    }
+
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
+      allowsMultipleSelection: true,
+      selectionLimit: remaining,
       quality: 0.5,
       base64: true,
     });
 
     if (!result.canceled) {
-      const asset = result.assets[0];
-      setAttachment({
+      const newAttachments: Attachment[] = result.assets.map(asset => ({
         uri: asset.uri,
         base64: asset.base64 || '',
         mimeType: asset.mimeType || 'image/jpeg',
         name: asset.fileName || 'image.jpg'
-      });
+      }));
+      setAttachments(prev => [...prev, ...newAttachments].slice(0, 5));
       setIsAttachOpen(false);
     }
   };
@@ -348,6 +357,11 @@ export default function ChatScreen() {
       return;
     }
 
+    if (attachments.length >= 5) {
+      Alert.alert('Xad', 'Waxaad dooran kartaa ugu badan 5 sawir.');
+      return;
+    }
+
     let result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       quality: 0.5,
@@ -356,12 +370,12 @@ export default function ChatScreen() {
 
     if (!result.canceled) {
       const asset = result.assets[0];
-      setAttachment({
+      setAttachments(prev => [...prev, {
         uri: asset.uri,
         base64: asset.base64 || '',
         mimeType: asset.mimeType || 'image/jpeg',
         name: asset.fileName || 'photo.jpg'
-      });
+      }].slice(0, 5));
       setIsAttachOpen(false);
     }
   };
@@ -376,12 +390,12 @@ export default function ChatScreen() {
       const asset = result.assets[0];
       try {
         const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' });
-        setAttachment({
+        setAttachments([{
           uri: asset.uri,
           base64: base64,
           mimeType: asset.mimeType || 'application/octet-stream',
           name: asset.name
-        });
+        }]);
         setIsAttachOpen(false);
       } catch (err) {
         alert('fyle masoo galin kartid waayo upgrade ma haysatid si uu kuugu shaqeeyo inaad fyle soo galisid iibso premium ');
@@ -505,13 +519,14 @@ export default function ChatScreen() {
   };
 
   const handleSend = async () => {
-    if ((!inputText.trim() && !attachment) || isAiTyping) return;
+    if ((!inputText.trim() && attachments.length === 0) || isAiTyping) return;
 
     const userText = inputText.trim();
-    const currentAttachment = attachment;
+    const currentAttachments = [...attachments];
+    const currentAttachment = currentAttachments.find(a => a.mimeType.startsWith('image/')) || currentAttachments[0] || null;
 
     setInputText('');
-    setAttachment(null);
+    setAttachments([]);
     setIsAiTyping(true);
 
     // Play Send Animation
@@ -530,11 +545,13 @@ export default function ChatScreen() {
       ]).start();
     });
 
+    const imageUris = currentAttachments.filter(a => a.mimeType.startsWith('image/')).map(a => a.uri);
     const newUserMsg: Message = {
       id: Date.now().toString(),
       text: userText,
       sender: 'user',
-      image: currentAttachment?.mimeType.startsWith('image/') ? currentAttachment.uri : undefined
+      image: imageUris[0],
+      images: imageUris.length > 0 ? imageUris : undefined
     };
     const aiMsgId = (Date.now() + 1).toString();
     const newAiMsg: Message = { id: aiMsgId, text: '', sender: 'ai', status: 'thinking' };
@@ -542,7 +559,7 @@ export default function ChatScreen() {
     setMessages(prev => [...prev, newUserMsg, newAiMsg]);
 
     // Initial status (for attachment, always analyzing image)
-    setThinkingStatus(currentAttachment ? 'Analyzing image...' : 'Thinking...');
+    setThinkingStatus(currentAttachment && currentAttachment.mimeType.startsWith('image/') ? 'Analyzing image...' : 'Thinking...');
     const statusTimeout = setTimeout(() => {
       setThinkingStatus('Thinking...');
     }, 8000); // fallback in case no server status received
@@ -577,6 +594,7 @@ export default function ChatScreen() {
           } : null
         })
       });
+      // Note: backend processes one image at a time; additional images are displayed only visually.
 
       if (response.status === 402) {
         clearTimeout(statusTimeout);
@@ -739,7 +757,32 @@ export default function ChatScreen() {
                     styles.messageContent,
                     isUser ? styles.messageContentUser : styles.messageContentAi
                   ])}>
-                    {msg.image && (
+                    {msg.images && msg.images.length > 0 ? (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={{ marginBottom: 6 }}
+                        contentContainerStyle={{ gap: 8 }}
+                      >
+                        {msg.images.map((imgUri, imgIdx) => (
+                          <TouchableOpacity
+                            key={imgIdx}
+                            activeOpacity={0.8}
+                            onPress={() => setViewerImage(imgUri)}
+                            style={[
+                              styles.chatImageContainer,
+                              { marginBottom: 0, width: msg.images!.length === 1 ? width * 0.7 : 140, height: msg.images!.length === 1 ? 200 : 140 }
+                            ]}
+                          >
+                            <Image
+                              source={{ uri: imgUri }}
+                              style={{ width: '100%', height: '100%' }}
+                              contentFit="cover"
+                            />
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    ) : msg.image ? (
                       <TouchableOpacity activeOpacity={0.8} onPress={() => setViewerImage(msg.image || null)} style={styles.chatImageContainer}>
                         <Image
                           source={{ uri: msg.image }}
@@ -747,7 +790,7 @@ export default function ChatScreen() {
                           contentFit="cover"
                         />
                       </TouchableOpacity>
-                    )}
+                    ) : null}
 
                     {isUser ? (
                       msg.text ? (
@@ -807,19 +850,33 @@ export default function ChatScreen() {
           )}
 
           {/* Attachment Preview */}
-          {attachment && (
-            <View style={styles.attachmentPreview}>
-              {attachment.mimeType.startsWith('image/') ? (
-                <Image source={{ uri: attachment.uri }} style={styles.previewImage} />
-              ) : (
-                <View style={styles.previewFileIcon}>
-                  <Ionicons name="document-attach" size={24} color={colors.primary} />
-                  <Text style={styles.previewFileName} numberOfLines={1}>{attachment.name}</Text>
-                </View>
-              )}
-              <TouchableOpacity style={styles.removeAttachment} onPress={() => setAttachment(null)}>
-                <Ionicons name="close-circle" size={20} color="#EF4444" />
-              </TouchableOpacity>
+          {attachments.length > 0 && (
+            <View style={styles.attachmentPreviewRow}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 12, gap: 8, alignItems: 'center' }}
+                style={{ flex: 1 }}
+              >
+                {attachments.map((att, idx) => (
+                  <View key={idx} style={styles.attachmentThumbWrap}>
+                    {att.mimeType.startsWith('image/') ? (
+                      <Image source={{ uri: att.uri }} style={styles.attachmentThumb} contentFit="cover" />
+                    ) : (
+                      <View style={[styles.attachmentThumb, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }]}>
+                        <Ionicons name="document-attach" size={24} color={colors.primary} />
+                        <Text style={styles.previewFileName} numberOfLines={1}>{att.name}</Text>
+                      </View>
+                    )}
+                    <TouchableOpacity
+                      style={styles.removeAttachThumb}
+                      onPress={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
+                    >
+                      <Ionicons name="close-circle" size={18} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
             </View>
           )}
 
@@ -848,15 +905,15 @@ export default function ChatScreen() {
                 />
               </View>
 
-              {inputText.trim() || attachment ? (
+              {inputText.trim() || attachments.length > 0 ? (
                 <TouchableOpacity
                   style={StyleSheet.flatten([
                     styles.circleBtn,
                     styles.sendCircle,
-                    (!inputText.trim() && !attachment) || isAiTyping || isTranscribing ? styles.sendButtonDisabled : {}
+                    (!inputText.trim() && attachments.length === 0) || isAiTyping || isTranscribing ? styles.sendButtonDisabled : {}
                   ])}
                   onPress={handleSend}
-                  disabled={(!inputText.trim() && !attachment) || isAiTyping || isTranscribing}
+                  disabled={(!inputText.trim() && attachments.length === 0) || isAiTyping || isTranscribing}
                   activeOpacity={0.8}
                 >
                   <Animated.View style={{
@@ -1604,6 +1661,35 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.background,
   },
+  attachmentPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    backgroundColor: colors.background,
+    borderTopWidth: 1,
+    borderTopColor: colors.border || '#E5E7EB',
+    minHeight: 80,
+  },
+  attachmentThumbWrap: {
+    position: 'relative',
+    marginRight: 4,
+  },
+  attachmentThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border || '#E5E7EB',
+  },
+  removeAttachThumb: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    zIndex: 10,
+    backgroundColor: colors.card,
+    borderRadius: 10,
+  },
   previewImage: {
     width: 60,
     height: 60,
@@ -1614,7 +1700,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.card,
     padding: 10,
-    borderRadius: 8 ,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border || '#333',
     maxWidth: '80%',
