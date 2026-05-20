@@ -47,7 +47,7 @@ exports.askOpenAI = async (prompt, history = [], model = "gpt-4o-mini", attachme
 /**
  * La hadal Gemini
  */
-exports.askGemini = async (prompt, modelName = "gemini-2.5-flash", attachment = null, history = [], systemInstruction = null) => {
+exports.askGemini = async (prompt, modelName = "gemini-flash-latest", attachment = null, history = [], systemInstruction = null) => {
     try {
         const model = genAI.getGenerativeModel({ 
             model: modelName,
@@ -82,7 +82,7 @@ exports.askGemini = async (prompt, modelName = "gemini-2.5-flash", attachment = 
 /**
  * La hadal Gemini adigoo ku jawaabaya qaab Streaming ah
  */
-exports.askGeminiStream = async (prompt, modelName = "gemini-2.5-flash", attachment = null, history = [], systemInstruction = null) => {
+exports.askGeminiStream = async (prompt, modelName = "gemini-flash-latest", attachment = null, history = [], systemInstruction = null) => {
     try {
         const model = genAI.getGenerativeModel({ 
             model: modelName,
@@ -178,7 +178,7 @@ exports.findRelevantChunks = async (queryText) => {
 exports.generateQuestionsFromText = async (text) => {
     try {
         const model = genAI.getGenerativeModel({ 
-            model: "gemini-2.5-flash",
+            model: "gemini-flash-latest",
             generationConfig: { responseMimeType: "application/json" }
         });
 

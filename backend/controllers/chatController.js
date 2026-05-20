@@ -160,7 +160,7 @@ exports.askAI = async (req, res) => {
         }
 
         const systemInstruction = chatType === 'shukaansi' ? shukaansiSystemInstruction : darkpenSystemInstruction;
-        const modelName = userPlan === 'monthly_11' ? "gemini-2.5-pro" : "gemini-2.5-flash";
+        const modelName = "gemini-flash-latest";
 
         // Handle streaming response if requested and not shukaansi
         if (stream === true && chatType !== 'shukaansi') {
