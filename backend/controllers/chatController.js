@@ -189,23 +189,29 @@ exports.askAI = async (req, res) => {
             // Step 2: Notify client we are now generating the response
             res.write(`data: ${JSON.stringify({ status: 'thinking' })}\n\n`);
 
-            const responseStream = await aiService.askGeminiStream(finalPrompt, modelName, attachment, history, systemInstruction);
-            
-            let aiResponseText = "";
-            for await (const chunk of responseStream) {
-                const chunkText = chunk.text();
-                aiResponseText += chunkText;
-                res.write(`data: ${JSON.stringify({ text: chunkText })}\n\n`);
+            try {
+                const responseStream = await aiService.askGeminiStream(finalPrompt, modelName, attachment, history, systemInstruction);
+                
+                let aiResponseText = "";
+                for await (const chunk of responseStream) {
+                    const chunkText = chunk.text();
+                    aiResponseText += chunkText;
+                    res.write(`data: ${JSON.stringify({ text: chunkText })}\n\n`);
+                }
+
+                res.write('data: [DONE]\n\n');
+                res.end();
+
+                // Save AI response to messages_private
+                await db.execute(
+                    'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "ai", ?)',
+                    [userId, sessionId || null, aiResponseText]
+                );
+            } catch (err) {
+                console.error("Gemini stream generation error:", err);
+                res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+                res.end();
             }
-
-            res.write('data: [DONE]\n\n');
-            res.end();
-
-            // Save AI response to messages_private
-            await db.execute(
-                'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "ai", ?)',
-                [userId, sessionId || null, aiResponseText]
-            );
             return;
         }
 
