@@ -36,19 +36,80 @@ type Message = {
 
 const INITIAL_MESSAGES: Message[] = [];
 
-const renderFormattedText = (text: string) => {
+const renderFormattedText = (text: string, isDark: boolean, colors: any) => {
   if (!text) return null;
-  const regex = /(```[\s\S]*?```|<table_data>[\s\S]*?<\/table_data>|<callout>[\s\S]*?<\/callout>|<blue>[\s\S]*?<\/blue>|<green>[\s\S]*?<\/green>|<red>[\s\S]*?<\/red>|\*\*.*?\*\*|^#{1,3}\s+.*$|Q\d+:|A\d+:)/gm;
-  const parts = text.split(regex);
-  return parts.map((part, index) => {
-    if (!part) return null;
-    
-    if (part.startsWith('```') && part.endsWith('```')) {
-      const match = part.match(/^```(\w*)\n([\s\S]*?)```$/);
+
+  // Split by block-level elements
+  const blockRegex = /(```[\s\S]*?```|<table_data>[\s\S]*?<\/table_data>|<callout>[\s\S]*?<\/callout>|^#{1,3}\s+[^\n]+)/gm;
+  const blocks = text.split(blockRegex);
+
+  const renderInlineText = (inlineText: string, keyPrefix: string) => {
+    const inlineRegex = /(\*\*.*?\*\*|<blue>[\s\S]*?<\/blue>|<green>[\s\S]*?<\/green>|<red>[\s\S]*?<\/red>|Q\d+:|A\d+:)/g;
+    const parts = inlineText.split(inlineRegex);
+
+    return parts.map((part, index) => {
+      if (!part) return null;
+      const key = `${keyPrefix}-inline-${index}`;
+
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <Text key={key} style={{ fontWeight: 'bold', color: colors.text }}>{part.replace(/\*\*/g, '')}</Text>;
+      }
+      if (part.startsWith('<blue>') && part.endsWith('</blue>')) {
+        return <Text key={key} style={{ color: '#3B82F6', fontWeight: '500' }}>{part.replace(/<\/?blue>/g, '')}</Text>;
+      }
+      if (part.startsWith('<green>') && part.endsWith('</green>')) {
+        const innerText = part.replace(/<\/?green>/g, '');
+        const optionMatch = innerText.match(/^([a-zA-Z])\s*[\.\)]\s*(.*)$/);
+        if (optionMatch) {
+          const letter = optionMatch[1].toUpperCase();
+          const restOfText = optionMatch[2];
+          return (
+            <Text key={key}>
+              <View style={{
+                backgroundColor: '#22c55e', 
+                borderRadius: 10, 
+                width: 20, 
+                height: 20, 
+                justifyContent: 'center', 
+                alignItems: 'center',
+                marginRight: 6,
+                transform: [{ translateY: 3 }]
+              }}>
+                <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 11, textAlign: 'center', lineHeight: 18 }}>
+                  {letter}
+                </Text>
+              </View>
+              {" "}
+              <Text style={{ color: '#22c55e', fontWeight: 'bold' }}>{restOfText}</Text>
+            </Text>
+          );
+        }
+        return <Text key={key} style={{ color: '#22c55e', fontWeight: 'bold' }}>{innerText}</Text>;
+      }
+      if (part.startsWith('<red>') && part.endsWith('</red>')) {
+        return <Text key={key} style={{ color: '#ef4444', fontWeight: 'bold' }}>{part.replace(/<\/?red>/g, '')}</Text>;
+      }
+      if (/^Q\d+:$/.test(part)) {
+        return <Text key={key} style={{ fontWeight: 'bold', color: '#3B82F6' }}>{part}</Text>;
+      }
+      if (/^A\d+:$/.test(part)) {
+        return <Text key={key} style={{ fontWeight: 'bold', color: '#10B981' }}>{part}</Text>;
+      }
+      return <Text key={key} style={{ color: colors.text }}>{part}</Text>;
+    });
+  };
+
+  return blocks.map((block, index) => {
+    if (!block) return null;
+    const blockKey = `block-${index}`;
+
+    // 1. Code Block
+    if (block.startsWith('```') && block.endsWith('```')) {
+      const match = block.match(/^```(\w*)\n([\s\S]*?)```$/);
       const language = match && match[1] ? match[1] : 'code';
-      const codeContent = match ? match[2] : part.replace(/```/g, '');
+      const codeContent = match ? match[2] : block.replace(/```/g, '');
       return (
-        <View key={index} style={{ backgroundColor: '#1e1e1e', borderRadius: 8, marginVertical: 8, overflow: 'hidden', width: '100%' }}>
+        <View key={blockKey} style={{ backgroundColor: '#1e1e1e', borderRadius: 8, marginVertical: 8, overflow: 'hidden', width: '100%' }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#2d2d2d', paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' }}>
             <Text style={{ color: '#a3a3a3', fontSize: 12, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>{language}</Text>
             <TouchableOpacity 
@@ -70,37 +131,33 @@ const renderFormattedText = (text: string) => {
         </View>
       );
     }
-    
-    if (part.startsWith('<callout>') && part.endsWith('</callout>')) {
-      const innerText = part.replace(/<\/?callout>/g, '').trim();
+
+    // 2. Callout Block
+    if (block.startsWith('<callout>') && block.endsWith('</callout>')) {
+      const innerText = block.replace(/<\/?callout>/g, '').trim();
       return (
-        <View key={index} style={{ backgroundColor: '#f3f4f6', borderLeftWidth: 4, borderLeftColor: '#6b7280', padding: 12, marginVertical: 8, borderRadius: 4, width: '100%' }}>
-          <Text style={{ color: '#374151', fontSize: 14, fontStyle: 'italic', lineHeight: 22 }}>{innerText}</Text>
+        <View key={blockKey} style={{ backgroundColor: isDark ? '#2a2b2f' : '#f3f4f6', borderLeftWidth: 4, borderLeftColor: colors.primary, padding: 12, marginVertical: 8, borderRadius: 4, width: '100%' }}>
+          <Text style={{ color: colors.text, fontSize: 14, fontStyle: 'italic', lineHeight: 22 }}>
+            {innerText}
+          </Text>
         </View>
       );
     }
 
-    if (/^#{1,3}\s+/.test(part)) {
-      const level = part.match(/^(#{1,3})/)?.[1].length || 1;
-      const innerText = part.replace(/^#{1,3}\s+/, '');
-      const fontSize = level === 1 ? 20 : level === 2 ? 18 : 16;
-      const marginTop = level === 1 ? 16 : 12;
-      return <Text key={index} style={{ fontSize, fontWeight: 'bold', color: '#111827', marginTop, marginBottom: 8 }}>{innerText}</Text>;
-    }
-
-    if (part.startsWith('<table_data>') && part.endsWith('</table_data>')) {
-      const innerText = part.replace(/<\/?table_data>/g, '').trim();
+    // 3. Table Block
+    if (block.startsWith('<table_data>') && block.endsWith('</table_data>')) {
+      const innerText = block.replace(/<\/?table_data>/g, '').trim();
       const rows = innerText.split('\n').filter(r => r.trim() !== '');
       if (rows.length === 0) return null;
       return (
-        <View key={index} style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, marginVertical: 8, overflow: 'hidden', width: '100%' }}>
+        <View key={blockKey} style={{ borderWidth: 1, borderColor: colors.border || '#e5e7eb', borderRadius: 8, marginVertical: 8, overflow: 'hidden', width: '100%' }}>
           {rows.map((row, rIndex) => {
             const cols = row.split('|');
             return (
-              <View key={rIndex} style={{ flexDirection: 'row', backgroundColor: rIndex === 0 ? '#f3f4f6' : '#ffffff', borderBottomWidth: rIndex < rows.length - 1 ? 1 : 0, borderBottomColor: '#e5e7eb' }}>
+              <View key={rIndex} style={{ flexDirection: 'row', backgroundColor: rIndex === 0 ? (isDark ? '#27282c' : '#f3f4f6') : (isDark ? '#1e1f22' : '#ffffff'), borderBottomWidth: rIndex < rows.length - 1 ? 1 : 0, borderBottomColor: colors.border || '#e5e7eb' }}>
                 {cols.map((col, cIndex) => (
-                  <View key={cIndex} style={{ flex: 1, padding: 8, borderRightWidth: cIndex < cols.length - 1 ? 1 : 0, borderRightColor: '#e5e7eb' }}>
-                    <Text style={{ fontWeight: rIndex === 0 ? 'bold' : 'normal', color: '#1f2937', fontSize: 13 }}>{col.trim()}</Text>
+                  <View key={cIndex} style={{ flex: 1, padding: 8, borderRightWidth: cIndex < cols.length - 1 ? 1 : 0, borderRightColor: colors.border || '#e5e7eb' }}>
+                    <Text style={{ fontWeight: rIndex === 0 ? 'bold' : 'normal', color: colors.text, fontSize: 13 }}>{col.trim()}</Text>
                   </View>
                 ))}
               </View>
@@ -109,51 +166,70 @@ const renderFormattedText = (text: string) => {
         </View>
       );
     }
-    if (part.startsWith('<blue>') && part.endsWith('</blue>')) {
-      return <Text key={index} style={{ color: '#3B82F6', fontWeight: '500' }}>{part.replace(/<\/?blue>/g, '')}</Text>;
+
+    // 4. Header Block
+    if (/^#{1,3}\s+/.test(block)) {
+      const level = block.match(/^(#{1,3})/)?.[1].length || 1;
+      const innerText = block.replace(/^#{1,3}\s+/, '').trim();
+      const fontSize = level === 1 ? 22 : level === 2 ? 19 : 16;
+      const marginTop = level === 1 ? 16 : 12;
+      return (
+        <Text key={blockKey} style={{ fontSize, fontWeight: 'bold', color: colors.text, marginTop, marginBottom: 8, lineHeight: fontSize * 1.3 }}>
+          {innerText}
+        </Text>
+      );
     }
-    if (part.startsWith('<green>') && part.endsWith('</green>')) {
-      const innerText = part.replace(/<\/?green>/g, '');
-      const optionMatch = innerText.match(/^([a-zA-Z])\s*[\.\)]\s*(.*)$/);
-      if (optionMatch) {
-        const letter = optionMatch[1].toUpperCase();
-        const restOfText = optionMatch[2];
-        return (
-          <Text key={index}>
-            <View style={{
-              backgroundColor: '#22c55e', 
-              borderRadius: 12, 
-              width: 24, 
-              height: 24, 
-              justifyContent: 'center', 
-              alignItems: 'center',
-              marginRight: 6,
-              transform: [{ translateY: 4 }]
-            }}>
-              <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 13, textAlign: 'center', lineHeight: 22 }}>
-                {letter}
-              </Text>
-            </View>
-            {" "}
-            <Text style={{ color: '#22c55e', fontWeight: 'bold' }}>{restOfText}</Text>
-          </Text>
-        );
-      }
-      return <Text key={index} style={{ color: '#22c55e', fontWeight: 'bold' }}>{innerText}</Text>;
-    }
-    if (part.startsWith('<red>') && part.endsWith('</red>')) {
-      return <Text key={index} style={{ color: '#ef4444', fontWeight: 'bold' }}>{part.replace(/<\/?red>/g, '')}</Text>;
-    }
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <Text key={index} style={{ fontWeight: 'bold' }}>{part.replace(/\*\*/g, '')}</Text>;
-    }
-    if (/^Q\d+:$/.test(part)) {
-      return <Text key={index} style={{ fontWeight: 'bold', color: '#3B82F6' }}>{part}</Text>;
-    }
-    if (/^A\d+:$/.test(part)) {
-      return <Text key={index} style={{ fontWeight: 'bold', color: '#10B981' }}>{part}</Text>;
-    }
-    return part;
+
+    // 5. Normal text block with potential line breaks and lists
+    const lines = block.split('\n');
+    return (
+      <View key={blockKey} style={{ width: '100%', marginVertical: 2 }}>
+        {lines.map((line, lIndex) => {
+          const trimmedLine = line.trim();
+          if (trimmedLine === '') {
+            return <View key={lIndex} style={{ height: 8 }} />;
+          }
+
+          // Bullet Point Check
+          const bulletMatch = line.match(/^(\s*)[-\*•]\s+(.*)$/);
+          if (bulletMatch) {
+            const indent = bulletMatch[1].length * 10;
+            const content = bulletMatch[2];
+            return (
+              <View key={lIndex} style={{ flexDirection: 'row', paddingLeft: indent + 12, marginVertical: 3, alignItems: 'flex-start' }}>
+                <Text style={{ color: colors.primary, fontSize: 15, marginRight: 8, lineHeight: 22 }}>•</Text>
+                <Text style={{ flex: 1, fontSize: 15, lineHeight: 22 }}>
+                  {renderInlineText(content, `${blockKey}-line-${lIndex}`)}
+                </Text>
+              </View>
+            );
+          }
+
+          // Numbered List Check
+          const numberMatch = line.match(/^(\s*)(\d+)\.\s+(.*)$/);
+          if (numberMatch) {
+            const indent = numberMatch[1].length * 10;
+            const number = numberMatch[2];
+            const content = numberMatch[3];
+            return (
+              <View key={lIndex} style={{ flexDirection: 'row', paddingLeft: indent + 12, marginVertical: 3, alignItems: 'flex-start' }}>
+                <Text style={{ color: colors.primary, fontWeight: 'bold', fontSize: 14, marginRight: 8, lineHeight: 22 }}>{number}.</Text>
+                <Text style={{ flex: 1, fontSize: 15, lineHeight: 22 }}>
+                  {renderInlineText(content, `${blockKey}-line-${lIndex}`)}
+                </Text>
+              </View>
+            );
+          }
+
+          // Standard paragraph line
+          return (
+            <Text key={lIndex} style={{ fontSize: 15, lineHeight: 24, color: colors.text, marginVertical: 2 }}>
+              {renderInlineText(line, `${blockKey}-line-${lIndex}`)}
+            </Text>
+          );
+        })}
+      </View>
+    );
   });
 };
 
@@ -181,6 +257,7 @@ export default function ChatScreen() {
   const [subscriptionType, setSubscriptionType] = useState<string | null>(null);
   const [thinkingStatus, setThinkingStatus] = useState<string>('');
   const [viewerImage, setViewerImage] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string>('');
 
   // Sidebar State
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -207,6 +284,11 @@ export default function ChatScreen() {
   const [isTranscribing, setIsTranscribing] = useState(false);
 
   const scrollViewRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    // Generate unique session ID for this chat instance
+    setSessionId(`chat_${Date.now()}_${Math.random().toString(36).substring(7)}`);
+  }, []);
 
   // Gesture for Attach Menu
   const attachPanResponder = useRef(
@@ -587,14 +669,15 @@ export default function ChatScreen() {
           message: userText,
           chatType: 'education',
           stream: true,
-          attachment: currentAttachment ? {
-            base64: currentAttachment.base64,
-            mimeType: currentAttachment.mimeType,
-            name: currentAttachment.name
-          } : null
+          sessionId: sessionId,
+          attachment: currentAttachments.length > 0 ? currentAttachments.map(att => ({
+            base64: att.base64,
+            mimeType: att.mimeType,
+            name: att.name
+          })) : null
         })
       });
-      // Note: backend processes one image at a time; additional images are displayed only visually.
+      // Send all attachments to backend
 
       if (response.status === 402) {
         clearTimeout(statusTimeout);
@@ -812,7 +895,9 @@ export default function ChatScreen() {
                             </View>
                           ) : (
                             <View style={styles.aiTextContainer}>
-                              <Text style={styles.messageTextAi}>{renderFormattedText(msg.text)}</Text>
+                              <View style={{ flex: 1 }}>
+                                {renderFormattedText(msg.text, isDark, colors)}
+                              </View>
                               {msg.status === 'streaming' && <View style={styles.typingCursor} />}
                             </View>
                           )}
@@ -1219,7 +1304,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   aiTextContainer: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    width: '100%',
   },
   messageTextAi: {
     fontSize: 15,

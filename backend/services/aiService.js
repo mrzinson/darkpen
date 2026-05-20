@@ -57,12 +57,17 @@ exports.askGemini = async (prompt, modelName = "gemini-flash-latest", attachment
         let parts = [{ text: prompt }];
 
         if (attachment) {
-            parts.push({
-                inlineData: {
-                    data: attachment.base64,
-                    mimeType: attachment.mimeType
+            const atts = Array.isArray(attachment) ? attachment : [attachment];
+            for (const att of atts) {
+                if (att && att.base64 && att.mimeType) {
+                    parts.push({
+                        inlineData: {
+                            data: att.base64,
+                            mimeType: att.mimeType
+                        }
+                    });
                 }
-            });
+            }
         }
 
         const result = await model.generateContent({
@@ -92,12 +97,17 @@ exports.askGeminiStream = async (prompt, modelName = "gemini-flash-latest", atta
         let parts = [{ text: prompt }];
 
         if (attachment) {
-            parts.push({
-                inlineData: {
-                    data: attachment.base64,
-                    mimeType: attachment.mimeType
+            const atts = Array.isArray(attachment) ? attachment : [attachment];
+            for (const att of atts) {
+                if (att && att.base64 && att.mimeType) {
+                    parts.push({
+                        inlineData: {
+                            data: att.base64,
+                            mimeType: att.mimeType
+                        }
+                    });
                 }
-            });
+            }
         }
 
         const result = await model.generateContentStream({
