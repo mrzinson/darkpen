@@ -3,7 +3,18 @@ import { Trophy, ShieldAlert, Award, Save, RefreshCw, PlusCircle } from 'lucide-
 import { API_URL } from '../config';
 
 export default function TournamentPanel() {
-  const [settings, setSettings] = useState<any>({ is_active: 1, reward_description: '' });
+  const [settings, setSettings] = useState<any>({
+    is_active: 1,
+    reward_description: '',
+    gen_ad_title: '',
+    gen_ad_desc: '',
+    gen_ad_btn_text: '',
+    gen_ad_btn_route: '',
+    result_ad_title: '',
+    result_ad_desc: '',
+    result_ad_btn_text: '',
+    result_ad_btn_route: ''
+  });
   const [contestants, setContestants] = useState<any[]>([]);
   const [saveStatus, setSaveStatus] = useState('');
 
@@ -136,6 +147,113 @@ export default function TournamentPanel() {
                 }}
                 placeholder="Qor abaalmarinta bishaan..."
               />
+            </div>
+
+            {/* Advertising Configuration Section */}
+            <div style={{ marginTop: '25px', borderTop: '1px dashed var(--border)', paddingTop: '20px', marginBottom: '20px' }}>
+              <h4 style={{ fontSize: '16px', fontWeight: 'bold', color: 'var(--primary)', marginBottom: '15px' }}>
+                📢 Quiz Tournament Advertising Settings
+              </h4>
+              
+              <div className="grid-2">
+                {/* Ad 1: Questions Generation Screen */}
+                <div style={{ border: '1px solid var(--border)', borderRadius: '10px', padding: '16px', background: 'rgba(0,0,0,0.1)' }}>
+                  <h5 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '12px' }}>
+                    1. Xayaysiiska Samaynta Su'aalaha (While Generating Questions)
+                  </h5>
+                  
+                  <div className="input-group">
+                    <label>Ad Title</label>
+                    <input
+                      type="text"
+                      value={settings.gen_ad_title || ''}
+                      onChange={e => setSettings({ ...settings, gen_ad_title: e.target.value })}
+                      placeholder="Tusaale: Dugsiga Caalamiga ah ee ZinsonAI"
+                    />
+                  </div>
+
+                  <div className="input-group">
+                    <label>Ad Description</label>
+                    <textarea
+                      value={settings.gen_ad_desc || ''}
+                      onChange={e => setSettings({ ...settings, gen_ad_desc: e.target.value })}
+                      placeholder="Tusaale: Hada is-diiwaangeli oo hel waxbarasho digital ah oo bilaash ah!"
+                      rows={2}
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', backgroundColor: 'var(--card)', color: 'var(--text)', fontFamily: 'inherit' }}
+                    />
+                  </div>
+
+                  <div className="grid-2" style={{ marginTop: '10px' }}>
+                    <div className="input-group" style={{ margin: 0 }}>
+                      <label>Button Text</label>
+                      <input
+                        type="text"
+                        value={settings.gen_ad_btn_text || ''}
+                        onChange={e => setSettings({ ...settings, gen_ad_btn_text: e.target.value })}
+                        placeholder="Baro Dheeraad"
+                      />
+                    </div>
+                    <div className="input-group" style={{ margin: 0 }}>
+                      <label>Button Route / URL Link</label>
+                      <input
+                        type="text"
+                        value={settings.gen_ad_btn_route || ''}
+                        onChange={e => setSettings({ ...settings, gen_ad_btn_route: e.target.value })}
+                        placeholder="/manhajka ama https://..."
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Ad 2: Result Screen Transition */}
+                <div style={{ border: '1px solid var(--border)', borderRadius: '10px', padding: '16px', background: 'rgba(0,0,0,0.1)' }}>
+                  <h5 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '12px' }}>
+                    2. Xayaysiiska Kahor Natiijada (Before Results Screen)
+                  </h5>
+                  
+                  <div className="input-group">
+                    <label>Ad Title</label>
+                    <input
+                      type="text"
+                      value={settings.result_ad_title || ''}
+                      onChange={e => setSettings({ ...settings, result_ad_title: e.target.value })}
+                      placeholder="Tusaale: Darkpen Premium Wallet"
+                    />
+                  </div>
+
+                  <div className="input-group">
+                    <label>Ad Description</label>
+                    <textarea
+                      value={settings.result_ad_desc || ''}
+                      onChange={e => setSettings({ ...settings, result_ad_desc: e.target.value })}
+                      placeholder="Tusaale: Ku shubo 100 Credits oo dheeraad ah kaliya $1 si aad u kordhiso isku-dayadaada!"
+                      rows={2}
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', backgroundColor: 'var(--card)', color: 'var(--text)', fontFamily: 'inherit' }}
+                    />
+                  </div>
+
+                  <div className="grid-2" style={{ marginTop: '10px' }}>
+                    <div className="input-group" style={{ margin: 0 }}>
+                      <label>Button Text</label>
+                      <input
+                        type="text"
+                        value={settings.result_ad_btn_text || ''}
+                        onChange={e => setSettings({ ...settings, result_ad_btn_text: e.target.value })}
+                        placeholder="Hada Iibso"
+                      />
+                    </div>
+                    <div className="input-group" style={{ margin: 0 }}>
+                      <label>Button Route / URL Link</label>
+                      <input
+                        type="text"
+                        value={settings.result_ad_btn_route || ''}
+                        onChange={e => setSettings({ ...settings, result_ad_btn_route: e.target.value })}
+                        placeholder="/billing ama https://..."
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="flex-between">

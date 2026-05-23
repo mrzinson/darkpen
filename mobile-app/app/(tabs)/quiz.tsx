@@ -2,8 +2,10 @@ import { useTheme } from '../../context/ThemeContext';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet, Text, View, TouchableOpacity, ScrollView,
-  Dimensions, ActivityIndicator, Image, AppState, Alert, TextInput
+  Dimensions, ActivityIndicator, Image, AppState, Alert, TextInput,
+  Linking
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -31,10 +33,23 @@ type QuizReviewItem = {
 };
 
 export default function QuizScreen() {
+  const router = useRouter();
   const { colors, isDark, language } = useTheme();
   const styles = getStyles(colors, isDark);
 
   const [activeTab, setActiveTab] = useState<'ai' | 'others'>('ai');
+
+  // Ad Settings State
+  const [adSettings, setAdSettings] = useState({
+    gen_ad_title: 'Dugsiga Caalamiga ah ee ZinsonAI',
+    gen_ad_desc: 'Hada is-diiwaangeli oo hel waxbarasho digital ah oo bilaash ah!',
+    gen_ad_btn_text: 'Baro Dheeraad',
+    gen_ad_btn_route: '/manhajka',
+    result_ad_title: 'Darkpen Premium Wallet',
+    result_ad_desc: 'Ku shubo 100 Credits oo dheeraad ah kaliya $1 si aad u kordhiso isku-dayadaada!',
+    result_ad_btn_text: 'Hada Iibso',
+    result_ad_btn_route: '/billing'
+  });
 
   // Opt-In State
   const [optedIn, setOptedIn] = useState<boolean | null>(null);
@@ -88,6 +103,18 @@ export default function QuizScreen() {
         setUserCredits(data.user_credits || 0);
         setLockoutSeconds(data.lockout_seconds || 0);
         setTournamentActive(!!data.tournament_active);
+        
+        // Sync dynamic ad settings if they exist
+        setAdSettings({
+          gen_ad_title: data.gen_ad_title || 'Dugsiga Caalamiga ah ee ZinsonAI',
+          gen_ad_desc: data.gen_ad_desc || 'Hada is-diiwaangeli oo hel waxbarasho digital ah oo bilaash ah!',
+          gen_ad_btn_text: data.gen_ad_btn_text || 'Baro Dheeraad',
+          gen_ad_btn_route: data.gen_ad_btn_route || '/manhajka',
+          result_ad_title: data.result_ad_title || 'Darkpen Premium Wallet',
+          result_ad_desc: data.result_ad_desc || 'Ku shubo 100 Credits oo dheeraad ah kaliya $1 si aad u kordhiso isku-dayadaada!',
+          result_ad_btn_text: data.result_ad_btn_text || 'Hada Iibso',
+          result_ad_btn_route: data.result_ad_btn_route || '/billing'
+        });
       } else {
         setOptedIn(false);
       }
@@ -258,6 +285,28 @@ export default function QuizScreen() {
       setMathAnswer('');
     } else {
       showAdAndFinish(nextScore);
+    }
+  };
+
+  const resetQuiz = () => {
+    setQuizState('idle');
+    setQuestions([]);
+    setCurrentQuestionIndex(0);
+    setScore(0);
+    setXpEarned(null);
+    setNewTotalXp(null);
+  };
+
+  const handleAdPress = (route: string) => {
+    if (!route) return;
+    try {
+      if (route.startsWith('http')) {
+        Linking.openURL(route).catch(err => console.error("Failed to open URL:", err));
+      } else {
+        router.push(route as any);
+      }
+    } catch (err) {
+      console.error("Ad press error:", err);
     }
   };
 
@@ -641,11 +690,16 @@ export default function QuizScreen() {
                     <Text style={styles.adBadge}>AD BY GOOGLE AD SENSE</Text>
                   </View>
                   <Ionicons name="school" size={42} color="#3B82F6" style={{ marginVertical: 10 }} />
-                  <Text style={styles.adTitle}>Dugsiga Caalamiga ah ee ZinsonAI</Text>
-                  <Text style={styles.adDescription}>Hada is-diiwaangeli oo hel waxbarasho digital ah oo bilaash ah!</Text>
-                  <TouchableOpacity style={styles.adButton}>
-                    <Text style={styles.adButtonText}>Baro Dheeraad</Text>
-                  </TouchableOpacity>
+                  <Text style={styles.adTitle}>{adSettings.gen_ad_title}</Text>
+                  <Text style={styles.adDescription}>{adSettings.gen_ad_desc}</Text>
+                  {adSettings.gen_ad_btn_text ? (
+                    <TouchableOpacity 
+                      style={styles.adButton} 
+                      onPress={() => handleAdPress(adSettings.gen_ad_btn_route)}
+                    >
+                      <Text style={styles.adButtonText}>{adSettings.gen_ad_btn_text}</Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
               </View>
             )}
@@ -662,11 +716,16 @@ export default function QuizScreen() {
                     <Text style={styles.adBadge}>MONETIZED TOURNAMENT SPONSOR</Text>
                   </View>
                   <Ionicons name="flash" size={42} color="#F59E0B" style={{ marginVertical: 10 }} />
-                  <Text style={styles.adTitle}>Darkpen Premium Wallet</Text>
-                  <Text style={styles.adDescription}>Ku shubo 100 Credits oo dheeraad ah kaliya $1 si aad u kordhiso isku-dayadaada!</Text>
-                  <TouchableOpacity style={[styles.adButton, { backgroundColor: '#F59E0B' }]}>
-                    <Text style={styles.adButtonText}>Hada Iibso</Text>
-                  </TouchableOpacity>
+                  <Text style={styles.adTitle}>{adSettings.result_ad_title}</Text>
+                  <Text style={styles.adDescription}>{adSettings.result_ad_desc}</Text>
+                  {adSettings.result_ad_btn_text ? (
+                    <TouchableOpacity 
+                      style={[styles.adButton, { backgroundColor: '#F59E0B' }]}
+                      onPress={() => handleAdPress(adSettings.result_ad_btn_route)}
+                    >
+                      <Text style={styles.adButtonText}>{adSettings.result_ad_btn_text}</Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
               </View>
             )}
@@ -998,6 +1057,36 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.secondary,
     textAlign: 'center',
     marginBottom: 6,
+  },
+  registrationText: {
+    fontSize: 14,
+    color: colors.neutral,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
+    paddingHorizontal: 15,
+  },
+  registeredCard: {
+    width: '90%',
+    backgroundColor: isDark ? '#1F2937' : '#F3F4F6',
+    borderWidth: 1,
+    borderColor: isDark ? '#374151' : '#E5E7EB',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  registeredTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: isDark ? '#10B981' : '#059669',
+    marginBottom: 4,
+  },
+  registeredSubtitle: {
+    fontSize: 13,
+    color: colors.neutral,
+    textAlign: 'center',
+    lineHeight: 18,
   },
   walletBalanceText: {
     fontSize: 14,

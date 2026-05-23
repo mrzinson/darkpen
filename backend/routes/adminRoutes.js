@@ -580,10 +580,44 @@ router.get('/tournament/settings', async (req, res) => {
 // 2. Update Tournament Settings
 router.post('/tournament/settings', async (req, res) => {
     try {
-        const { is_active, reward_description } = req.body;
+        const { 
+            is_active, 
+            reward_description,
+            gen_ad_title,
+            gen_ad_desc,
+            gen_ad_btn_text,
+            gen_ad_btn_route,
+            result_ad_title,
+            result_ad_desc,
+            result_ad_btn_text,
+            result_ad_btn_route
+        } = req.body;
+        
         await db.execute(
-            'UPDATE tournament_settings SET is_active = ?, reward_description = ? WHERE id = 1',
-            [is_active !== undefined ? is_active : 1, reward_description || '']
+            `UPDATE tournament_settings SET 
+                is_active = ?, 
+                reward_description = ?,
+                gen_ad_title = ?,
+                gen_ad_desc = ?,
+                gen_ad_btn_text = ?,
+                gen_ad_btn_route = ?,
+                result_ad_title = ?,
+                result_ad_desc = ?,
+                result_ad_btn_text = ?,
+                result_ad_btn_route = ?
+             WHERE id = 1`,
+            [
+                is_active !== undefined ? is_active : 1, 
+                reward_description || '',
+                gen_ad_title || '',
+                gen_ad_desc || '',
+                gen_ad_btn_text || '',
+                gen_ad_btn_route || '',
+                result_ad_title || '',
+                result_ad_desc || '',
+                result_ad_btn_text || '',
+                result_ad_btn_route || ''
+            ]
         );
         res.json({ message: 'Settings-ka tartanka si guul leh ayaa loo cusboonaysiiyey!' });
     } catch (error) {

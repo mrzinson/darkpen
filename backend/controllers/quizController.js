@@ -305,8 +305,8 @@ exports.getQuizStatus = async (req, res) => {
         }
 
         // 5. Get tournament settings
-        const [settingsRow] = await db.execute('SELECT is_active, start_date, reward_description FROM tournament_settings WHERE id = 1');
-        const settings = settingsRow.length > 0 ? settingsRow[0] : { is_active: 0, start_date: null, reward_description: '' };
+        const [settingsRow] = await db.execute('SELECT * FROM tournament_settings WHERE id = 1');
+        const settings = settingsRow.length > 0 ? settingsRow[0] : {};
 
         res.json({
             status: 'success',
@@ -317,7 +317,15 @@ exports.getQuizStatus = async (req, res) => {
             is_suspended: !!user.is_suspended_from_tournament,
             tournament_active: !!settings.is_active,
             tournament_start_date: settings.start_date,
-            reward_description: settings.reward_description
+            reward_description: settings.reward_description || '',
+            gen_ad_title: settings.gen_ad_title || '',
+            gen_ad_desc: settings.gen_ad_desc || '',
+            gen_ad_btn_text: settings.gen_ad_btn_text || '',
+            gen_ad_btn_route: settings.gen_ad_btn_route || '',
+            result_ad_title: settings.result_ad_title || '',
+            result_ad_desc: settings.result_ad_desc || '',
+            result_ad_btn_text: settings.result_ad_btn_text || '',
+            result_ad_btn_route: settings.result_ad_btn_route || ''
         });
     } catch (error) {
         console.error("Get Quiz Status Error:", error);
