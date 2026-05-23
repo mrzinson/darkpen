@@ -250,6 +250,39 @@ export default function QuizScreen() {
     }
   };
 
+  const finishQuiz = async (finalScore = score, cheatDetected = false) => {
+    setQuizState('finished');
+    setSubmittingScore(true);
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const response = await fetch(`${Config.API_URL}/api/chat/quiz/submit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ score: cheatDetected ? 0 : finalScore })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setXpEarned(data.xp_earned);
+        setNewTotalXp(data.new_total_xp);
+      }
+    } catch (err) {
+      console.error("Error submitting score:", err);
+    } finally {
+      setSubmittingScore(false);
+    }
+  };
+
+  // Ads monetization block before results
+  const showAdAndFinish = (finalScore: number) => {
+    setQuizState('showing_ad');
+    setTimeout(() => {
+      finishQuiz(finalScore);
+    }, 5000); // 5 seconds ad display
+  };
+
   // Submit Answer
   const handleAnswerSubmit = (selected: string, isMath = false) => {
     const currentQ = questions[currentQuestionIndex];
@@ -295,6 +328,7 @@ export default function QuizScreen() {
     setScore(0);
     setXpEarned(null);
     setNewTotalXp(null);
+    setUserAnswers([]);
   };
 
   const handleAdPress = (route: string) => {
@@ -307,39 +341,6 @@ export default function QuizScreen() {
       }
     } catch (err) {
       console.error("Ad press error:", err);
-    }
-  };
-
-  // Ads monetization block before results
-  const showAdAndFinish = (finalScore: number) => {
-    setQuizState('showing_ad');
-    setTimeout(() => {
-      finishQuiz(finalScore);
-    }, 5000); // 5 seconds ad display
-  };
-
-  const finishQuiz = async (finalScore = score, cheatDetected = false) => {
-    setQuizState('finished');
-    setSubmittingScore(true);
-    try {
-      const token = await AsyncStorage.getItem('userToken');
-      const response = await fetch(`${Config.API_URL}/api/chat/quiz/submit`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ score: cheatDetected ? 0 : finalScore })
-      });
-      const data = await response.json();
-      if (response.ok) {
-        setXpEarned(data.xp_earned);
-        setNewTotalXp(data.new_total_xp);
-      }
-    } catch (err) {
-      console.error("Error submitting score:", err);
-    } finally {
-      setSubmittingScore(false);
     }
   };
 
