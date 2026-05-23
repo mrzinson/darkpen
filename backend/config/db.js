@@ -8,9 +8,41 @@ const pool = mysql.createPool({
     database: process.env.DB_NAME,
     waitForConnections: true,
     connectionLimit: 10,
-    queueLimit: 0
+    queueLimit: 0,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 0,
+    connectTimeout: 10000
 });
 
 const promisePool = pool.promise();
 
-module.exports = promisePool;
+const RETRYABLE_ERRORS = new Set([
+    'ECONNRESET',
+    'ETIMEDOUT',
+    'EPIPE',
+    'PROTOCOL_CONNECTION_LOST'
+]);
+
+function shouldRetry(error) {
+    return RETRYABLE_ERRORS.has(error?.code) || (error?.fatal && error?.syscall === 'read');
+}
+
+async function withRetry(action, label) {
+    try {
+        return await action();
+    } catch (error) {
+        if (!shouldRetry(error)) {
+            throw error;
+        }
+
+        console.warn(`[DB] ${label} failed with ${error.code || error.message}; retrying once.`);
+        return action();
+    }
+}
+
+module.exports = {
+    execute: (...args) => withRetry(() => promisePool.execute(...args), 'execute'),
+    query: (...args) => withRetry(() => promisePool.query(...args), 'query'),
+    getConnection: () => withRetry(() => promisePool.getConnection(), 'getConnection'),
+    end: (...args) => promisePool.end(...args),
+};

@@ -10,16 +10,18 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Config from '../constants/Config';
+import { normalizePhoneInput } from '../utils/authInput';
+import { AppLogo } from '../components/AppLogo';
 
 export default function LoginScreen() {
   const { colors } = useTheme();
   const styles = getStyles(colors);
   const router = useRouter();
 
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [form, setForm] = useState({ whatsappNumber: '', password: '' });
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('Please enter your email and password');
-  const [emailFocused, setEmailFocused] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('Fadlan geli WhatsApp number-ka iyo password-ka');
+  const [phoneFocused, setPhoneFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
   const buttonScale = useRef(new Animated.Value(1)).current;
@@ -40,13 +42,19 @@ export default function LoginScreen() {
     }
   }, [loading]);
 
-  const handleFocus = (field: 'email' | 'password', focused: boolean) => {
-    if (field === 'email') setEmailFocused(focused);
+  const handleFocus = (field: 'phone' | 'password', focused: boolean) => {
+    if (field === 'phone') setPhoneFocused(focused);
     else setPasswordFocused(focused);
   };
 
   const handleLogin = async () => {
     setErrorMsg('');
+    const normalizedPhone = normalizePhoneInput(form.whatsappNumber);
+    if (!normalizedPhone || !form.password) {
+      setErrorMsg('Fadlan geli number sax ah iyo password-ka');
+      return;
+    }
+
     setLoading(true);
 
 
@@ -56,7 +64,7 @@ export default function LoginScreen() {
       const response = await fetch(`${apiUrl}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: form.email, password: form.password }),
+        body: JSON.stringify({ whatsapp_number: normalizedPhone, password: form.password }),
       });
 
       const data = await response.json();
@@ -68,7 +76,13 @@ export default function LoginScreen() {
       await AsyncStorage.setItem('userToken', data.token);
       await AsyncStorage.setItem('userData', JSON.stringify(data.user));
 
-      router.push('/(tabs)');
+      if (data.requires_verification) {
+        router.push('/verify');
+      } else if (!data.user?.terms_accepted_at) {
+        router.push('/terms');
+      } else {
+        router.push('/(tabs)');
+      }
     } catch (err: any) {
       setErrorMsg(err.message);
     } finally {
@@ -93,6 +107,7 @@ export default function LoginScreen() {
           {/* Card */}
           <View style={styles.card}>
             <View style={styles.header}>
+              <AppLogo size={68} variant="blue" style={styles.logo} />
               <Text style={styles.title}>login</Text>
 
 
@@ -102,17 +117,17 @@ export default function LoginScreen() {
 
             {/* Email Input */}
             <View style={styles.inputContainer}>
-              <Text style={[styles.floatingLabel, (emailFocused || form.email.length > 0) && styles.floatingLabelActive]}>
-                Email
+              <Text style={[styles.floatingLabel, (phoneFocused || form.whatsappNumber.length > 0) && styles.floatingLabelActive]}>
+                WhatsApp Number
               </Text>
               <TextInput
                 style={styles.input}
-                keyboardType="email-address"
+                keyboardType="phone-pad"
                 autoCapitalize="none"
-                value={form.email}
-                onChangeText={(t) => setForm({ ...form, email: t })}
-                onFocus={() => handleFocus('email', true)}
-                onBlur={() => handleFocus('email', false)}
+                value={form.whatsappNumber}
+                onChangeText={(t) => setForm({ ...form, whatsappNumber: t })}
+                onFocus={() => handleFocus('phone', true)}
+                onBlur={() => handleFocus('phone', false)}
               />
             </View>
 
@@ -154,7 +169,7 @@ export default function LoginScreen() {
 
             {/* Sign up link */}
             <View style={styles.loginContainer}>
-              <Text style={styles.footerText}>Don't have an account? </Text>
+              <Text style={styles.footerText}>Do not have an account? </Text>
               <TouchableOpacity onPress={() => router.push('/signup')}>
                 <Text style={styles.loginText}>Sign up here</Text>
               </TouchableOpacity>
@@ -193,6 +208,10 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   header: {
     marginBottom: AzureTheme.spacing.xl,
+    alignItems: 'center',
+  },
+  logo: {
+    marginBottom: 10,
   },
   title: {
     fontSize: 36,
@@ -200,6 +219,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     color: '#3B82F6',
     marginBottom: 8,
     textTransform: 'uppercase',
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,

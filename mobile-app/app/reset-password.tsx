@@ -13,7 +13,7 @@ export default function ResetPasswordScreen() {
 
   const router = useRouter();
   const params = useLocalSearchParams();
-  const email = params.email as string;
+  const whatsappNumber = params.whatsapp_number as string;
 
   const [form, setForm] = useState({ code: '', newPassword: '', confirmPassword: '' });
   const [loading, setLoading] = useState(false);
@@ -22,6 +22,11 @@ export default function ResetPasswordScreen() {
   const handleReset = async () => {
     if (!form.code || !form.newPassword) {
       setErrorMsg("Fadlan geli koodhka iyo password-ka cusub");
+      return;
+    }
+
+    if (form.code.length < 6) {
+      setErrorMsg("Fadlan geli 6-da lambar ee koodhka");
       return;
     }
 
@@ -40,7 +45,7 @@ export default function ResetPasswordScreen() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          email: email,
+          whatsapp_number: whatsappNumber,
           code: form.code,
           newPassword: form.newPassword
         })
@@ -76,7 +81,7 @@ export default function ResetPasswordScreen() {
             </TouchableOpacity>
             <Text style={styles.title}>reset password</Text>
             <Text style={styles.subtitle}>
-              We sent a 5-digit code to {email}. Enter it below along with your new password.
+              Koodh 6-lambar ah ayaan u dirnay email-ka recovery-ga ee ku xiran {whatsappNumber}. Hoos geli koodhka iyo password-ka cusub.
             </Text>
             {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
           </View>
@@ -84,10 +89,10 @@ export default function ResetPasswordScreen() {
           <View style={styles.form}>
             <TextInput 
               style={styles.input} 
-              placeholder="5-digit code" 
+              placeholder="6-digit code" 
               placeholderTextColor={colors.neutral}
               keyboardType="number-pad"
-              maxLength={5}
+              maxLength={6}
               value={form.code}
               onChangeText={(t) => setForm({...form, code: t})}
             />

@@ -140,24 +140,68 @@ function cosineSimilarity(vecA, vecB) {
     return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
+let cachedEmbeddings = null;
+let isCacheLoading = false;
+
+// Function to load/reload embeddings
+async function loadEmbeddingsIntoCache() {
+    if (isCacheLoading) return;
+    isCacheLoading = true;
+    try {
+        console.log("[EMBEDDINGS CACHE] Loading embeddings from DB...");
+        const [rows] = await db.execute('SELECT title, chunk_text, embedding FROM book_embeddings');
+        cachedEmbeddings = rows.map(row => {
+            let parsedEmbedding = row.embedding;
+            if (typeof parsedEmbedding === 'string') {
+                try {
+                    parsedEmbedding = JSON.parse(parsedEmbedding);
+                } catch (err) {
+                    console.error("Error parsing embedding JSON:", err);
+                    parsedEmbedding = null;
+                }
+            }
+            return {
+                title: row.title,
+                text: row.chunk_text,
+                embedding: parsedEmbedding
+            };
+        }).filter(item => item.embedding !== null && Array.isArray(item.embedding));
+        console.log(`[EMBEDDINGS CACHE] Loaded ${cachedEmbeddings.length} embeddings successfully!`);
+    } catch (err) {
+        console.error("[EMBEDDINGS CACHE] Error loading embeddings:", err);
+    } finally {
+        isCacheLoading = false;
+    }
+}
+
+// Clear/invalidate cache
+exports.clearEmbeddingsCache = () => {
+    console.log("[EMBEDDINGS CACHE] Invalidating cache...");
+    cachedEmbeddings = null;
+};
+
 // Raadinta xogta buugaagta
 exports.findRelevantChunks = async (queryText) => {
     try {
+        // Load cache if not already loaded
+        if (!cachedEmbeddings) {
+            await loadEmbeddingsIntoCache();
+        }
+
+        if (!cachedEmbeddings || cachedEmbeddings.length === 0) {
+            return "";
+        }
+
         const model = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
         const result = await model.embedContent(queryText);
         const queryEmbedding = result.embedding.values;
 
-        // Soo akhrinta dhammaan qaybaha
-        const [rows] = await db.execute('SELECT title, chunk_text, embedding FROM book_embeddings');
-        
-        if (rows.length === 0) return "";
-
-        const scoredChunks = rows.map(row => {
-            const chunkEmbedding = typeof row.embedding === 'string' ? JSON.parse(row.embedding) : row.embedding;
-            const score = cosineSimilarity(queryEmbedding, chunkEmbedding);
+        // Perform fast cosine similarity search in memory
+        const scoredChunks = cachedEmbeddings.map(item => {
+            const score = cosineSimilarity(queryEmbedding, item.embedding);
             return {
-                title: row.title,
-                text: row.chunk_text,
+                title: item.title,
+                text: item.text,
                 score: score
             };
         });

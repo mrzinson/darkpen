@@ -19,6 +19,7 @@ import { Image } from 'expo-image';
 import { SkeletonLoader } from '../components/SkeletonLoader';
 import { ErrorState } from '../components/ErrorState';
 import { Audio } from 'expo-av';
+import { AppLogo } from '../components/AppLogo';
 
 const { width } = Dimensions.get('window');
 const SIDEBAR_WIDTH = width * 0.75;
@@ -662,117 +663,110 @@ export default function ChatScreen() {
     try {
       const token = await AsyncStorage.getItem('userToken');
 
-      // Attempt fetch with stream enabled
-      const response = await fetch(`${Config.API_URL}/api/chat/ask`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          message: userText,
-          chatType: 'education',
-          stream: true,
-          sessionId: sessionId,
-          attachment: currentAttachments.length > 0 ? currentAttachments.map(att => ({
-            base64: att.base64,
-            mimeType: att.mimeType,
-            name: att.name
-          })) : null
-        })
-      });
-      // Send all attachments to backend
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${Config.API_URL}/api/chat/ask`);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
-      if (response.status === 402) {
-        clearTimeout(statusTimeout);
-        // Payment Required
-        setMessages(prev => prev.filter(m => m.id !== aiMsgId));
-        setIsAiTyping(false);
-        return router.push('/billing');
-      }
+      let accumulatedText = "";
+      let offset = 0;
 
-      if (!response.ok) {
-        clearTimeout(statusTimeout);
-        const data = await response.json();
-        setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: 'Cilad ayaa dhacday: ' + data.message, status: 'complete' } : m));
-        setIsAiTyping(false);
-        return;
-      }
+      xhr.onreadystatechange = () => {
+        if (xhr.readyState === 2) {
+          // Headers received
+          if (xhr.status === 402) {
+            clearTimeout(statusTimeout);
+            xhr.abort();
+            setMessages(prev => prev.filter(m => m.id !== aiMsgId));
+            setIsAiTyping(false);
+            router.push('/billing');
+            return;
+          }
+        } else if (xhr.readyState === 3 || xhr.readyState === 4) {
+          // Interactive (receiving chunks) or Complete
+          const responseText = xhr.responseText;
+          const chunk = responseText.substring(offset);
+          offset = responseText.length;
 
-      // Check if body is readable for streaming
-      const reader = response.body ? (response.body as any).getReader() : null;
-      const decoder = typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8') : null;
-
-      if (reader) {
-        let accumulatedText = "";
-        
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          // Decode Uint8Array correctly
-          let chunk = "";
-          if (decoder) {
-            chunk = decoder.decode(value, { stream: true });
-          } else {
-            try {
-              chunk = decodeURIComponent(escape(String.fromCharCode.apply(null, Array.from(value))));
-            } catch (e) {
-              for (let i = 0; i < value.length; i++) {
-                chunk += String.fromCharCode(value[i]);
+          if (chunk) {
+            const lines = chunk.split('\n');
+            for (const line of lines) {
+              const trimmedLine = line.trim();
+              if (trimmedLine.startsWith('data: ')) {
+                const dataStr = trimmedLine.slice(6).trim();
+                if (dataStr === '[DONE]') {
+                  break;
+                }
+                try {
+                  const parsed = JSON.parse(dataStr);
+                  // Handle server-sent status events
+                  if (parsed.status === 'reading_books') {
+                    clearTimeout(statusTimeout);
+                    setThinkingStatus('Reading books...');
+                  } else if (parsed.status === 'thinking') {
+                    clearTimeout(statusTimeout);
+                    setThinkingStatus('Thinking...');
+                  } else if (parsed.error) {
+                    accumulatedText = "Cilad: " + parsed.error;
+                    setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: accumulatedText, status: 'complete' } : m));
+                    break;
+                  } else if (parsed.text) {
+                    accumulatedText += parsed.text;
+                    setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: accumulatedText, status: 'streaming' } : m));
+                  }
+                } catch (err) {
+                  // Partial JSON chunk, wait for next buffer
+                }
               }
             }
           }
 
-          // Parse SSE stream format: data: {"text": "...", "status": "...", "error": "..."}
-          const lines = chunk.split('\n');
-          for (const line of lines) {
-            const trimmedLine = line.trim();
-            if (trimmedLine.startsWith('data: ')) {
-              const dataStr = trimmedLine.slice(6).trim();
-              if (dataStr === '[DONE]') {
-                break;
-              }
+          if (xhr.readyState === 4) {
+            clearTimeout(statusTimeout);
+            if (xhr.status >= 400 && !accumulatedText) {
+              let errorMsg = "Cilad ayaa dhacday.";
               try {
-                const parsed = JSON.parse(dataStr);
-                // Handle server-sent status events
-                if (parsed.status === 'reading_books') {
-                  clearTimeout(statusTimeout);
-                  setThinkingStatus('Reading books...');
-                } else if (parsed.status === 'thinking') {
-                  clearTimeout(statusTimeout);
-                  setThinkingStatus('Thinking...');
-                } else if (parsed.error) {
-                  accumulatedText = "Cilad: " + parsed.error;
-                  setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: accumulatedText, status: 'complete' } : m));
-                  break;
-                } else if (parsed.text) {
-                  accumulatedText += parsed.text;
-                  setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: accumulatedText, status: 'streaming' } : m));
-                }
-              } catch (err) {
-                // Partial JSON chunk, wait for next buffer
-              }
+                const data = JSON.parse(xhr.responseText);
+                errorMsg = data.message || errorMsg;
+              } catch (e) {}
+              setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: 'Cilad: ' + errorMsg, status: 'complete' } : m));
+            } else {
+              setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: accumulatedText || "Waan ka xunnahay, jawaab ma jiro.", status: 'complete' } : m));
+              fetchCredits();
             }
+            setIsAiTyping(false);
           }
         }
+      };
 
-        // Streaming complete
-        setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: accumulatedText, status: 'complete' } : m));
-        fetchCredits();
-      } else {
-        // Fallback for non-streaming environments
-        const data = await response.json();
-        setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: data.message, status: 'complete' } : m));
-        fetchCredits();
-      }
+      xhr.onerror = () => {
+        clearTimeout(statusTimeout);
+        setMessages(prev => prev.map(m => m.id === aiMsgId ? {
+          ...m,
+          text: 'Fadlan hubi internet-kaaga.',
+          status: 'complete'
+        } : m));
+        setIsAiTyping(false);
+      };
+
+      xhr.send(JSON.stringify({
+        message: userText,
+        chatType: 'education',
+        stream: true,
+        sessionId: sessionId,
+        attachment: currentAttachments.length > 0 ? currentAttachments.map(att => ({
+          base64: att.base64,
+          mimeType: att.mimeType,
+          name: att.name
+        })) : null
+      }));
+
     } catch (error) {
       setMessages(prev => prev.map(m => m.id === aiMsgId ? {
         ...m,
         text: 'Fadlan hubi internet-kaaga.',
         status: 'complete'
       } : m));
-    } finally {
       clearTimeout(statusTimeout);
       setIsAiTyping(false);
     }
@@ -863,6 +857,7 @@ export default function ChatScreen() {
                   styles.messageRow,
                   isUser ? styles.messageRowUser : styles.messageRowAi
                 ])}>
+                  {!isUser && <AppLogo size={30} style={styles.aiAvatar} />}
                   <View style={StyleSheet.flatten([
                     styles.messageContent,
                     isUser ? styles.messageContentUser : styles.messageContentAi
@@ -1315,6 +1310,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   messageRowAi: {
     justifyContent: 'flex-start',
+    alignItems: 'flex-start',
   },
   messageContent: {
     maxWidth: '85%',
@@ -1328,6 +1324,10 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   aiContentContainer: {
     maxWidth: '100%',
+  },
+  aiAvatar: {
+    marginRight: 8,
+    marginTop: 4,
   },
   aiTextContainer: {
     flexDirection: 'row',

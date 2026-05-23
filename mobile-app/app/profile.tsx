@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, Image, ActivityIndicator } from 'react-native';
 import { AuthGuard } from '../components/AuthGuard';
 import Config from '../constants/Config';
+import { AppLogo } from '../components/AppLogo';
 
 export default function ProfileScreen() {
   const { colors, isDark, setTheme, theme } = useTheme();
@@ -75,7 +76,7 @@ export default function ProfileScreen() {
                 {userData?.profile_picture ? (
                   <Image source={{ uri: userData.profile_picture }} style={{ width: 100, height: 100, borderRadius: 50 }} />
                 ) : (
-                  <Ionicons name="person" size={50} color="white" />
+                  <AppLogo size={76} variant="white" />
                 )}
               </View>
               <Text style={styles.name}>{userData ? userData.name : 'User'}</Text>
@@ -84,10 +85,10 @@ export default function ProfileScreen() {
 
             <View style={styles.infoCard}>
               <View style={styles.infoRow}>
-                <Ionicons name="mail-outline" size={22} color={colors.primary} />
+                <Ionicons name="logo-whatsapp" size={22} color={colors.primary} />
                 <View style={styles.infoTextContainer}>
-                  <Text style={styles.infoLabel}>Email Address</Text>
-                  <Text style={styles.infoValue}>{userData ? userData.email : '...'}</Text>
+                  <Text style={styles.infoLabel}>WhatsApp Number</Text>
+                  <Text style={styles.infoValue}>{userData ? userData.whatsapp_number : '...'}</Text>
                 </View>
               </View>
 
@@ -98,10 +99,14 @@ export default function ProfileScreen() {
                 <View style={styles.infoTextContainer}>
                   <Text style={styles.infoLabel}>Payment Status</Text>
                   <Text style={[
-                    styles.infoValue, 
-                    userData?.payment_status === 'approved' ? { color: '#10B981' } : { color: '#F59E0B' }
+                    styles.infoValue,
+                    userData?.payment_status === 'approved'
+                      ? { color: '#10B981' }
+                      : userData?.payment_status === 'pending'
+                        ? { color: '#F59E0B' }
+                        : { color: colors.neutral }
                   ]}>
-                    {userData?.payment_status ? userData.payment_status.toUpperCase() : 'PENDING'}
+                    {userData?.payment_status ? userData.payment_status.toUpperCase() : 'NO PAYMENT'}
                   </Text>
                 </View>
               </View>

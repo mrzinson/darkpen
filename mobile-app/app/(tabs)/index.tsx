@@ -11,7 +11,7 @@ import { Platform, Image, Linking, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import Config from '../../constants/Config';
-import { blue } from 'react-native-reanimated/lib/typescript/Colors';
+import { AppLogo } from '../../components/AppLogo';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width - 48;
@@ -372,7 +372,10 @@ export default function HomeScreen() {
           <Ionicons name="menu-outline" size={26} color={colors.secondary} />
         </TouchableOpacity>
 
-        <Text style={styles.appName}>DARKPEN</Text>
+        <View style={styles.brandTitle}>
+          <AppLogo size={34} />
+          <Text style={styles.appName}>DARKPEN</Text>
+        </View>
 
         <View style={styles.headerRight}>
           <TouchableOpacity style={styles.iconButton} onPress={() => setNotificationVisible(true)}>
@@ -386,7 +389,10 @@ export default function HomeScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.greetingTitle}>Kuso dhawaaw Darkpen </Text>
+        <View style={styles.greetingBrand}>
+          <AppLogo size={58} />
+          <Text style={styles.greetingTitle}>Kuso dhawaaw Darkpen</Text>
+        </View>
         <Text style={styles.subtitle}>waa madal ka caawinaysa ardayda qaybaha kala duwan ee waxbarshada</Text>
 
         {/* promo cards */}
@@ -614,12 +620,12 @@ export default function HomeScreen() {
                     {userData?.profile_picture ? (
                       <Image source={{ uri: userData.profile_picture }} style={{ width: 60, height: 60, borderRadius: 30 }} />
                     ) : (
-                      <Ionicons name="person" size={30} color="white" />
+                      <AppLogo size={48} variant="white" />
                     )}
                   </View>
                   <View>
                     <Text style={styles.drawerName}>{userData?.username ? `@${userData.username}` : (userData?.name || 'Darkpen Guest')}</Text>
-                    <Text style={styles.drawerEmail}>{userData ? userData.email : 'Welcome to Darkpen'}</Text>
+                    <Text style={styles.drawerEmail}>{userData ? userData.whatsapp_number : 'Welcome to Darkpen'}</Text>
                     {userData && (
                       <View style={styles.walletBadge}>
                         <Ionicons name="wallet" size={14} color="white" />
@@ -923,7 +929,12 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 20,
     fontWeight: '500',
     color: isDark ? '#FFFFFF' : '#4686fcff',
-    letterSpacing: -0.5,
+    letterSpacing: 0,
+  },
+  brandTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   headerRight: { flexDirection: 'row', alignItems: 'center' },
   iconButton: {
@@ -958,6 +969,12 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     elevation: 6,
   },
   content: { padding: AzureTheme.spacing.l },
+  greetingBrand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 6,
+  },
   greetingTitle: {
     fontSize: 20,
     textTransform: 'capitalize',

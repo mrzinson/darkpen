@@ -1,7 +1,7 @@
 import { AzureTheme } from '../constants/AzureTheme';
 import { useTheme } from '../context/ThemeContext';
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -13,17 +13,11 @@ export default function TermsScreen() {
   const styles = getStyles(colors);
 
   const router = useRouter();
-  const [phone, setPhone] = useState('');
   const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   const handleAcceptTerms = async () => {
-    if (!phone) {
-      setErrorMsg('Fadlan geli lambarkaaga WhatsApp-ka');
-      return;
-    }
-    
     setLoading(true);
     setErrorMsg('');
     try {
@@ -37,11 +31,17 @@ export default function TermsScreen() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ whatsapp_number: phone })
+        body: JSON.stringify({})
       });
       
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Waa la keydin waayay');
+
+      const cached = await AsyncStorage.getItem('userData');
+      if (cached) {
+        const user = JSON.parse(cached);
+        await AsyncStorage.setItem('userData', JSON.stringify({ ...user, terms_accepted_at: new Date().toISOString() }));
+      }
 
       router.push('/(tabs)');
     } catch (err: any) {
@@ -60,21 +60,6 @@ export default function TermsScreen() {
             Please review our updated policies to continue using the application.
           </Text>
           {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>WhatsApp Number</Text>
-            <View style={styles.inputWrapper}>
-              <Feather name="phone" size={20} color={colors.neutral} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your WhatsApp number"
-                placeholderTextColor={colors.neutral}
-                keyboardType="phone-pad"
-                value={phone}
-                onChangeText={setPhone}
-              />
-            </View>
-          </View>
 
           <View style={styles.checkboxContainer}>
             <TouchableOpacity 

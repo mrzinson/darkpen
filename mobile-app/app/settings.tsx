@@ -6,6 +6,7 @@ import { Ionicons, Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthGuard } from '../components/AuthGuard';
+import { AppLogo } from '../components/AppLogo';
 
 export default function SettingsScreen() {
   const { colors, isDark, setTheme, theme, language, setLanguage, t } = useTheme();
@@ -50,7 +51,7 @@ export default function SettingsScreen() {
                 />
               ) : (
                 <View style={[styles.profileImage, { backgroundColor: '#3B82F6', justifyContent: 'center', alignItems: 'center' }]}>
-                  <Ionicons name="person" size={50} color="white" />
+                  <AppLogo size={70} variant="white" />
                 </View>
               )}
               <View style={styles.cameraBadge}>

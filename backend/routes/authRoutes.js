@@ -15,6 +15,7 @@ router.post('/login', authController.login);
 router.post('/terms', auth, authController.acceptTerms);
 router.post('/register-student', auth, authController.registerStudent);
 router.post('/submit-payment', auth, authController.submitPayment);
+router.post('/verify-phone', auth, authController.verifyPhone);
 router.post('/verify-email', auth, authController.verifyEmail);
 router.post('/resend-code', auth, authController.resendCode);
 router.post('/push-token', auth, authController.savePushToken);

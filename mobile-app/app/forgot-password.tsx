@@ -3,20 +3,21 @@ import { useTheme } from '../context/ThemeContext';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet, Text, View, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, ScrollView, Animated
+  KeyboardAvoidingView, Platform, ScrollView, Animated, Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Config from '../constants/Config';
+import { normalizePhoneInput } from '../utils/authInput';
 
 export default function ForgotPasswordScreen() {
   const { colors } = useTheme();
   const styles = getStyles(colors);
   const router = useRouter();
 
-  const [email, setEmail] = useState('');
-  const [emailFocused, setEmailFocused] = useState(false);
+  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [phoneFocused, setPhoneFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -39,8 +40,9 @@ export default function ForgotPasswordScreen() {
   }, [loading]);
 
   const handleRequestCode = async () => {
-    if (!email) {
-      setErrorMsg('Please enter your email address');
+    const normalizedPhone = normalizePhoneInput(whatsappNumber);
+    if (!normalizedPhone) {
+      setErrorMsg('Fadlan geli WhatsApp number sax ah');
       return;
     }
 
@@ -53,7 +55,7 @@ export default function ForgotPasswordScreen() {
       const response = await fetch(`${apiUrl}/api/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ whatsapp_number: normalizedPhone }),
       });
 
       const data = await response.json();
@@ -62,12 +64,19 @@ export default function ForgotPasswordScreen() {
         throw new Error(data.message || 'Something went wrong');
       }
 
-      router.push({ pathname: '/reset-password', params: { email } });
+      router.push({ pathname: '/reset-password', params: { whatsapp_number: normalizedPhone } });
     } catch (err: any) {
       setErrorMsg(err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSupport = () => {
+    const message = encodeURIComponent(`Salaan Darkpen, waxaan rabaa password reset. Number-kaygu waa: ${whatsappNumber}`);
+    Linking.openURL(`https://wa.me/252637930329?text=${message}`).catch(() => {
+      setErrorMsg('Ma awoodno inaan furno WhatsApp Support.');
+    });
   };
 
   return (
@@ -85,26 +94,26 @@ export default function ForgotPasswordScreen() {
             </TouchableOpacity>
             <Text style={styles.title}>forgot password?</Text>
             <Text style={styles.subtitle}>
-              No worries! Enter your email and we'll send you a reset code.
+              Geli WhatsApp number-kaaga. Haddii profile-kaaga email ku jiro, koodh reset ah ayaan email-kaas kuugu diraynaa.
             </Text>
           </View>
 
           {/* Card */}
           <View style={styles.card}>
 
-            {/* Email Input with Floating Label */}
+            {/* Phone Input with Floating Label */}
             <View style={styles.inputContainer}>
-              <Text style={[styles.floatingLabel, (emailFocused || email.length > 0) && styles.floatingLabelActive]}>
-                Email Address
+              <Text style={[styles.floatingLabel, (phoneFocused || whatsappNumber.length > 0) && styles.floatingLabelActive]}>
+                WhatsApp Number
               </Text>
               <TextInput
                 style={styles.input}
-                keyboardType="email-address"
+                keyboardType="phone-pad"
                 autoCapitalize="none"
-                value={email}
-                onChangeText={setEmail}
-                onFocus={() => setEmailFocused(true)}
-                onBlur={() => setEmailFocused(false)}
+                value={whatsappNumber}
+                onChangeText={setWhatsappNumber}
+                onFocus={() => setPhoneFocused(true)}
+                onBlur={() => setPhoneFocused(false)}
               />
             </View>
 
@@ -126,7 +135,13 @@ export default function ForgotPasswordScreen() {
             {/* Back to login */}
             <View style={styles.loginContainer}>
               <TouchableOpacity onPress={() => router.push('/login')}>
-                <Text style={styles.loginText}>← Back to Login</Text>
+                <Text style={styles.loginText}>Back to Login</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.loginContainer}>
+              <TouchableOpacity onPress={handleSupport}>
+                <Text style={styles.supportText}>No email? Contact WhatsApp Support</Text>
               </TouchableOpacity>
             </View>
 
@@ -250,5 +265,10 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 14,
     color: '#3B82F6',
     fontWeight: '600',
+  },
+  supportText: {
+    fontSize: 13,
+    color: '#10B981',
+    fontWeight: '700',
   },
 });

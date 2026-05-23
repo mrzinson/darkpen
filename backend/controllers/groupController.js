@@ -2,6 +2,7 @@ const db = require('../config/db');
 const { saveBase64Image } = require('../utils/fileHelper');
 const aiService = require('../services/aiService');
 const { checkAndExpireWallet } = require('../utils/walletHelper');
+const { tryUseFreeAI } = require('../utils/freeUsageHelper');
 
 // Helper to get or create AI user
 async function getOrCreateAIUser() {
@@ -10,9 +11,9 @@ async function getOrCreateAIUser() {
         return rows[0].id;
     }
     const [result] = await db.query(
-        `INSERT INTO users (name, email, password, username, role, is_verified, profile_picture) 
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        ['Darkpen', 'darkpen-ai@darkpen.app', 'dummy_darkpen_ai_password_hash', 'darkpen', 'admin', true, 'uploads/profiles/darkpen_logo.png']
+        `INSERT INTO users (name, email, whatsapp_number, password, username, role, is_verified, profile_picture) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        ['Darkpen', 'darkpen-ai@darkpen.app', '+252000000000', 'dummy_darkpen_ai_password_hash', 'darkpen', 'admin', true, 'uploads/profiles/darkpen_logo.png']
     );
     const aiUserId = result.insertId;
     // Create wallet for the AI
@@ -314,15 +315,6 @@ exports.sendGroupMessage = async (req, res) => {
         const [walletRows] = await db.query('SELECT balance FROM user_wallet WHERE user_id = ?', [userId]);
         const senderBalance = walletRows.length > 0 ? walletRows[0].balance : 0;
 
-        // If balance is 0 or less, they cannot use the group chat at all
-        if (senderBalance <= 0) {
-            return res.status(403).json({
-                status: 'error',
-                needsPayment: true,
-                message: 'Ma isticmaali kartid group-ka haddii uusan credit (lacag) kuu dhex jirin. Fadlan ku shubo credit.'
-            });
-        }
-
         // Determine if it is a question and its cost
         const isTextQuestion = (type !== 'image' && shouldAIRespond(message));
         const isImageQuestion = (type === 'image');
@@ -331,12 +323,14 @@ exports.sendGroupMessage = async (req, res) => {
         if (isTextQuestion) cost = 10;
         else if (isImageQuestion) cost = 20;
 
+        const usedFreeAI = cost > 0 ? await tryUseFreeAI(userId, isImageQuestion ? 'image' : 'text') : false;
+
         // Check if user has sufficient credits for this question
-        if (cost > 0 && senderBalance < cost) {
+        if (cost > 0 && !usedFreeAI && senderBalance < cost) {
             return res.status(403).json({
                 status: 'error',
                 needsPayment: true,
-                message: `Lacag kugu filan kuguma jirto. Su'aalaha ${isTextQuestion ? 'qoraalka' : 'sawirada'} ah waxay ka gooyaan ${cost} credits wallet-kaaga. Fadlan ku shubo credit.`
+                message: `Free-kaagii wuu dhammaaday. Su'aalaha ${isTextQuestion ? 'qoraalka' : 'sawirada'} ah waxay u baahan yihiin ${cost} credits. Fadlan lacag bixi si aad u sii wadato.`
             });
         }
 
@@ -359,7 +353,7 @@ exports.sendGroupMessage = async (req, res) => {
         }
 
         // 3. Deduct credit from sender's wallet
-        if (cost > 0) {
+        if (cost > 0 && !usedFreeAI) {
             await db.query('UPDATE user_wallet SET balance = GREATEST(0, balance - ?) WHERE user_id = ?', [cost, userId]);
         }
 

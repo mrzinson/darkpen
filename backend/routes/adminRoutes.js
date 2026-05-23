@@ -5,6 +5,7 @@ const multer = require('multer');
 const path = require('path');
 
 const fs = require('fs');
+const { clearEmbeddingsCache } = require('../services/aiService');
 
 // Robustly resolve and create uploads directory inside the backend folder
 const uploadDir = path.join(__dirname, '..', 'uploads');
@@ -267,6 +268,7 @@ router.delete('/exams/:id', async (req, res) => {
     try {
         await db.execute('DELETE FROM exams WHERE id = ?', [req.params.id]);
         await db.execute('DELETE FROM book_embeddings WHERE source_id = ? AND source_type = "exam"', [req.params.id]);
+        clearEmbeddingsCache();
         res.json({ message: 'Imtixaanka waa la tirtiray' });
     } catch (error) {
         res.status(500).json({ message: 'Cilad ayaa dhacday tirtirista' });
@@ -310,6 +312,8 @@ router.post('/books', upload.fields([{ name: 'image', maxCount: 1 }, { name: 'pd
 router.delete('/books/:id', async (req, res) => {
     try {
         await db.execute('DELETE FROM books WHERE id = ?', [req.params.id]);
+        await db.execute('DELETE FROM book_embeddings WHERE source_id = ? AND source_type = "book"', [req.params.id]);
+        clearEmbeddingsCache();
         res.json({ message: 'Buugga waa la tirtiray' });
     } catch (error) {
         res.status(500).json({ message: 'Cilad ayaa dhacday tirtirista' });

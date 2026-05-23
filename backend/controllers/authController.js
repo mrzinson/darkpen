@@ -1,6 +1,75 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
+const {
+    normalizePhoneNumber,
+    normalizeUsername,
+    validateUsername,
+    validatePassword,
+} = require('../services/verificationService');
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function normalizeOptionalEmail(value) {
+    const email = String(value || '').trim().toLowerCase();
+    return email || null;
+}
+
+function buildPublicUser(user) {
+    return {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        email: user.email || null,
+        whatsapp_number: user.whatsapp_number,
+        role: user.role,
+        payment_status: user.payment_status,
+        is_verified: Boolean(user.is_verified),
+        terms_accepted_at: user.terms_accepted_at || null,
+    };
+}
+
+function authErrorMessage() {
+    return 'Number ama Password waa khalad';
+}
+
+function statusFromError(error) {
+    return error.statusCode || error.status || 500;
+}
+
+async function sendPasswordResetEmail({ email, name, code }) {
+    if (!process.env.EMAILJS_SERVICE_ID || !process.env.EMAILJS_PUBLIC_KEY || !process.env.EMAILJS_PRIVATE_KEY) {
+        const err = new Error('Koontadan email recovery way leedahay, laakiin email service-ka lama configure-gareyn. Fadlan la xiriir support.');
+        err.statusCode = 503;
+        throw err;
+    }
+
+    const emailData = {
+        service_id: process.env.EMAILJS_SERVICE_ID,
+        template_id: process.env.EMAILJS_RESET_TEMPLATE_ID || process.env.EMAILJS_TEMPLATE_ID,
+        user_id: process.env.EMAILJS_PUBLIC_KEY,
+        accessToken: process.env.EMAILJS_PRIVATE_KEY,
+        template_params: {
+            to_email: email,
+            to_name: name,
+            app_name: 'Darkpen / ZinsonAI',
+            otp_code: code,
+            time: new Date().toLocaleString('en-US', { timeZone: 'Africa/Mogadishu' })
+        }
+    };
+
+    const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(emailData)
+    });
+
+    if (!response.ok) {
+        const err = new Error('Email reset code lama dirin. Fadlan isku day mar kale ama la xiriir support.');
+        err.statusCode = 502;
+        throw err;
+    }
+}
 
 // 0. Fetch Schools & Classes
 exports.getSchools = async (req, res) => {
@@ -25,71 +94,110 @@ exports.getClasses = async (req, res) => {
 // 1. Diiwaangalinta (Sign Up)
 exports.signup = async (req, res) => {
     try {
-        const { name, email, password } = req.body;
-        
-        // Hubi haddii email-ka la isticmaalay
-        const [existingUsers] = await db.execute('SELECT id FROM users WHERE email = ?', [email]);
-        if (existingUsers.length > 0) {
-            return res.status(400).json({ message: 'Email-kan hore ayaa loo diiwaangaliyay' });
+        const name = String(req.body.name || '').trim();
+        const username = normalizeUsername(req.body.username);
+        const whatsappNumber = normalizePhoneNumber(req.body.whatsapp_number || req.body.phone);
+        const { password } = req.body;
+
+        if (!name) {
+            return res.status(400).json({ message: 'Magaca waa waajib.' });
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const code = Math.floor(10000 + Math.random() * 90000).toString();
-        
-        const [result] = await db.execute(
-            'INSERT INTO users (name, email, password, verification_code) VALUES (?, ?, ?, ?)',
-            [name, email, hashedPassword, code]
-        );
+        const usernameError = validateUsername(username);
+        if (usernameError) {
+            return res.status(400).json({ message: usernameError });
+        }
 
-        // Create initial wallet for the new user
-        await db.execute('INSERT IGNORE INTO user_wallet (user_id, balance) VALUES (?, 0)', [result.insertId]);
+        if (!whatsappNumber) {
+            return res.status(400).json({ message: 'Fadlan geli number sax ah, tusaale +25261XXXXXXX.' });
+        }
 
-        // U dir koodhka email-ka (EmailJS)
+        const passwordError = validatePassword(password);
+        if (passwordError) {
+            return res.status(400).json({ message: passwordError });
+        }
+
+        const connection = await db.getConnection();
+        let insertedUser;
+
         try {
-            const emailData = {
-                service_id: process.env.EMAILJS_SERVICE_ID,
-                template_id: process.env.EMAILJS_TEMPLATE_ID,
-                user_id: process.env.EMAILJS_PUBLIC_KEY,
-                accessToken: process.env.EMAILJS_PRIVATE_KEY,
-                template_params: {
-                    to_email: email,
-                    to_name: name,
-                    app_name: 'Darkpen / ZinsonAI',
-                    otp_code: code,
-                    time: new Date().toLocaleString('en-US', { timeZone: 'Africa/Mogadishu' })
-                }
-            };
+            await connection.beginTransaction();
 
-            await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(emailData)
-            });
-        } catch (emailErr) {
-            console.error('Email sending failed:', emailErr);
-            // Kuma joojinayno signup-ka haddii emailku dhaco inta aan develop garaynayno
+            const [existingByPhone] = await connection.execute(
+                'SELECT id FROM users WHERE whatsapp_number = ?',
+                [whatsappNumber]
+            );
+            if (existingByPhone.length > 0) {
+                await connection.rollback();
+                return res.status(400).json({ message: 'Number-kan hore ayaa loo diiwaangeliyay.' });
+            }
+
+            const [existingByUsername] = await connection.execute(
+                'SELECT id FROM users WHERE username = ?',
+                [username]
+            );
+            if (existingByUsername.length > 0) {
+                await connection.rollback();
+                return res.status(400).json({ message: 'Username-kan hore ayaa loo qaatay.' });
+            }
+
+            const hashedPassword = await bcrypt.hash(password, 12);
+
+            const [result] = await connection.execute(
+                `INSERT INTO users (name, username, email, whatsapp_number, password, payment_status, payment_reference, is_verified)
+                 VALUES (?, ?, NULL, ?, ?, NULL, NULL, TRUE)`,
+                [name, username, whatsappNumber, hashedPassword]
+            );
+
+            const newUserId = result.insertId;
+
+            await connection.execute('INSERT IGNORE INTO user_wallet (user_id, balance) VALUES (?, 0)', [newUserId]);
+
+            const [users] = await connection.execute('SELECT * FROM users WHERE id = ?', [newUserId]);
+            insertedUser = users[0];
+
+            await connection.commit();
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
         }
 
-        const token = jwt.sign({ id: result.insertId }, process.env.JWT_SECRET, { expiresIn: '30d' });
+        const token = jwt.sign({ id: insertedUser.id }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
         res.status(201).json({ 
-            message: 'Si guul leh ayaad isku diiwaangalisay', 
+            message: 'Koontada si guul leh ayaa loo abuuray.',
             token, 
-            user: { id: result.insertId, name, email } 
+            requires_verification: false,
+            user: buildPublicUser(insertedUser)
         });
     } catch (error) {
-        res.status(500).json({ message: 'Cilad ayaa dhacday', error: error.message });
+        res.status(statusFromError(error)).json({ message: error.message || 'Cilad ayaa dhacday' });
     }
 };
 
 // 2. Gelitaanka (Login)
 exports.login = async (req, res) => {
     try {
-        const { email, password } = req.body;
-        
-        const [users] = await db.execute('SELECT * FROM users WHERE email = ?', [email]);
+        const identifier = String(req.body.whatsapp_number || req.body.phone || req.body.email || '').trim();
+        const normalizedPhone = normalizePhoneNumber(identifier);
+        const { password } = req.body;
+
+        if (!identifier || !password) {
+            return res.status(400).json({ message: 'Fadlan geli number-ka iyo password-ka.' });
+        }
+
+        let users;
+        if (normalizedPhone) {
+            [users] = await db.execute('SELECT * FROM users WHERE whatsapp_number = ?', [normalizedPhone]);
+        } else {
+            const email = normalizeOptionalEmail(identifier);
+            [users] = await db.execute('SELECT * FROM users WHERE email = ?', [email]);
+        }
+
         if (users.length === 0) {
-            return res.status(400).json({ message: 'Email ama Password waa khalad' });
+            return res.status(400).json({ message: authErrorMessage() });
         }
 
         const user = users[0];
@@ -100,18 +208,19 @@ exports.login = async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         
         if (!isMatch) {
-            return res.status(400).json({ message: 'Email ama Password waa khalad' });
+            return res.status(400).json({ message: authErrorMessage() });
         }
 
         const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
         res.json({ 
-            message: 'Kusoo dhawaaw', 
+            message: 'Kusoo dhawaaw',
             token, 
-            user: { id: user.id, name: user.name, email: user.email, role: user.role, payment_status: user.payment_status } 
+            requires_verification: false,
+            user: buildPublicUser(user)
         });
     } catch (error) {
-        res.status(500).json({ message: 'Cilad ayaa dhacday', error: error.message });
+        res.status(statusFromError(error)).json({ message: error.message || 'Cilad ayaa dhacday' });
     }
 };
 
@@ -119,14 +228,12 @@ exports.login = async (req, res) => {
 exports.acceptTerms = async (req, res) => {
     try {
         const userId = req.user.id; // Laga helayo middleware-ka
-        const { whatsapp_number } = req.body;
-
         await db.execute(
-            'UPDATE users SET whatsapp_number = ? WHERE id = ?',
-            [whatsapp_number, userId]
+            'UPDATE users SET terms_accepted_at = COALESCE(terms_accepted_at, CURRENT_TIMESTAMP) WHERE id = ?',
+            [userId]
         );
 
-        res.json({ message: 'WhatsApp number waa la keydiyay' });
+        res.json({ message: 'Shuruudaha waa la aqbalay' });
     } catch (error) {
         res.status(500).json({ message: 'Cilad ayaa dhacday', error: error.message });
     }
@@ -182,126 +289,103 @@ exports.submitPayment = async (req, res) => {
     }
 };
 
-// 6. Xaqiijinta Email-ka (Verify Email)
-exports.verifyEmail = async (req, res) => {
+// 6. Xaqiijinta Number-ka (Verify Phone)
+exports.verifyPhone = async (req, res) => {
     try {
         const userId = req.user.id;
-        const { code } = req.body;
-
-        const [users] = await db.execute('SELECT verification_code FROM users WHERE id = ?', [userId]);
+        const [users] = await db.execute('SELECT * FROM users WHERE id = ?', [userId]);
         if (users.length === 0) return res.status(404).json({ message: 'Lama helin ardayga' });
-
-        if (users[0].verification_code !== code) {
-            return res.status(400).json({ message: 'Koodhku waa khalad ama wuu dhacay' });
-        }
 
         await db.execute('UPDATE users SET is_verified = TRUE, verification_code = NULL WHERE id = ?', [userId]);
 
-        res.json({ message: 'Si guul leh ayaa loo xaqiijiyay email-kaaga!' });
+        res.json({ message: 'Koontadaadu waa verified.', user: buildPublicUser({ ...users[0], is_verified: true }) });
     } catch (error) {
-        res.status(500).json({ message: 'Cilad ayaa dhacday', error: error.message });
+        res.status(statusFromError(error)).json({ message: error.message || 'Cilad ayaa dhacday' });
     }
 };
+
+exports.verifyEmail = exports.verifyPhone;
 
 // 7. Dib-u-dirida Koodhka (Resend Code)
 exports.resendCode = async (req, res) => {
     try {
         const userId = req.user.id;
-        const [users] = await db.execute('SELECT name, email FROM users WHERE id = ?', [userId]);
+        const [users] = await db.execute('SELECT id FROM users WHERE id = ?', [userId]);
         if (users.length === 0) return res.status(404).json({ message: 'Lama helin ardayga' });
 
-        const { name, email } = users[0];
-        const code = Math.floor(10000 + Math.random() * 90000).toString();
-
-        await db.execute('UPDATE users SET verification_code = ? WHERE id = ?', [code, userId]);
-
-        const emailData = {
-            service_id: process.env.EMAILJS_SERVICE_ID,
-            template_id: process.env.EMAILJS_TEMPLATE_ID,
-            user_id: process.env.EMAILJS_PUBLIC_KEY,
-            accessToken: process.env.EMAILJS_PRIVATE_KEY,
-            template_params: {
-                to_email: email,
-                to_name: name,
-                app_name: 'Darkpen / ZinsonAI',
-                otp_code: code,
-                time: new Date().toLocaleString('en-US', { timeZone: 'Africa/Mogadishu' })
-            }
-        };
-
-        await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(emailData)
-        });
-
-        res.json({ message: 'Koodh cusub ayaa loo diray email-kaaga' });
+        res.json({ message: 'Koontadaadu waa verified; code looma baahna.' });
     } catch (error) {
-        res.status(500).json({ message: 'Cilad ayaa dhacday', error: error.message });
+        res.status(statusFromError(error)).json({ message: error.message || 'Cilad ayaa dhacday' });
     }
 };
 
 // 8. Ilaaway Password-ka (Forgot Password)
 exports.forgotPassword = async (req, res) => {
     try {
-        const email = req.body.email?.trim();
-        const [users] = await db.execute('SELECT id, name FROM users WHERE email = ?', [email]);
+        const whatsappNumber = normalizePhoneNumber(req.body.whatsapp_number || req.body.phone || req.body.email);
+        if (!whatsappNumber) {
+            return res.status(400).json({ message: 'Fadlan geli number sax ah.' });
+        }
+
+        const [users] = await db.execute('SELECT id, name, email FROM users WHERE whatsapp_number = ?', [whatsappNumber]);
         
         if (users.length === 0) {
-            return res.status(404).json({ message: 'Email-kan laguma diiwaangelin app-ka. Fadlan is-diiwaangeli marka hore.' });
+            return res.status(404).json({ message: 'Number-kan laguma diiwaangelin app-ka. Fadlan is-diiwaangeli marka hore.' });
         }
 
         const user = users[0];
-        const code = Math.floor(10000 + Math.random() * 90000).toString();
+        if (!user.email) {
+            return res.status(400).json({
+                message: 'Koontadan email recovery kuma xirna. Fadlan WhatsApp Support kala xiriir password reset: +252637930329.'
+            });
+        }
 
-        await db.execute('UPDATE users SET reset_code = ? WHERE id = ?', [code, user.id]);
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        await db.execute(
+            'UPDATE users SET reset_code = ?, reset_code_expires_at = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ?',
+            [code, user.id]
+        );
+        await sendPasswordResetEmail({ email: user.email, name: user.name, code });
 
-        const emailData = {
-            service_id: process.env.EMAILJS_SERVICE_ID,
-            template_id: process.env.EMAILJS_RESET_TEMPLATE_ID || process.env.EMAILJS_TEMPLATE_ID,
-            user_id: process.env.EMAILJS_PUBLIC_KEY,
-            accessToken: process.env.EMAILJS_PRIVATE_KEY,
-            template_params: {
-                to_email: email,
-                to_name: user.name,
-                app_name: 'Darkpen / ZinsonAI',
-                otp_code: code,
-                time: new Date().toLocaleString('en-US', { timeZone: 'Africa/Mogadishu' })
-            }
-        };
-
-        await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(emailData)
-        });
-
-        res.json({ message: 'Koodh ayaa laguu diray email-kaaga!' });
+        res.json({ message: 'Koodh reset ah ayaa laguugu diray email-ka ku jira profile-kaaga.', whatsapp_number: whatsappNumber });
     } catch (error) {
-        res.status(500).json({ message: 'Cilad ayaa dhacday', error: error.message });
+        res.status(statusFromError(error)).json({ message: error.message || 'Cilad ayaa dhacday' });
     }
 };
 
 // 9. Bedelida Password-ka (Reset Password)
 exports.resetPassword = async (req, res) => {
     try {
-        const email = req.body.email?.trim();
+        const whatsappNumber = normalizePhoneNumber(req.body.whatsapp_number || req.body.phone || req.body.email);
         const code = req.body.code?.trim();
         const newPassword = req.body.newPassword;
 
-        const [users] = await db.execute('SELECT id, reset_code FROM users WHERE email = ?', [email]);
-        if (users.length === 0) return res.status(400).json({ message: 'Email ama koodhku waa khalad' });
+        if (!whatsappNumber) {
+            return res.status(400).json({ message: 'Fadlan geli number sax ah.' });
+        }
 
-        if (users[0].reset_code !== code || !code) {
+        const passwordError = validatePassword(newPassword);
+        if (passwordError) {
+            return res.status(400).json({ message: passwordError });
+        }
+
+        const [users] = await db.execute('SELECT id, reset_code, reset_code_expires_at FROM users WHERE whatsapp_number = ?', [whatsappNumber]);
+        if (users.length === 0) return res.status(400).json({ message: 'Number ama koodhku waa khalad' });
+
+        if (!code || users[0].reset_code !== code) {
             return res.status(400).json({ message: 'Koodhku waa khalad ama wuu dhacay' });
         }
 
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-        await db.execute('UPDATE users SET password = ?, reset_code = NULL WHERE id = ?', [hashedPassword, users[0].id]);
+        if (!users[0].reset_code_expires_at || new Date(users[0].reset_code_expires_at).getTime() < Date.now()) {
+            return res.status(400).json({ message: 'Koodhku wuu dhacay. Fadlan mid cusub dalbo.' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 12);
+        await db.execute('UPDATE users SET password = ?, reset_code = NULL, reset_code_expires_at = NULL WHERE id = ?', [hashedPassword, users[0].id]);
 
         res.json({ message: 'Password-ka si guul leh ayaa loo bedelay!' });
     } catch (error) {
-        res.status(500).json({ message: 'Cilad ayaa dhacday', error: error.message });
+        res.status(statusFromError(error)).json({ message: error.message || 'Cilad ayaa dhacday' });
     }
 };
 

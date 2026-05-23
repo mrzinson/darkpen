@@ -2,6 +2,8 @@ const db = require('../config/db');
 const bcrypt = require('bcrypt');
 const { saveBase64Image } = require('../utils/fileHelper');
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 // 1. Helida Xogta Profile-ka (Get Profile)
 exports.getProfile = async (req, res) => {
     try {
@@ -25,7 +27,7 @@ exports.getProfile = async (req, res) => {
 exports.updateProfile = async (req, res) => {
     try {
         const userId = req.user.id;
-        const { name, username, gender, password, profile_picture } = req.body;
+        const { name, username, email, gender, password, profile_picture } = req.body;
 
         // Fetch current user data
         const [users] = await db.execute('SELECT * FROM users WHERE id = ?', [userId]);
@@ -58,6 +60,22 @@ exports.updateProfile = async (req, res) => {
         // Update Name & Gender
         if (name) await db.execute('UPDATE users SET name = ? WHERE id = ?', [name, userId]);
         if (gender) await db.execute('UPDATE users SET gender = ? WHERE id = ?', [gender, userId]);
+
+        if (email !== undefined) {
+            const cleanEmail = String(email || '').trim().toLowerCase();
+            if (cleanEmail && !EMAIL_REGEX.test(cleanEmail)) {
+                return res.status(400).json({ message: 'Email sax ah geli ama ka tag.' });
+            }
+
+            if (cleanEmail && cleanEmail !== user.email) {
+                const [existingEmail] = await db.execute('SELECT id FROM users WHERE email = ? AND id != ?', [cleanEmail, userId]);
+                if (existingEmail.length > 0) {
+                    return res.status(400).json({ message: 'Email-kan qof kale ayaa isticmaalaya.' });
+                }
+            }
+
+            await db.execute('UPDATE users SET email = ? WHERE id = ?', [cleanEmail || null, userId]);
+        }
         
         // Update Profile Picture
         if (profile_picture) {
@@ -96,10 +114,10 @@ exports.searchUsers = async (req, res) => {
         }
 
         const [users] = await db.execute(
-            `SELECT id, name, username, email FROM users 
-             WHERE name LIKE ? OR email LIKE ? OR username LIKE ? 
+            `SELECT id, name, username, email, whatsapp_number FROM users 
+             WHERE name LIKE ? OR email LIKE ? OR username LIKE ? OR whatsapp_number LIKE ?
              LIMIT 10`,
-            [`%${query}%`, `%${query}%`, `%${query}%`]
+            [`%${query}%`, `%${query}%`, `%${query}%`, `%${query}%`]
         );
 
         res.json(users);

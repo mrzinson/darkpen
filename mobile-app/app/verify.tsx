@@ -1,104 +1,21 @@
 import { AzureTheme } from '../constants/AzureTheme';
 import { useTheme } from '../context/ThemeContext';
-import React, { useState, useRef } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import Config from '../constants/Config';
-import { Ionicons, Feather } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
+import { Feather } from '@expo/vector-icons';
 
 export default function VerifyScreen() {
   const { colors, isDark, setTheme, theme } = useTheme();
   const styles = getStyles(colors);
 
   const router = useRouter();
-  const [code, setCode] = useState(['', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [timer, setTimer] = useState(60);
-  const inputs = useRef<Array<TextInput | null>>([]);
-
-  React.useEffect(() => {
-    if (timer > 0) {
-      const interval = setInterval(() => setTimer(prev => prev - 1), 1000);
-      return () => clearInterval(interval);
-    }
-  }, [timer]);
-
-  const handleChange = (text: string, index: number) => {
-    const newCode = [...code];
-    newCode[index] = text;
-    setCode(newCode);
-
-    if (text && index < 4) {
-      inputs.current[index + 1]?.focus();
-    }
-  };
 
   const handleVerify = async () => {
-    const fullCode = code.join('');
-    if (fullCode.length < 5) {
-      setErrorMsg('Fadlan geli 5-ta lambar');
-      return;
-    }
-
-    setLoading(true);
-    setErrorMsg('');
-
-    try {
-      const token = await AsyncStorage.getItem('userToken');
-      if (!token) throw new Error("Fadlan dib ugu noqo signup/login");
-
-      const apiUrl = Config.API_URL;
-      const response = await fetch(`${apiUrl}/api/auth/verify-email`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ code: fullCode })
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Koodhku waa khalad');
-
-      // Success! Move to terms (WhatsApp number)
-      router.push('/terms');
-    } catch (err: any) {
-      setErrorMsg(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResendCode = async () => {
-    setLoading(true);
-    setErrorMsg('');
-    try {
-      const token = await AsyncStorage.getItem('userToken');
-      if (!token) throw new Error("Fadlan dib ugu noqo signup/login");
-
-      const apiUrl = Config.API_URL;
-      const response = await fetch(`${apiUrl}/api/auth/resend-code`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Waa la dirayaa koodhka...');
-
-      setTimer(60);
-      setCode(['', '', '', '', '']);
-      inputs.current[0]?.focus();
-    } catch (err: any) {
-      setErrorMsg(err.message);
-    } finally {
-      setLoading(false);
-    }
+    router.push('/terms');
   };
 
   const handleHelp = () => {
@@ -112,7 +29,7 @@ export default function VerifyScreen() {
         {/* Header updated as per request */}
         <View style={styles.header}>
           <View /> {/* Empty view to push right item to edge */}
-          <Text style={styles.headerTitle}>vrify</Text>
+          <Text style={styles.headerTitle}>Verify</Text>
           <TouchableOpacity style={styles.menuButton} onPress={handleHelp}>
             <Feather name="more-horizontal" size={24} color={colors.secondary} />
           </TouchableOpacity>
@@ -127,35 +44,10 @@ export default function VerifyScreen() {
 
           <Text style={styles.title}>Enter Code</Text>
           <Text style={styles.subtitle}>
-            We've sent a 5-digit verification code to your email address.
+            Koontadaadu waa verified. Code looma baahna; sii wad si aad shuruudaha u aqbasho.
           </Text>
           {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
 
-          {/* Telegram-style code inputs */}
-          <View style={styles.codeContainer}>
-            {code.map((digit, index) => (
-              <TextInput
-                key={index}
-                ref={(ref) => { inputs.current[index] = ref; }}
-                style={[
-                  styles.codeInput, 
-                  digit ? styles.codeInputFilled : styles.codeInputEmpty
-                ]}
-                keyboardType="number-pad"
-                maxLength={1}
-                value={digit}
-                onChangeText={(text) => handleChange(text, index)}
-              />
-            ))}
-          </View>
-
-          {timer > 0 ? (
-            <Text style={styles.resendText}>Resend code in 00:{timer < 10 ? `0${timer}` : timer}</Text>
-          ) : (
-            <TouchableOpacity onPress={handleResendCode} disabled={loading}>
-              <Text style={styles.resendButtonText}>Resend Code</Text>
-            </TouchableOpacity>
-          )}
         </View>
 
         <View style={styles.footer}>
@@ -165,7 +57,7 @@ export default function VerifyScreen() {
             activeOpacity={0.8}
             disabled={loading}
           >
-            <Text style={styles.buttonText}>{loading ? 'VERIFYING...' : 'GO →'}</Text>
+            <Text style={styles.buttonText}>Continue</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -209,7 +101,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: colors.primary,
+    backgroundColor: '#3B82F6',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: colors.primary,
@@ -240,12 +132,12 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   codeContainer: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
     marginBottom: AzureTheme.spacing.xl,
   },
   codeInput: {
-    width: 50,
-    height: 60,
+    width: 44,
+    height: 56,
     borderRadius: 12,
     textAlign: 'center',
     fontSize: 24,

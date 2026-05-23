@@ -10,17 +10,19 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Config from '../constants/Config';
+import { normalizePhoneInput, normalizeUsernameInput, usernameError } from '../utils/authInput';
+import { AppLogo } from '../components/AppLogo';
 
 export default function SignUpScreen() {
   const { colors } = useTheme();
   const styles = getStyles(colors);
   const router = useRouter();
 
-  const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '' });
+  const [form, setForm] = useState({ name: '', username: '', whatsappNumber: '', password: '', confirmPassword: '' });
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const [focused, setFocused] = useState({ name: false, email: false, password: false, confirmPassword: false });
+  const [focused, setFocused] = useState({ name: false, username: false, whatsappNumber: false, password: false, confirmPassword: false });
 
   const buttonScale = useRef(new Animated.Value(1)).current;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -47,12 +49,28 @@ export default function SignUpScreen() {
   const isActive = (field: keyof typeof form) => focused[field] || form[field].length > 0;
 
   const handleSignup = async () => {
-    if (!form.name || !form.email || !form.password) {
-      setErrorMsg('Please fill in all fields');
+    const normalizedPhone = normalizePhoneInput(form.whatsappNumber);
+    const cleanUsername = normalizeUsernameInput(form.username);
+    const usernameValidation = usernameError(cleanUsername);
+
+    if (!form.name.trim() || !cleanUsername || !form.whatsappNumber.trim() || !form.password) {
+      setErrorMsg('Fadlan buuxi magaca, username-ka, number-ka iyo password-ka');
+      return;
+    }
+    if (usernameValidation) {
+      setErrorMsg(usernameValidation);
+      return;
+    }
+    if (!normalizedPhone) {
+      setErrorMsg('Fadlan geli number sax ah, tusaale +25261XXXXXXX');
       return;
     }
     if (form.password !== form.confirmPassword) {
       setErrorMsg('Passwords do not match');
+      return;
+    }
+    if (form.password.length < 8) {
+      setErrorMsg('Password-ku waa inuu ahaadaa ugu yaraan 8 xaraf');
       return;
     }
 
@@ -66,8 +84,9 @@ export default function SignUpScreen() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: form.name,
-          email: form.email,
+          name: form.name.trim(),
+          username: cleanUsername,
+          whatsapp_number: normalizedPhone,
           password: form.password,
         }),
       });
@@ -81,7 +100,7 @@ export default function SignUpScreen() {
       await AsyncStorage.setItem('userToken', data.token);
       await AsyncStorage.setItem('userData', JSON.stringify(data.user));
 
-      router.push('/verify');
+      router.push('/terms');
     } catch (err: any) {
       setErrorMsg(err.message);
     } finally {
@@ -102,6 +121,7 @@ export default function SignUpScreen() {
           {/* Card */}
           <View style={styles.card}>
             <View style={styles.header}>
+              <AppLogo size={68} variant="blue" style={styles.logo} />
               <Text style={styles.title}>signup</Text>
 
             </View>
@@ -120,19 +140,33 @@ export default function SignUpScreen() {
               />
             </View>
 
-            {/* Email */}
+            {/* Username */}
             <View style={styles.inputContainer}>
-              <Text style={[styles.floatingLabel, isActive('email') && styles.floatingLabelActive]}>
-                Email
+              <Text style={[styles.floatingLabel, isActive('username') && styles.floatingLabelActive]}>
+                Username
               </Text>
               <TextInput
                 style={styles.input}
-                keyboardType="email-address"
                 autoCapitalize="none"
-                value={form.email}
-                onChangeText={(t) => setForm({ ...form, email: t })}
-                onFocus={() => handleFocus('email', true)}
-                onBlur={() => handleFocus('email', false)}
+                value={form.username}
+                onChangeText={(t) => setForm({ ...form, username: normalizeUsernameInput(t) })}
+                onFocus={() => handleFocus('username', true)}
+                onBlur={() => handleFocus('username', false)}
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={[styles.floatingLabel, isActive('whatsappNumber') && styles.floatingLabelActive]}>
+                WhatsApp Number
+              </Text>
+              <TextInput
+                style={styles.input}
+                keyboardType="phone-pad"
+                autoCapitalize="none"
+                value={form.whatsappNumber}
+                onChangeText={(t) => setForm({ ...form, whatsappNumber: t })}
+                onFocus={() => handleFocus('whatsappNumber', true)}
+                onBlur={() => handleFocus('whatsappNumber', false)}
               />
             </View>
 
@@ -222,12 +256,18 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   header: {
     marginBottom: AzureTheme.spacing.xl,
+    alignItems: 'center',
+  },
+  logo: {
+    marginBottom: 10,
   },
   title: {
     fontSize: 36,
     fontWeight: '700',
     color: '#3B82F6',
     marginBottom: 8,
+    textTransform: 'uppercase',
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,

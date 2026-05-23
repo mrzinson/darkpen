@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import { StyleSheet, Text, View, Animated, Easing } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { AppLogo } from '../components/AppLogo';
 
 export default function SplashScreen() {
   const { colors, isDark, setTheme, theme } = useTheme();
@@ -82,6 +83,7 @@ export default function SplashScreen() {
           },
         ]}
       >
+        <AppLogo size={120} variant={isDark ? 'white' : 'blue'} />
         <Text style={styles.title}>Darkpen</Text>
       </Animated.View>
 
@@ -99,7 +101,7 @@ export default function SplashScreen() {
 const getStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -110,8 +112,9 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 44,
     textTransform: 'uppercase',
     fontWeight: '800',
-    color: colors.background,
-    letterSpacing: 4,
+    color: colors.primary,
+    letterSpacing: 0,
+    marginTop: 12,
   },
   progressTrack: {
     position: 'absolute',
@@ -124,7 +127,7 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: colors.background,
+    backgroundColor: colors.primary,
     borderRadius: 2,
     overflow: 'hidden',
   },
@@ -133,7 +136,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     top: 0,
     width: 60,
     height: '100%',
-    backgroundColor: 'rgba(255,255,255,0.6)',
+    backgroundColor: colors.primary,
     opacity: 0.8,
   }
 });

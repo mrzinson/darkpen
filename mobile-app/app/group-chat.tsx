@@ -10,6 +10,7 @@ import { io } from 'socket.io-client';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Clipboard from 'expo-clipboard';
+import { AppLogo } from '../components/AppLogo';
 
 const CACHE_KEY_PREFIX = 'cached_messages_';
 
@@ -504,6 +505,7 @@ export default function GroupChatScreen() {
               <React.Fragment key={msg.id || index}>
                 {renderDateSeparator(msg, messages[index-1])}
                 <View style={StyleSheet.flatten([styles.messageRow, isMe ? styles.myRow : styles.otherRow])}>
+                  {!isMe && isAi && <AppLogo size={28} style={styles.aiAvatar} />}
                   <View style={StyleSheet.flatten([
                     styles.bubble, 
                     isMe ? styles.myBubble : (isAi ? { backgroundColor: 'transparent', borderWidth: 0, shadowOpacity: 0, elevation: 0, maxWidth: '95%', paddingHorizontal: 4 } : styles.otherBubble),
@@ -775,6 +777,11 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   otherRow: {
     justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+  },
+  aiAvatar: {
+    marginRight: 8,
+    marginTop: 4,
   },
   bubble: {
     padding: 10,

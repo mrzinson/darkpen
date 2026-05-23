@@ -5,6 +5,7 @@ const path = require('path');
 const pdfParse = require('pdf-parse');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { GoogleAIFileManager } = require("@google/generative-ai/server");
+const { clearEmbeddingsCache } = require('./aiService');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY);
@@ -139,6 +140,7 @@ exports.ingestPDF = async (sourceId, sourceType, title, category, pdfPath) => {
         }
 
         console.log(`[Ingestion Success] ${title} waa la tababaray! 🎉`);
+        clearEmbeddingsCache();
     } catch (error) {
         console.error(`[Ingestion Error] ${title}:`, error);
     }

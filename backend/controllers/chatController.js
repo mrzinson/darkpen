@@ -2,6 +2,7 @@ const db = require('../config/db');
 const aiService = require('../services/aiService');
 const { saveBase64Image } = require('../utils/fileHelper');
 const { checkAndExpireWallet } = require('../utils/walletHelper');
+const { tryUseFreeAI } = require('../utils/freeUsageHelper');
 
 // 1. Create a new chat session
 exports.createSession = async (req, res) => {
@@ -200,14 +201,18 @@ exports.askAI = async (req, res) => {
                 cost = 10;
             }
 
-            if (!hasBalance || wallet[0].balance < cost) {
+            const usedFreeAI = await tryUseFreeAI(userId, hasImage ? 'image' : 'text');
+
+            if (!usedFreeAI && (!hasBalance || wallet[0].balance < cost)) {
                 return res.status(402).json({ 
-                    message: `Dhibcahaagu kuma filna. Chat-ka ${chatType === 'shukaansi' ? 'Shukaansiga' : 'Caadiga ah'} wuxuu u baahan yahay ${cost} Credits.`, 
+                    message: `Free-kaagii wuu dhammaaday. Chat-ka ${chatType === 'shukaansi' ? 'Shukaansiga' : 'Caadiga ah'} wuxuu u baahan yahay ${cost} Credits. Fadlan lacag bixi si aad u sii wadato.`, 
                     needsPayment: true 
                 });
             }
 
-            await db.execute(`UPDATE ${walletTable} SET balance = balance - ? WHERE user_id = ?`, [cost, userId]);
+            if (!usedFreeAI) {
+                await db.execute(`UPDATE ${walletTable} SET balance = balance - ? WHERE user_id = ?`, [cost, userId]);
+            }
         }
 
         // Handle Image saving if any

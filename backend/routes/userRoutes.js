@@ -55,8 +55,8 @@ router.get('/profile', auth, async (req, res) => {
         await checkAndExpireWallet(userId);
 
         const [user] = await db.execute(`
-            SELECT u.id, u.name, u.email, u.username, u.profile_picture, u.role,
-                   u.payment_status, u.payment_reference,
+            SELECT u.id, u.name, u.email, u.whatsapp_number, u.username, u.profile_picture, u.role,
+                   u.payment_status, u.payment_reference, u.is_verified, u.terms_accepted_at,
                    (SELECT balance FROM user_wallet WHERE user_id = u.id) as balance,
                    (SELECT type FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() LIMIT 1) as subscription_type
             FROM users u WHERE u.id = ?

@@ -20,6 +20,7 @@ export default function EditProfileScreen() {
   const [form, setForm] = useState({
     name: '',
     username: '',
+    email: '',
     password: '',
     gender: '',
     profile_picture: ''
@@ -34,6 +35,7 @@ export default function EditProfileScreen() {
           ...prev,
           name: user.name || '',
           username: user.username || '',
+          email: user.email || '',
           gender: user.gender || '',
           profile_picture: user.profile_picture || ''
         }));
@@ -68,6 +70,7 @@ export default function EditProfileScreen() {
       const updateData: any = {};
       if (form.name) updateData.name = form.name;
       if (form.username) updateData.username = form.username;
+      updateData.email = form.email.trim();
       if (form.gender) updateData.gender = form.gender;
       if (form.profile_picture) updateData.profile_picture = form.profile_picture;
       if (form.password) updateData.password = form.password;
@@ -153,6 +156,19 @@ export default function EditProfileScreen() {
               onChangeText={(t) => setForm({...form, username: t.replace(/\s/g, '').toLowerCase()})}
             />
             <Text style={styles.hint}>You can change your username once every 20 days.</Text>
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Email (Optional)</Text>
+            <TextInput 
+              style={styles.input} 
+              placeholder="Add recovery email"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={form.email}
+              onChangeText={(t) => setForm({...form, email: t})}
+            />
+            <Text style={styles.hint}>Waxaa loo isticmaalaa password reset haddii aad password-ka ilowdo.</Text>
           </View>
 
           <View style={styles.formGroup}>

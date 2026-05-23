@@ -5,6 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
+import { AppLogo } from '../components/AppLogo';
 
 const { width } = Dimensions.get('window');
 
@@ -68,7 +69,7 @@ export default function AboutScreen() {
         {/* HERO SECTION */}
         <Animated.View style={[styles.heroSection, { opacity: fadeAnim, transform: [{ scale: logoScale }] }]}>
           <View style={styles.logoContainer}>
-            <Ionicons name="school" size={60} color={colors.primary} />
+            <AppLogo size={86} />
           </View>
           <Text style={styles.appName}>Darkpen (Kuuk)</Text>
           <Text style={styles.versionText}>Version 1.0.0 (BETA)</Text>
