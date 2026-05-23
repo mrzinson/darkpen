@@ -66,22 +66,10 @@ const renderFormattedText = (text: string, isDark: boolean, colors: any) => {
           const restOfText = optionMatch[2];
           return (
             <Text key={key}>
-              <View style={{
-                backgroundColor: '#22c55e', 
-                borderRadius: 10, 
-                width: 20, 
-                height: 20, 
-                justifyContent: 'center', 
-                alignItems: 'center',
-                marginRight: 6,
-                transform: [{ translateY: 3 }]
-              }}>
-                <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 11, textAlign: 'center', lineHeight: 18 }}>
-                  {letter}
-                </Text>
-              </View>
-              {" "}
-              <Text style={{ color: '#22c55e', fontWeight: 'bold' }}>{restOfText}</Text>
+              <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 11, backgroundColor: '#22c55e', borderRadius: 10 }}>
+                {` ${letter} `}
+              </Text>
+              <Text style={{ color: '#22c55e', fontWeight: 'bold' }}>{' '}{restOfText}</Text>
             </Text>
           );
         }

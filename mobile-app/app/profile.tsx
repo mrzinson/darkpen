@@ -6,7 +6,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform, Image, ActivityIndicator } from 'react-native';
+import { Platform, ActivityIndicator } from 'react-native';
+import { Image } from 'expo-image';
 import { AuthGuard } from '../components/AuthGuard';
 import Config from '../constants/Config';
 import { AppLogo } from '../components/AppLogo';
@@ -19,7 +20,10 @@ export default function ProfileScreen() {
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  const [imgError, setImgError] = useState(false);
+
   const fetchProfile = async () => {
+    setImgError(false);
     try {
       // 1. Try to load from cache first
       const cached = await AsyncStorage.getItem('userData');
@@ -72,11 +76,23 @@ export default function ProfileScreen() {
         ) : (
           <>
             <View style={styles.avatarContainer}>
-              <View style={[styles.avatar, userData?.profile_picture ? { backgroundColor: 'transparent' } : {}]}>
-                {userData?.profile_picture ? (
-                  <Image source={{ uri: userData.profile_picture }} style={{ width: 100, height: 100, borderRadius: 50 }} />
+              <View style={[styles.avatar, userData?.profile_picture && !imgError ? { backgroundColor: 'transparent' } : {}]}>
+                {userData?.profile_picture && !imgError ? (
+                  <Image
+                    source={{ uri: Config.getMediaUrl(userData.profile_picture) || undefined }}
+                    style={{ width: 100, height: 100, borderRadius: 50 }}
+                    contentFit="cover"
+                    cachePolicy="none"
+                    onError={() => setImgError(true)}
+                  />
                 ) : (
-                  <AppLogo size={76} variant="white" />
+                  userData?.name ? (
+                    <Text style={{ color: '#fff', fontSize: 36, fontWeight: '800' }}>
+                      {userData.name.charAt(0).toUpperCase()}
+                    </Text>
+                  ) : (
+                    <AppLogo size={76} variant="white" />
+                  )
                 )}
               </View>
               <Text style={styles.name}>{userData ? userData.name : 'User'}</Text>

@@ -48,22 +48,10 @@ const renderFormattedText = (text: string, isDark: boolean, colors: any, default
           const restOfText = optionMatch[2];
           return (
             <Text key={key}>
-              <View style={{
-                backgroundColor: '#22c55e', 
-                borderRadius: 10, 
-                width: 20, 
-                height: 20, 
-                justifyContent: 'center', 
-                alignItems: 'center',
-                marginRight: 6,
-                transform: [{ translateY: 3 }]
-              }}>
-                <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 11, textAlign: 'center', lineHeight: 18 }}>
-                  {letter}
-                </Text>
-              </View>
-              {" "}
-              <Text style={{ color: '#22c55e', fontWeight: 'bold' }}>{restOfText}</Text>
+              <Text style={{ color: '#ffffff', fontWeight: 'bold', fontSize: 11, backgroundColor: '#22c55e', borderRadius: 10 }}>
+                {` ${letter} `}
+              </Text>
+              <Text style={{ color: '#22c55e', fontWeight: 'bold' }}>{' '}{restOfText}</Text>
             </Text>
           );
         }
@@ -396,17 +384,21 @@ export default function GroupChatScreen() {
   const sendImageMessage = async () => {
     if (!selectedImage) return;
     setSendingImage(true);
-    // Combine image and caption if exists, or just send image
-    // For simplicity, we send the image as the message. If there's a caption, we can send it as a separate text or combined.
-    // WhatsApp sends image with caption as ONE message.
-    await handleSend(selectedImage, 'image');
-    if (imageCaption.trim()) {
-      await handleSend(imageCaption.trim(), 'text');
+    try {
+      await handleSend(selectedImage, 'image');
+      if (imageCaption.trim()) {
+        await handleSend(imageCaption.trim(), 'text');
+      }
+      // Only close the preview on success
+      setPreviewVisible(false);
+      setSelectedImage(null);
+      setImageCaption('');
+    } catch (err) {
+      Alert.alert('Cilad', 'Waa la soo diri waayay sawirka. Isku day mar kale.');
+    } finally {
+      // Always clear loading spinner whether success or failure
+      setSendingImage(false);
     }
-    setSendingImage(false);
-    setPreviewVisible(false);
-    setSelectedImage(null);
-    setImageCaption('');
   };
 
   const getUserColor = (name: string) => {
