@@ -330,6 +330,12 @@ export default function QuizScreen() {
     }
   };
 
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
   const formatLockoutTime = (secs: number) => {
     const hours = Math.floor(secs / 3600);
     const minutes = Math.floor((secs % 3600) / 60);
@@ -350,27 +356,33 @@ export default function QuizScreen() {
     <AuthGuard>
     <SafeAreaView style={styles.container} edges={['top']}>
 
-      {/* Header Tabs */}
-      <View style={styles.header}>
+      {/* HEADER SECTION (Matching app's design system) */}
+      <View style={styles.headerSection}>
+        <View style={styles.headerTitles}>
+          <Text style={styles.mainTitle}>QUIZ CHALLENGE</Text>
+          <Text style={styles.subTitle}>Waa meel aad kula tartamayso ardayda kale.</Text>
+        </View>
+
+        {/* Segmented Tabs */}
         <View style={styles.tabsContainer}>
           <TouchableOpacity
-            style={styles.tabButton}
+            style={[styles.tabButton, activeTab === 'ai' && styles.tabButtonActive]}
             onPress={() => setActiveTab('ai')}
+            activeOpacity={0.8}
           >
             <Text style={[styles.tabText, activeTab === 'ai' && styles.activeTabText]}>
               AI Challenge
             </Text>
-            {activeTab === 'ai' && <View style={styles.activeTabIndicator} />}
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.tabButton}
+            style={[styles.tabButton, activeTab === 'others' && styles.tabButtonActive]}
             onPress={() => setActiveTab('others')}
+            activeOpacity={0.8}
           >
             <Text style={[styles.tabText, activeTab === 'others' && styles.activeTabText]}>
               Leaderboard
             </Text>
-            {activeTab === 'others' && <View style={styles.activeTabIndicator} />}
           </TouchableOpacity>
         </View>
       </View>
@@ -784,40 +796,53 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
 
   // Header Tabs
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.background,
+  headerSection: {
+    paddingHorizontal: 24,
+    backgroundColor: colors.background,
+    paddingTop: 16,
+    paddingBottom: 16,
+  },
+  headerTitles: {
+    marginBottom: 20,
+  },
+  mainTitle: {
+    fontSize: 28,
+    fontWeight: '600',
+    color: isDark ? '#FFFFFF' : '#3B82F6',
+    marginBottom: 6,
+    letterSpacing: -0.5,
+  },
+  subTitle: {
+    fontSize: 14,
+    color: colors.neutral,
+    fontWeight: '400',
   },
   tabsContainer: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: isDark ? '#161B22' : 'rgba(59, 130, 246, 0.08)',
+    borderRadius: 12,
+    padding: 4,
+    borderWidth: 1.5,
+    borderColor: isDark ? '#1E293B' : '#BFDBFE',
   },
   tabButton: {
-    paddingHorizontal: 25,
+    flex: 1,
     paddingVertical: 10,
-    position: 'relative',
+    borderRadius: 8,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabButtonActive: {
+    backgroundColor: isDark ? '#1E293B' : '#3B82F6',
   },
   tabText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.neutral,
+    fontSize: 14,
+    fontWeight: '700',
+    color: isDark ? '#A0AEC0' : '#2563EB',
   },
   activeTabText: {
-    color: colors.secondary,
+    color: isDark ? '#FFFFFF' : '#FFFFFF',
     fontWeight: '800',
-  },
-  activeTabIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    width: 30,
-    height: 3,
-    backgroundColor: colors.primary,
-    borderRadius: 2,
   },
 
   content: {
@@ -922,24 +947,24 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginBottom: 25,
   },
   lockoutCard: {
-    backgroundColor: colors.card,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: '#EF4444',
-    padding: 24,
+    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.08)' : '#FEF2F2',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: isDark ? 'rgba(239, 68, 68, 0.25)' : '#FCA5A5',
+    padding: 20,
     alignItems: 'center',
     width: '100%',
-    marginBottom: 30,
+    marginBottom: 25,
   },
   lockoutTitle: {
     fontSize: 18,
     fontWeight: '800',
     color: '#EF4444',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   lockoutSubtitle: {
     fontSize: 13,
-    color: colors.neutral,
+    color: isDark ? '#CBD5E1' : '#7F1D1D',
     textAlign: 'center',
     lineHeight: 18,
     marginBottom: 16,
