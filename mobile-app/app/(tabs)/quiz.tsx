@@ -465,14 +465,10 @@ export default function QuizScreen() {
             {/* --- NOT OPTED IN YET PANEL --- */}
             {!optedIn && quizState === 'idle' && (
               <ScrollView contentContainerStyle={styles.optInScrollContainer}>
-                <View style={styles.flagRow}>
-                  <Text style={styles.flag}>🇸🇴</Text>
-                  <Text style={styles.flag}>🇸🇱</Text>
-                </View>
-                <Text style={styles.optInTitle}>TARTANKA QARAN EE BILLAHA AH</Text>
+                <Ionicons name="trophy" size={80} color="#F59E0B" style={{ marginBottom: 20 }} />
+                <Text style={styles.optInTitle}>TARTANKA BILAHA AH</Text>
                 <Text style={styles.optInText}>
-                  Ku biir tartanka bishaan si aad ula tartanto kumanaan arday oo ku kala sugan Somaliland iyo Somalia.
-                  Ardayda 3da kaalmood ee ugu sareeya bisha dhamaadkeeda ka gala waxay heli doonaan **Abaalmarin fiican oo qaali ah**!
+                  Qofkii muddo 30days ugu sareeyaa 3da kaalmood ee sare wuxuu heli doonaa abaal marin fiican.
                 </Text>
 
                 <TouchableOpacity style={styles.optInButton} onPress={handleOptIn} disabled={optInLoading}>
@@ -496,7 +492,7 @@ export default function QuizScreen() {
             {optedIn && quizState === 'idle' && (
               <ScrollView contentContainerStyle={styles.welcomeScroll}>
                 <View style={styles.centerBoxWelcome}>
-                  <Trophy size={60} color="#F59E0B" style={{ marginBottom: 15 }} />
+                  <Ionicons name="trophy" size={60} color="#F59E0B" style={{ marginBottom: 15 }} />
                   <Text style={styles.idleTitle}>Curriculum Quiz Tournament</Text>
                   <Text style={styles.walletBalanceText}>Your Balance: {userCredits} Credits</Text>
 
