@@ -260,17 +260,37 @@ exports.generateQuestionsFromText = async (text) => {
 };
 
 /**
- * Transcribe Audio (Whisper)
+ * Transcribe Audio using Gemini (replacing OpenAI Whisper)
  */
 exports.transcribeAudio = async (filePath) => {
     try {
-        const transcription = await openai.audio.transcriptions.create({
-            file: fs.createReadStream(filePath),
-            model: "whisper-1",
+        const fs = require('fs');
+        const audioBuffer = fs.readFileSync(filePath);
+        const base64Audio = audioBuffer.toString('base64');
+        
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        
+        const result = await model.generateContent({
+            contents: [
+                {
+                    role: "user",
+                    parts: [
+                        {
+                            inlineData: {
+                                data: base64Audio,
+                                mimeType: "audio/mp4"
+                            }
+                        },
+                        { text: "Fadlan u beddel codkan qoraal ahaan (Transcribe). Kaliya soo qor waxa lagu hadlayo adigoo isticmaalaya luuqadda lagu hadlayo." }
+                    ]
+                }
+            ]
         });
-        return transcription.text;
+        
+        const response = await result.response;
+        return response.text().trim();
     } catch (error) {
-        console.error("Whisper Error:", error);
+        console.error("Gemini Transcription Error:", error);
         throw new Error("Waan ka xunnahay, codka lama fahmin.");
     }
 };

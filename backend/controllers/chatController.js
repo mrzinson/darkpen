@@ -132,7 +132,15 @@ code here
 \`\`\`
 14. Haddii isticmaalahu ku weydiiyey xogta app-ka (qiimaha, sida lacagta loo bixiyo, shuruudaha, qarsoodiga, wixii kale), u jawaab si buuxda iyadoo la adeegsanayo xogta kore ee app-ka.`;
 
-const shukaansiSystemInstruction = `Fadlan ula dhaqan qofkan sida saaxiib dhaw. Noqo qof sheeko wadaag ah, madadaaliye ah, oo af-Soomaali dabiici ah ku hadlaya.`;
+const shukaansiSystemInstruction = `Waxaad tahay AI kaftan badan, sheeko badan, oo u hadla sida bini'aadamka oo kale, gaar ahaan saaxiib ama gacaliye aad u dhow.
+Xeerarkaaga:
+1. Luuqaddaada: Ku hadal af-Soomaali aad u dabiici ah, oo ay ku dhex jiraan ereyada kaftanka, shukaansiga, iyo dareenka diirran (sida: qaali, gacaliye/gacaliso, wllo, iwm).
+2. Dhererka hadalka: Jawaabahaagu yaysan noqon kuwo aad u dhaadheer (ugu badnaan 2-3 weedhood oo kooban oo xiiso leh). Ha qorin hadal maala-yacni ah ama casharro dhaadheer.
+3. Wada-sheekaysiga dabiiciga ah: Mararka qaar ha ku koobnaan kaliya inaad su'aalaha user-ka uga jawaabto; adiguna mararka qaar weydii su'aalo ku saabsan noloshiisa, dareenkiisa, ama waxyaabihii aad horey uga wada hadasheen.
+4. Barashada iyo Xusuusta: Marka ugu horreysa ee aad kulantaan, is-barta (weydii magaciisa ama is bar). Wixii xog ah ee uu kuu sheego (sida magaciisa, meesha uu joogo, waxa uu jecelyahay), waligaa xusuusnoo oo wada-hadalka dhexdiisa mar dambe ugu yeer magacaas ama u isticmaal xogtaas si aad u tusto inaad xusuusato.
+5. Been-qabashada (Contradictions): Haddii uu user-ku hadal been ah ama is-khilaafaya kuu sheego (tusaale, haddii uu horay kuu yiri magacaygu waa Axmed, haddana uu ku yiraahdo magacaygu waa Cali), ku qabo oo u xusuusi si kaftan iyo qosol leh: "Sawdigii barigii sidaas igu yiri, maanta maxaa is beddelay? 😂" ama "Ma runtaas baa mise waa tii hore? 🤔".
+6. Ka madax-bannaani: Maskaxdaadu gabi ahaanba way ka duwan tahay AI-da waxbarashada caadiga ah ee Darkpen. Middaada waa shukaansi iyo wada-sheekaysi dhow oo diirran. Ha u oggolaan (thinking...) ama ereyo robot-nimo ah inay hadalkaaga galaan.`;
+
 
 function isSubstantiveQuery(text) {
     if (!text) return false;
@@ -169,7 +177,7 @@ function isSubstantiveQuery(text) {
 exports.askAI = async (req, res) => {
     try {
         const userId = req.user.id;
-        const { message, chatType, attachment, sessionId, stream } = req.body; 
+        const { message, chatType, attachment, sessionId, stream, aiName, replyToId } = req.body; 
 
         if (!message && !attachment) {
             return res.status(400).json({ message: 'Fariintu waa madhan tahay' });
@@ -226,11 +234,13 @@ exports.askAI = async (req, res) => {
         }
 
         // Kaydi fariinta qofka (Shukaansi)
+        let insertedUserMsgId = null;
         if (chatType === 'shukaansi') {
-            await db.execute(
-                'INSERT INTO shukaansi_messages (user_id, sender, message, image_url) VALUES (?, "user", ?, ?)',
-                [userId, message || "[Attachment]", savedImageUrl]
+            const [insertResult] = await db.execute(
+                'INSERT INTO shukaansi_messages (user_id, sender, message, image_url, reply_to_id) VALUES (?, "user", ?, ?, ?)',
+                [userId, message || "[Attachment]", savedImageUrl, replyToId || null]
             );
+            insertedUserMsgId = insertResult.insertId;
         }
 
         const [sub_plan] = await db.execute(`SELECT type FROM ${subTable} WHERE user_id = ? AND expiry_date > NOW()`, [userId]);
@@ -261,7 +271,10 @@ exports.askAI = async (req, res) => {
             }));
         }
 
-        const systemInstruction = chatType === 'shukaansi' ? shukaansiSystemInstruction : darkpenSystemInstruction;
+        let systemInstruction = chatType === 'shukaansi' ? shukaansiSystemInstruction : darkpenSystemInstruction;
+        if (chatType === 'shukaansi' && aiName) {
+            systemInstruction = `Magacaaga waa "${aiName}". Isticmaaluhu wuxuu kuu bixiyay magacan, fadlan u dhaqan sidii magacaaga rasmiga ah markaad la hadlayso.\n\n${shukaansiSystemInstruction}`;
+        }
         const modelName = "gemini-flash-latest";
 
         // Handle streaming response if requested and not shukaansi
@@ -325,9 +338,32 @@ exports.askAI = async (req, res) => {
 
         if (chatType === 'shukaansi') {
             await db.execute(
-                'INSERT INTO shukaansi_messages (user_id, sender, message) VALUES (?, "ai", ?)',
-                [userId, aiResponseText]
+                'INSERT INTO shukaansi_messages (user_id, sender, message, reply_to_id) VALUES (?, "ai", ?, ?)',
+                [userId, aiResponseText, insertedUserMsgId || null]
             );
+
+            // AI reacts to user message sometimes (e.g. 40% of the time)
+            if (insertedUserMsgId && Math.random() < 0.4) {
+                const reactions = ['❤️', '😂', '👍', '😮', '😢'];
+                let chosenReaction = reactions[0];
+                const lowerMsg = (message || "").toLowerCase();
+                if (lowerMsg.includes('dhib') || lowerMsg.includes('xun') || lowerMsg.includes('buux') || lowerMsg.includes('tiiraanyo')) {
+                    chosenReaction = '😢';
+                } else if (lowerMsg.includes('ha') || lowerMsg.includes('qosol') || lowerMsg.includes('kaftan') || lowerMsg.includes('he')) {
+                    chosenReaction = '😂';
+                } else if (lowerMsg.includes('nax') || lowerMsg.includes('yaab') || lowerMsg.includes('mise')) {
+                    chosenReaction = '😮';
+                } else if (lowerMsg.includes('fiican') || lowerMsg.includes('haa') || lowerMsg.includes('haye')) {
+                    chosenReaction = '👍';
+                } else {
+                    chosenReaction = reactions[Math.floor(Math.random() * reactions.length)];
+                }
+                
+                await db.execute(
+                    'UPDATE shukaansi_messages SET ai_reaction = ? WHERE id = ?',
+                    [chosenReaction, insertedUserMsgId]
+                );
+            }
         } else {
             // Save User and AI messages for private chat
             await db.execute(
@@ -438,7 +474,12 @@ exports.getShukaansiHistory = async (req, res) => {
     try {
         const userId = req.user.id;
         const [history] = await db.execute(
-            'SELECT sender, message, image_url as image, created_at FROM shukaansi_messages WHERE user_id = ? ORDER BY created_at ASC',
+            `SELECT m.id, m.sender, m.message, m.image_url as image, m.reaction, m.ai_reaction, m.reply_to_id, m.created_at,
+                    p.message AS reply_to_message, p.sender AS reply_to_sender
+             FROM shukaansi_messages m
+             LEFT JOIN shukaansi_messages p ON m.reply_to_id = p.id
+             WHERE m.user_id = ?
+             ORDER BY m.created_at ASC`,
             [userId]
         );
         res.json(history);
@@ -446,3 +487,26 @@ exports.getShukaansiHistory = async (req, res) => {
         res.status(500).json({ message: 'Error fetching shukaansi history' });
     }
 };
+
+// POST Reaction to message
+exports.reactToShukaansiMessage = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { messageId, reaction } = req.body;
+        
+        if (!messageId) {
+            return res.status(400).json({ message: 'Message ID is required' });
+        }
+        
+        await db.execute(
+            'UPDATE shukaansi_messages SET reaction = ? WHERE id = ? AND user_id = ?',
+            [reaction || null, messageId, userId]
+        );
+        
+        res.json({ success: true, messageId, reaction });
+    } catch (error) {
+        console.error("Reaction Error:", error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday samaynta reaction-ka' });
+    }
+};
+

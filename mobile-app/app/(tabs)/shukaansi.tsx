@@ -2,7 +2,8 @@ import { useTheme } from '../../context/ThemeContext';
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, TextInput, 
-  KeyboardAvoidingView, Platform, ScrollView, Animated, Dimensions, Pressable, Keyboard
+  KeyboardAvoidingView, Platform, ScrollView, Animated, Dimensions, Pressable, Keyboard,
+  Modal, Vibration, Alert
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,7 +23,13 @@ type Message = {
   text: string; 
   sender: 'user' | 'ai';
   image?: string;
+  reaction?: string;
+  ai_reaction?: string;
+  reply_to_id?: string | number;
+  reply_to_message?: string;
+  reply_to_sender?: 'user' | 'ai';
 };
+
 
 const INITIAL_MESSAGES: Message[] = [];
 
@@ -41,6 +48,25 @@ export default function ShukaansiScreen() {
   const [attachment, setAttachment] = useState<{ uri: string, base64: string, mimeType: string, name: string } | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
   const [subscriptionType, setSubscriptionType] = useState<string | null>(null);
+
+  // Custom states for Renaming, Reactions & Replies
+  const [aiName, setAiName] = useState('GACALO');
+  const [editingName, setEditingName] = useState(false);
+  const [tempName, setTempName] = useState('GACALO');
+  const [activeReactionMsgId, setActiveReactionMsgId] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+
+  useEffect(() => {
+    const loadAiName = async () => {
+      const saved = await AsyncStorage.getItem('shukaansi_ai_name');
+      if (saved) {
+        setAiName(saved.toUpperCase());
+        setTempName(saved);
+      }
+    };
+    loadAiName();
+  }, []);
+
   
   // Sidebar State
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -235,10 +261,15 @@ export default function ShukaansiScreen() {
       if (response.ok) {
         if (data.length > 0) {
           setMessages(data.map((m: any, idx: number) => ({
-            id: m.id || idx.toString(),
+            id: String(m.id || idx),
             text: m.message,
             sender: m.sender,
-            image: m.image ? `${Config.API_URL}${m.image}` : undefined
+            image: m.image ? `${Config.API_URL}${m.image}` : undefined,
+            reaction: m.reaction || undefined,
+            ai_reaction: m.ai_reaction || undefined,
+            reply_to_id: m.reply_to_id || undefined,
+            reply_to_message: m.reply_to_message || undefined,
+            reply_to_sender: m.reply_to_sender || undefined
           })));
         } else {
           // If no history, show welcome message
@@ -250,6 +281,7 @@ export default function ShukaansiScreen() {
     }
   };
 
+
   useEffect(() => {
     fetchCredits();
     fetchHistory();
@@ -257,14 +289,34 @@ export default function ShukaansiScreen() {
 
   const [isAiTyping, setIsAiTyping] = useState(false);
 
+  const handleReact = async (msgId: string, emoji: string) => {
+    setActiveReactionMsgId(null);
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reaction: emoji } : m));
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      await fetch(`${Config.API_URL}/api/chat/shukaansi-react`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ messageId: msgId, reaction: emoji })
+      });
+    } catch (e) {
+      console.error("React error:", e);
+    }
+  };
+
   const handleSend = async () => {
     if ((!inputText.trim() && !attachment) || isAiTyping) return;
 
     const userText = inputText.trim();
     const currentAttachment = attachment;
+    const replyContext = replyingTo;
     
     setInputText('');
     setAttachment(null);
+    setReplyingTo(null);
     setIsAiTyping(true);
 
     // Play Send Animation
@@ -283,14 +335,15 @@ export default function ShukaansiScreen() {
     });
 
     const newUserMsg: Message = { 
-      id: Date.now().toString(), 
+      id: String(Date.now()), 
       text: userText, 
       sender: 'user',
-      image: currentAttachment?.uri
+      image: currentAttachment?.uri,
+      reply_to_id: replyContext?.id,
+      reply_to_message: replyContext?.text,
+      reply_to_sender: replyContext?.sender
     };
-    const aiMsgId = (Date.now() + 1).toString();
-    const newAiMsg: Message = { id: aiMsgId, text: 'Thinking...', sender: 'ai' };
-    setMessages(prev => [...prev, newUserMsg, newAiMsg]);
+    setMessages(prev => [...prev, newUserMsg]);
 
     try {
       const token = await AsyncStorage.getItem('userToken');
@@ -303,6 +356,8 @@ export default function ShukaansiScreen() {
         body: JSON.stringify({ 
           message: userText, 
           chatType: 'shukaansi',
+          aiName: aiName,
+          replyToId: replyContext ? replyContext.id : null,
           attachment: currentAttachment ? {
             base64: currentAttachment.base64,
             mimeType: currentAttachment.mimeType,
@@ -312,7 +367,6 @@ export default function ShukaansiScreen() {
       });
 
       if (response.status === 402) {
-        setMessages(prev => prev.filter(m => m.id !== aiMsgId));
         setIsAiTyping(false);
         return router.push({
           pathname: '/billing',
@@ -322,16 +376,19 @@ export default function ShukaansiScreen() {
 
       const data = await response.json();
       if (response.ok) {
-        setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: data.message } : m));
-        fetchCredits(); // Refresh credits here
+        fetchHistory(); // sync reactions, replies and AI messages
+        fetchCredits();
       } else {
-        setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: 'Cilad: ' + data.message } : m));
+        const errAiMsg: Message = { id: String(Date.now() + 1), text: 'Cilad: ' + data.message, sender: 'ai' };
+        setMessages(prev => [...prev, errAiMsg]);
       }
     } catch (error) {
-      setMessages(prev => prev.map(m => m.id === aiMsgId ? { 
-        ...m, 
-        text: 'Waan ka xumahay, laakiin hadda internet-kaagu ma shaqaynayo. Fadlan ku soo noqo markaad xidhiidh hesho si aan u wada hadallo! ❤️' 
-      } : m));
+      const errAiMsg: Message = { 
+        id: String(Date.now() + 1), 
+        text: 'Waan ka xumahay, laakiin hadda internet-kaagu ma shaqaynayo. Fadlan ku soo noqo markaad xidhiidh hesho si aan u wada hadallo! ❤️', 
+        sender: 'ai' 
+      };
+      setMessages(prev => [...prev, errAiMsg]);
     } finally {
       setIsAiTyping(false);
     }
@@ -348,9 +405,11 @@ export default function ShukaansiScreen() {
             <Ionicons name="chevron-back" size={22} color={colors.secondary} />
           </TouchableOpacity>
           
-          <BlurView intensity={40} tint="light" style={styles.nameBadgeBlur}>
-            <Text style={styles.aiName}>M Y   L O V E</Text>
-          </BlurView>
+          <TouchableOpacity onPress={() => { setTempName(aiName); setEditingName(true); }} activeOpacity={0.8}>
+            <BlurView intensity={40} tint={isDark ? "dark" : "light"} style={styles.nameBadgeBlur}>
+              <Text style={styles.aiName}>{aiName}</Text>
+            </BlurView>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.headerRight}>
@@ -374,7 +433,7 @@ export default function ShukaansiScreen() {
       >
         <ScrollView 
           ref={scrollViewRef}
-          style={{ flex: 1 }} // This fixes the input floating in the middle! It forces ScrollView to expand.
+          style={{ flex: 1 }} 
           contentContainerStyle={styles.scrollContent}
           onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
           onScroll={handleScroll}
@@ -387,10 +446,32 @@ export default function ShukaansiScreen() {
               styles.messageRow, 
               msg.sender === 'user' ? styles.messageRowUser : styles.messageRowAi
             ]}>
-              <View style={[
-                styles.messageContent,
-                msg.sender === 'user' ? styles.messageContentUser : styles.messageContentAi
-              ]}>
+              <Pressable 
+                onLongPress={() => {
+                  Vibration.vibrate(40);
+                  setActiveReactionMsgId(msg.id);
+                }}
+                delayLongPress={350}
+                style={[
+                  styles.messageContent,
+                  msg.sender === 'user' ? styles.messageContentUser : styles.messageContentAi
+                ]}
+              >
+                {/* Reply Bubble Quoting Parent */}
+                {msg.reply_to_message && (
+                  <View style={[
+                    styles.replyQuoteBubble,
+                    msg.sender === 'user' ? styles.replyQuoteUser : styles.replyQuoteAi
+                  ]}>
+                    <Text style={styles.replyQuoteSenderText}>
+                      {msg.reply_to_sender === 'user' ? 'Adiga' : aiName}
+                    </Text>
+                    <Text style={styles.replyQuoteMessageText} numberOfLines={1}>
+                      {msg.reply_to_message}
+                    </Text>
+                  </View>
+                )}
+
                 {msg.image && (
                   <View style={styles.imageContainer}>
                     <Animated.Image 
@@ -400,6 +481,7 @@ export default function ShukaansiScreen() {
                     />
                   </View>
                 )}
+                
                 {msg.text ? (
                   msg.sender === 'ai' ? (
                     <BlurView 
@@ -419,9 +501,42 @@ export default function ShukaansiScreen() {
                     </View>
                   )
                 ) : null}
-              </View>
+
+                {/* Reaction Badges */}
+                {(msg.reaction || msg.ai_reaction) && (
+                  <View style={styles.reactionBadgeRow}>
+                    {msg.reaction && (
+                      <View style={styles.emojiBadge}>
+                        <Text style={styles.emojiBadgeText}>{msg.reaction}</Text>
+                      </View>
+                    )}
+                    {msg.ai_reaction && (
+                      <View style={styles.emojiBadge}>
+                        <Text style={styles.emojiBadgeText}>{msg.ai_reaction}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </Pressable>
             </View>
           ))}
+
+          {/* Typing Indicator */}
+          {isAiTyping && (
+            <View style={[styles.messageRow, styles.messageRowAi]}>
+              <View style={styles.messageContent}>
+                <BlurView 
+                  intensity={isDark ? 45 : 75} 
+                  tint={isDark ? 'dark' : 'light'} 
+                  style={StyleSheet.flatten([styles.messageBubble, styles.messageBubbleAi, { overflow: 'hidden', minWidth: 150 }])}
+                >
+                  <Text style={StyleSheet.flatten([styles.messageText, styles.messageTextAi, { fontStyle: 'italic', opacity: 0.8 }])}>
+                    {aiName.toLowerCase()} wuu fekerayaa... 💭
+                  </Text>
+                </BlurView>
+              </View>
+            </View>
+          )}
         </ScrollView>
 
         {showScrollBottom && (
@@ -441,6 +556,26 @@ export default function ShukaansiScreen() {
               <Animated.Image source={{ uri: attachment.uri }} style={styles.previewImage} />
               <TouchableOpacity style={styles.removeAttachment} onPress={() => setAttachment(null)}>
                 <Ionicons name="close-circle" size={24} color="#EF4444" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Replying To Panel */}
+        {replyingTo && (
+          <View style={styles.replyPreviewContainer}>
+            <View style={styles.replyPreviewBar}>
+              <Ionicons name="arrow-undo-outline" size={16} color="#E11D48" />
+              <View style={styles.replyPreviewContent}>
+                <Text style={styles.replyPreviewSender}>
+                  {replyingTo.sender === 'user' ? 'Adiga' : aiName}
+                </Text>
+                <Text style={styles.replyPreviewText} numberOfLines={1}>
+                  {replyingTo.text}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setReplyingTo(null)}>
+                <Ionicons name="close-circle" size={20} color="#E11D48" />
               </TouchableOpacity>
             </View>
           </View>
@@ -472,7 +607,7 @@ export default function ShukaansiScreen() {
               {inputText.trim() ? (
                 /* Send Button */
                 <TouchableOpacity 
-                  style={[styles.sendButtonBox, styles.sendButtonActive]} 
+                  style={[styles.sendButtonBox, styles.sendButtonActive, { backgroundColor: '#E11D48' }]} 
                   onPress={handleSend}
                   activeOpacity={0.8}
                 >
@@ -491,7 +626,8 @@ export default function ShukaansiScreen() {
                 <TouchableOpacity 
                   style={[
                     styles.sendButtonBox, 
-                    isRecording ? styles.recordingButton : styles.micButton
+                    isRecording ? styles.recordingButton : styles.micButton,
+                    !isRecording && { backgroundColor: '#E11D48' }
                   ]} 
                   onPressIn={startRecording}
                   onPressOut={stopRecording}
@@ -508,6 +644,7 @@ export default function ShukaansiScreen() {
           </View>
         </View>
       </KeyboardAvoidingView>
+
 
       {/* GLOBAL OVERLAY */}
       {/* We keep it mounted so animations play, but toggle pointerEvents so it doesn't block clicks when closed */}
@@ -600,6 +737,72 @@ export default function ShukaansiScreen() {
           </View>
         </View>
       </Animated.View>
+
+      {/* Rename AI Modal */}
+      <Modal visible={editingName} transparent animationType="fade" onRequestClose={() => setEditingName(false)}>
+        <Pressable style={styles.popoverBackdrop} onPress={() => setEditingName(false)}>
+          <BlurView intensity={35} tint="dark" style={styles.renameCard}>
+            <Text style={styles.renameTitle}>Magac u bixi AI-da 💖</Text>
+            <Text style={styles.renameSub}>Ula bax magac gaar ah si uu magacaas kuugu hadlo mar kasta!</Text>
+            <TextInput
+              style={styles.renameInput}
+              value={tempName}
+              onChangeText={setTempName}
+              maxLength={15}
+              autoFocus
+              placeholder="Tusaale: Gacalo"
+              placeholderTextColor="#9CA3AF"
+            />
+            <View style={styles.renameButtonsRow}>
+              <TouchableOpacity style={[styles.renameBtn, styles.renameBtnCancel]} onPress={() => setEditingName(false)}>
+                <Text style={styles.renameBtnTextCancel}>Ka noqo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.renameBtn, styles.renameBtnSave]} 
+                onPress={async () => {
+                  const clean = tempName.trim();
+                  if (clean) {
+                    setAiName(clean.toUpperCase());
+                    await AsyncStorage.setItem('shukaansi_ai_name', clean);
+                    setEditingName(false);
+                  }
+                }}
+              >
+                <Text style={styles.renameBtnTextSave}>Kaydi</Text>
+              </TouchableOpacity>
+            </View>
+          </BlurView>
+        </Pressable>
+      </Modal>
+
+      {/* Emojis & Reply Popover */}
+      <Modal transparent visible={!!activeReactionMsgId} animationType="fade" onRequestClose={() => setActiveReactionMsgId(null)}>
+        <Pressable style={styles.popoverBackdrop} onPress={() => setActiveReactionMsgId(null)}>
+          <BlurView intensity={25} tint="dark" style={styles.reactionPanel}>
+            <Text style={styles.reactionPanelTitle}>Dooro Reaction/Reply:</Text>
+            <View style={styles.reactionEmojiRow}>
+              {['❤️', '😂', '👍', '😮', '😢', '😡'].map(emoji => (
+                <TouchableOpacity key={emoji} style={styles.reactionEmojiBtn} onPress={() => handleReact(activeReactionMsgId!, emoji)}>
+                  <Text style={styles.reactionEmojiText}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity 
+              style={styles.replySelectBtn} 
+              onPress={() => {
+                const msg = messages.find(m => m.id === activeReactionMsgId);
+                if (msg) {
+                  setReplyingTo(msg);
+                }
+                setActiveReactionMsgId(null);
+              }}
+            >
+              <Ionicons name="arrow-undo-outline" size={18} color="white" />
+              <Text style={styles.replySelectText}>U Reply-garee Fariintan</Text>
+            </TouchableOpacity>
+          </BlurView>
+        </Pressable>
+      </Modal>
 
     </SafeAreaView>
     </AuthGuard>
@@ -1001,5 +1204,212 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '700',
     color: colors.secondary,
     marginLeft: 12,
+  },
+
+  // Premium Custom Reactions & Replies Styles
+  replyQuoteBubble: {
+    padding: 8,
+    borderRadius: 8,
+    marginBottom: 6,
+    width: '100%',
+    minWidth: 150,
+  },
+  replyQuoteUser: {
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#FFF',
+  },
+  replyQuoteAi: {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#E11D48',
+  },
+  replyQuoteSenderText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#E11D48',
+    marginBottom: 2,
+  },
+  replyQuoteMessageText: {
+    fontSize: 13,
+    color: isDark ? 'rgba(255, 255, 255, 0.7)' : '#4B5563',
+    fontStyle: 'italic',
+  },
+  reactionBadgeRow: {
+    flexDirection: 'row',
+    position: 'absolute',
+    bottom: -10,
+    right: 10,
+    gap: 4,
+    zIndex: 10,
+  },
+  emojiBadge: {
+    backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 2,
+  },
+  emojiBadgeText: {
+    fontSize: 11,
+  },
+  replyPreviewContainer: {
+    backgroundColor: colors.card,
+    borderTopWidth: 1,
+    borderTopColor: colors.background,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  replyPreviewBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)',
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#E11D48',
+    padding: 10,
+  },
+  replyPreviewContent: {
+    flex: 1,
+    marginHorizontal: 10,
+  },
+  replyPreviewSender: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#E11D48',
+  },
+  replyPreviewText: {
+    fontSize: 13,
+    color: colors.secondary,
+    opacity: 0.8,
+  },
+  popoverBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  renameCard: {
+    width: '90%',
+    maxWidth: 340,
+    borderRadius: 24,
+    padding: 24,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  renameTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FFF',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  renameSub: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  renameInput: {
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 16,
+    color: '#FFF',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  renameButtonsRow: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 12,
+  },
+  renameBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  renameBtnCancel: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  renameBtnSave: {
+    backgroundColor: '#E11D48',
+  },
+  renameBtnTextCancel: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  renameBtnTextSave: {
+    color: '#FFF',
+    fontWeight: '800',
+    fontSize: 15,
+  },
+  reactionPanel: {
+    width: '90%',
+    maxWidth: 340,
+    borderRadius: 24,
+    padding: 20,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  reactionPanelTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFF',
+    marginBottom: 16,
+  },
+  reactionEmojiRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: 20,
+    paddingHorizontal: 8,
+  },
+  reactionEmojiBtn: {
+    width: 42,
+    height: 42,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 21,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  reactionEmojiText: {
+    fontSize: 22,
+  },
+  replySelectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E11D48',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 16,
+    width: '100%',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  replySelectText: {
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: '800',
   }
 });
+

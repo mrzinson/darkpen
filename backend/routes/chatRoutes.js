@@ -28,6 +28,7 @@ router.post('/voice', auth, upload.single('audio'), chatController.processVoice)
 // Shukaansi Profile
 router.get('/shukaansi-profile', auth, chatController.getShukaansiProfile);
 router.get('/shukaansi-history', auth, chatController.getShukaansiHistory);
+router.post('/shukaansi-react', auth, chatController.reactToShukaansiMessage);
 
 const quizController = require('../controllers/quizController');
 const examGeneratorController = require('../controllers/examGeneratorController');
