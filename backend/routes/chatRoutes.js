@@ -30,8 +30,14 @@ router.get('/shukaansi-profile', auth, chatController.getShukaansiProfile);
 router.get('/shukaansi-history', auth, chatController.getShukaansiHistory);
 
 const quizController = require('../controllers/quizController');
+const examGeneratorController = require('../controllers/examGeneratorController');
 
 // Quizzes
 router.get('/quiz/generate', auth, quizController.generateQuiz);
+router.post('/quiz/submit', auth, quizController.submitQuiz);
+router.get('/quiz/leaderboard', auth, quizController.getLeaderboard);
+router.post('/quiz/generate-exam-pdf', auth, examGeneratorController.generateExamPdf);
 
 module.exports = router;
+
+

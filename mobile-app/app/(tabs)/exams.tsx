@@ -109,6 +109,24 @@ export default function ExamsScreen() {
             <Text style={styles.subTitle}>Access your past papers and answer keys.</Text>
           </View>
 
+          {/* AI Generator Banner */}
+          <TouchableOpacity
+            style={styles.aiBanner}
+            onPress={() => router.push('/exam-generator')}
+            activeOpacity={0.85}
+          >
+            <BlurView intensity={30} tint={isDark ? "dark" : "light"} style={styles.aiBannerBlur}>
+              <View style={styles.aiBannerLeft}>
+                <Ionicons name="sparkles" size={22} color="#3B82F6" style={{ marginRight: 10 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.aiBannerTitle}>AI Exam Generator</Text>
+                  <Text style={styles.aiBannerSub} numberOfLines={1}>Create print-ready PDF exam papers automatically.</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#3B82F6" />
+            </BlurView>
+          </TouchableOpacity>
+
           {/* Search Bar */}
           <View style={styles.searchBox}>
             <Ionicons name="search-outline" size={20} color={colors.primary} />
@@ -403,5 +421,40 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   yearTextActive: {
     color: isDark ? colors.card : '#FFFFFF',
+  },
+  aiBanner: {
+    marginBottom: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : '#BFDBFE',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  aiBannerBlur: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(59, 130, 246, 0.08)',
+  },
+  aiBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
+  },
+  aiBannerTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.secondary,
+  },
+  aiBannerSub: {
+    fontSize: 11,
+    color: colors.neutral,
+    marginTop: 2,
   }
 });
