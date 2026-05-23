@@ -8,6 +8,16 @@ exports.generateQuiz = async (req, res) => {
     try {
         const userId = req.user.id;
 
+        // 0. Check if tournament is active
+        const [settingsRow] = await db.execute('SELECT is_active FROM tournament_settings WHERE id = 1');
+        const settings = settingsRow.length > 0 ? settingsRow[0] : { is_active: 0 };
+        if (!settings.is_active) {
+            return res.status(400).json({
+                status: 'not_started',
+                message: 'Wali tartanku muu bilaabman. Fadlan isa sii diwaangeli si aad ula tartanto kumanaan arday.'
+            });
+        }
+
         // 1. Check if user is suspended from the tournament
         const [userRow] = await db.execute('SELECT is_suspended_from_tournament, tournament_opt_in FROM users WHERE id = ?', [userId]);
         if (userRow.length === 0) {
@@ -250,6 +260,68 @@ exports.getLeaderboard = async (req, res) => {
     } catch (error) {
         console.error("Get Leaderboard Error:", error);
         res.status(500).json({ message: 'Cilad ayaa ku dhacday soo saarista Leaderboard-ka' });
+    }
+};
+
+exports.getQuizStatus = async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        // 1. Get user details
+        const [userRow] = await db.execute(`
+            SELECT is_suspended_from_tournament, tournament_opt_in 
+            FROM users WHERE id = ?
+        `, [userId]);
+
+        if (userRow.length === 0) {
+            return res.status(404).json({ message: 'User-ka lama helin' });
+        }
+
+        const user = userRow[0];
+
+        // 2. Get wallet balance
+        const [wallet] = await db.execute('SELECT balance FROM user_wallet WHERE user_id = ?', [userId]);
+        const balance = wallet.length > 0 ? wallet[0].balance : 0;
+
+        // 3. Get attempts count
+        const [attemptsCount] = await db.execute('SELECT COUNT(*) as total FROM quiz_attempts WHERE user_id = ?', [userId]);
+        const totalAttempts = attemptsCount[0].total;
+
+        // 4. Get last attempt and calculate lockout
+        const [attempts] = await db.execute(
+            'SELECT created_at FROM quiz_attempts WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
+            [userId]
+        );
+
+        let lockoutSeconds = 0;
+        if (attempts.length > 0) {
+            const lastAttemptTime = new Date(attempts[0].created_at).getTime();
+            const now = Date.now();
+            const diffMs = now - lastAttemptTime;
+            const limitMs = 24 * 60 * 60 * 1000; // 24 hours
+            if (diffMs < limitMs) {
+                lockoutSeconds = Math.ceil((limitMs - diffMs) / 1000);
+            }
+        }
+
+        // 5. Get tournament settings
+        const [settingsRow] = await db.execute('SELECT is_active, start_date, reward_description FROM tournament_settings WHERE id = 1');
+        const settings = settingsRow.length > 0 ? settingsRow[0] : { is_active: 0, start_date: null, reward_description: '' };
+
+        res.json({
+            status: 'success',
+            opted_in: !!user.tournament_opt_in,
+            free_attempts_used: totalAttempts,
+            user_credits: balance,
+            lockout_seconds: lockoutSeconds,
+            is_suspended: !!user.is_suspended_from_tournament,
+            tournament_active: !!settings.is_active,
+            tournament_start_date: settings.start_date,
+            reward_description: settings.reward_description
+        });
+    } catch (error) {
+        console.error("Get Quiz Status Error:", error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday haynta statuska quiska' });
     }
 };
 

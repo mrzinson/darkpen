@@ -1,39 +1,31 @@
 import { useEffect, useState } from 'react';
-import { Trophy, ShieldAlert, Award, Save, RefreshCw, PlusMinus } from 'lucide-react';
+import { Trophy, ShieldAlert, Award, Save, RefreshCw, PlusCircle } from 'lucide-react';
 import { API_URL } from '../config';
 
 export default function TournamentPanel() {
   const [settings, setSettings] = useState<any>({ is_active: 1, reward_description: '' });
   const [contestants, setContestants] = useState<any[]>([]);
-  const [loadingSettings, setLoadingSettings] = useState(true);
-  const [loadingContestants, setLoadingContestants] = useState(true);
   const [saveStatus, setSaveStatus] = useState('');
 
   const fetchSettings = () => {
-    setLoadingSettings(true);
     fetch(`${API_URL}/admin/tournament/settings`)
       .then(res => res.json())
       .then(data => {
         setSettings(data);
-        setLoadingSettings(false);
       })
       .catch(err => {
         console.error(err);
-        setLoadingSettings(false);
       });
   };
 
   const fetchContestants = () => {
-    setLoadingContestants(true);
     fetch(`${API_URL}/admin/tournament/contestants`)
       .then(res => res.json())
       .then(data => {
         setContestants(data);
-        setLoadingContestants(false);
       })
       .catch(err => {
         console.error(err);
-        setLoadingContestants(false);
       });
   };
 
@@ -218,7 +210,7 @@ export default function TournamentPanel() {
                           onClick={() => handleAdjustXp(c.id)}
                           title="Adjust XP"
                         >
-                          <PlusMinus size={16} />
+                          <PlusCircle size={16} />
                         </button>
                         <button 
                           className={`icon-btn ${c.is_suspended_from_tournament ? 'success' : 'danger'}`} 

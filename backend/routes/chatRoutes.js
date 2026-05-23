@@ -33,6 +33,7 @@ const quizController = require('../controllers/quizController');
 const examGeneratorController = require('../controllers/examGeneratorController');
 
 // Quizzes
+router.get('/quiz/status', auth, quizController.getQuizStatus);
 router.get('/quiz/generate', auth, quizController.generateQuiz);
 router.post('/quiz/submit', auth, quizController.submitQuiz);
 router.get('/quiz/leaderboard', auth, quizController.getLeaderboard);

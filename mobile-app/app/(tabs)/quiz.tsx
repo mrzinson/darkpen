@@ -39,6 +39,7 @@ export default function QuizScreen() {
   // Opt-In State
   const [optedIn, setOptedIn] = useState<boolean | null>(null);
   const [optInLoading, setOptInLoading] = useState(false);
+  const [tournamentActive, setTournamentActive] = useState(false);
 
   // Quiz Play States
   const [quizState, setQuizState] = useState<'idle' | 'generating' | 'active' | 'showing_ad' | 'finished'>('idle');
@@ -76,39 +77,22 @@ export default function QuizScreen() {
     try {
       const token = await AsyncStorage.getItem('userToken');
       
-      // Fetch profile to get credits
-      const resProfile = await fetch(`${Config.API_URL}/api/user/profile`, {
+      const resStatus = await fetch(`${Config.API_URL}/api/chat/quiz/status`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const dataProfile = await resProfile.json();
-      if (resProfile.ok && dataProfile.user) {
-        setUserCredits(dataProfile.user.balance || 0);
-      }
+      const data = await resStatus.json();
 
-      // Check opt-in & limit status by attempting a soft status query on generate endpoint
-      const resGenerate = await fetch(`${Config.API_URL}/api/chat/quiz/generate`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const dataGenerate = await resGenerate.json();
-
-      if (resGenerate.ok) {
-        setOptedIn(!!dataGenerate.opted_in);
-        setFreeAttemptsUsed(dataGenerate.free_attempts_used || 0);
-        setLockoutSeconds(0);
-      } else if (resGenerate.status === 400 && dataGenerate.status === 'locked') {
-        setLockoutSeconds(dataGenerate.seconds_remaining);
-        // Soft set optedIn since they are locked out, they must have opted in
-        setOptedIn(true);
-      } else if (resGenerate.status === 403) {
-        // Suspended
-        Alert.alert('Xannibaad', dataGenerate.message);
-        setOptedIn(true);
+      if (resStatus.ok) {
+        setOptedIn(!!data.opted_in);
+        setFreeAttemptsUsed(data.free_attempts_used || 0);
+        setUserCredits(data.user_credits || 0);
+        setLockoutSeconds(data.lockout_seconds || 0);
+        setTournamentActive(!!data.tournament_active);
       } else {
         setOptedIn(false);
       }
     } catch (err) {
       console.error("Status fetch error:", err);
-      // Fallback
       setOptedIn(false);
     }
   };
@@ -474,34 +458,109 @@ export default function QuizScreen() {
         {activeTab === 'ai' && (
           <View style={styles.tabContent}>
 
-            {/* --- NOT OPTED IN YET PANEL --- */}
-            {!optedIn && quizState === 'idle' && (
-              <ScrollView contentContainerStyle={styles.optInScrollContainer}>
-                <Ionicons name="trophy" size={80} color="#F59E0B" style={{ marginBottom: 20 }} />
-                <Text style={styles.optInTitle}>TARTANKA BILAHA AH</Text>
-                <Text style={styles.optInText}>
-                  Qofkii muddo 30days ugu sareeyaa 3da kaalmood ee sare wuxuu heli doonaa abaal marin fiican.
-                </Text>
-
-                <TouchableOpacity style={styles.optInButton} onPress={handleOptIn} disabled={optInLoading}>
-                  {optInLoading ? (
-                    <ActivityIndicator size="small" color="white" />
-                  ) : (
+            {/* --- CASE 1: TOURNAMENT NOT STARTED YET --- */}
+            {!tournamentActive && quizState === 'idle' && (
+              <ScrollView contentContainerStyle={styles.welcomeScroll}>
+                <View style={styles.centerBoxWelcome}>
+                  <Ionicons name="time-outline" size={80} color="#F59E0B" style={{ marginBottom: 20 }} />
+                  <Text style={styles.idleTitle}>TARTANKA BILAHA AH</Text>
+                  
+                  {!optedIn ? (
                     <>
-                      <Ionicons name="trophy-outline" size={20} color="white" style={{ marginRight: 8 }} />
-                      <Text style={styles.optInButtonText}>JOIN TOURNAMENT (KU BIIR)</Text>
+                      <Text style={styles.registrationText}>
+                        Wali tartanku si rasmi ah uma bilaabman. Fadlan isa sii diwaangeli hadda si aad ula tartanto kumanaan arday marka uu tartanku si toos ah u bilowdo!
+                      </Text>
+                      <TouchableOpacity style={[styles.optInButton, { width: '90%', alignSelf: 'center', marginBottom: 30 }]} onPress={handleOptIn} disabled={optInLoading}>
+                        {optInLoading ? (
+                          <ActivityIndicator size="small" color="white" />
+                        ) : (
+                          <>
+                            <Ionicons name="person-add-outline" size={20} color="white" style={{ marginRight: 8 }} />
+                            <Text style={styles.optInButtonText}>ISA SII DIWAANGELI (REGISTER)</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
                     </>
+                  ) : (
+                    <View style={styles.registeredCard}>
+                      <Ionicons name="checkmark-circle-outline" size={36} color="#10B981" style={{ marginBottom: 10 }} />
+                      <Text style={styles.registeredTitle}>Waad is-diwaangelisay!</Text>
+                      <Text style={styles.registeredSubtitle}>
+                        Sug inta uu tartanku si rasmi ah uga bilaabmayo. Admin-ka ayaa dhowaan bilaabi doona tartanka marka ay arday badani is-diiwaangeliyaan.
+                      </Text>
+                    </View>
                   )}
-                </TouchableOpacity>
 
-                <TouchableOpacity style={styles.optInLaterButton} onPress={() => setOptedIn(true)}>
-                  <Text style={styles.optInLaterText}>Practice Only (Kaliya Tababar)</Text>
-                </TouchableOpacity>
+                  {/* Rules list */}
+                  <View style={styles.rulesList}>
+                    <Text style={styles.rulesHeader}>QAYBAHA AMNIGA & XEERARKA TARTANKA</Text>
+
+                    <View style={styles.ruleItem}>
+                      <Ionicons name="alarm-outline" size={20} color="#3B82F6" style={styles.ruleIcon} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.ruleTitle}>1 isku-day maalinkii</Text>
+                        <Text style={styles.ruleDesc}>Maalintii hal mar oo kaliya ayaad tartami kartaa 24-kii saacba mar.</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.ruleItem}>
+                      <Ionicons name="eye-off-outline" size={20} color="#EF4444" style={styles.ruleIcon} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.ruleTitle}>Exit Penalty (Digniin Adag)</Text>
+                        <Text style={styles.ruleDesc}>Haddii aad ka baxdo app-ka, minimayso, ama screen-ka xirato adoo ku dhex jira imtixaanka, score-kaagu wuxuu noqonayaa 0 XP isla markiiba!</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.ruleItem}>
+                      <Ionicons name="shield-checkmark-outline" size={20} color="#10B981" style={styles.ruleIcon} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.ruleTitle}>10 Subjects (Maadooyinka Manhajka)</Text>
+                        <Text style={styles.ruleDesc}>Imtixaanku wuxuu ka kooban yahay 10 maado oo luuqadaha saxda ah lagu dhigto (e.g. Tarbiya & Arabic: Arabic; Science & Maths: English).</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.ruleItem}>
+                      <Ionicons name="card-outline" size={20} color="#F59E0B" style={styles.ruleIcon} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.ruleTitle}>Tijaabo (5 Days Free Trial)</Text>
+                        <Text style={styles.ruleDesc}>Shanta casho ee hore waa free, laakiin maalmaha ka dambeeya waxaa lagaa jarayaa 30 credits halkii isku-day.</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
               </ScrollView>
             )}
 
-            {/* --- WELCOME & RULES PANEL (OPTED IN) --- */}
-            {optedIn && quizState === 'idle' && (
+            {/* --- CASE 2: TOURNAMENT IS ACTIVE BUT USER NOT OPTED IN --- */}
+            {tournamentActive && !optedIn && quizState === 'idle' && (
+              <ScrollView contentContainerStyle={styles.welcomeScroll}>
+                <View style={styles.centerBoxWelcome}>
+                  <Ionicons name="trophy" size={80} color="#F59E0B" style={{ marginBottom: 20 }} />
+                  <Text style={styles.optInTitle}>TARTANKA BILAHA AH</Text>
+                  <Text style={styles.optInText}>
+                    Qofkii muddo 30days ugu sareeyaa 3da kaalmood ee sare wuxuu heli doonaa abaal marin fiican.
+                  </Text>
+
+                  <TouchableOpacity style={styles.optInButton} onPress={handleOptIn} disabled={optInLoading}>
+                    {optInLoading ? (
+                      <ActivityIndicator size="small" color="white" />
+                    ) : (
+                      <>
+                        <Ionicons name="trophy-outline" size={20} color="white" style={{ marginRight: 8 }} />
+                        <Text style={styles.optInButtonText}>JOIN TOURNAMENT (KU BIIR)</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.optInLaterButton} onPress={() => setOptedIn(true)}>
+                    <Text style={styles.optInLaterText}>Practice Only (Kaliya Tababar)</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            )}
+
+            {/* --- CASE 3: TOURNAMENT ACTIVE & USER OPTED IN (PLAY SCREEN) --- */}
+            {tournamentActive && optedIn && quizState === 'idle' && (
               <ScrollView contentContainerStyle={styles.welcomeScroll}>
                 <View style={styles.centerBoxWelcome}>
                   <Ionicons name="trophy" size={60} color="#F59E0B" style={{ marginBottom: 15 }} />
@@ -530,7 +589,7 @@ export default function QuizScreen() {
                     </TouchableOpacity>
                   )}
 
-                  {/* Comprehensive Rules Cards */}
+                  {/* Rules list */}
                   <View style={styles.rulesList}>
                     <Text style={styles.rulesHeader}>QAYBAHA AMNIGA & XEERARKA TARTANKA</Text>
 
