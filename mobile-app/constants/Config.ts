@@ -7,8 +7,8 @@ const isLocalWeb =
   window.location?.hostname === 'localhost';
 
 const Config = {
-  // Local browser/Expo development uses the machine backend; production builds use Render.
-  API_URL: __DEV__ || isLocalWeb ? LOCAL_BACKEND_URL : 'https://darkpen-backend.onrender.com',
+  // Point always to the Render production backend where Hostinger database is connected
+  API_URL: 'https://darkpen-backend.onrender.com',
   // Always use production URL for things that need public access (e.g. Google Docs Viewer for PDFs)
   PRODUCTION_URL: 'https://darkpen-backend.onrender.com',
 };
