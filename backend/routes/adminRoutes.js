@@ -561,4 +561,104 @@ router.post('/promo-claims/:id/reject', async (req, res) => {
     }
 });
 
+// --- TOURNAMENT MANAGEMENT ENDPOINTS ---
+
+// 1. Get Tournament Settings
+router.get('/tournament/settings', async (req, res) => {
+    try {
+        const [settings] = await db.execute('SELECT * FROM tournament_settings WHERE id = 1');
+        if (settings.length === 0) {
+            return res.status(404).json({ message: 'Settings lama helin' });
+        }
+        res.json(settings[0]);
+    } catch (error) {
+        console.error('Error fetching tournament settings:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday soo akhrinta settings-ka' });
+    }
+});
+
+// 2. Update Tournament Settings
+router.post('/tournament/settings', async (req, res) => {
+    try {
+        const { is_active, reward_description } = req.body;
+        await db.execute(
+            'UPDATE tournament_settings SET is_active = ?, reward_description = ? WHERE id = 1',
+            [is_active !== undefined ? is_active : 1, reward_description || '']
+        );
+        res.json({ message: 'Settings-ka tartanka si guul leh ayaa loo cusboonaysiiyey!' });
+    } catch (error) {
+        console.error('Error updating tournament settings:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday cusboonaysiinta settings-ka' });
+    }
+});
+
+// 3. Get Contestants List
+router.get('/tournament/contestants', async (req, res) => {
+    try {
+        const [contestants] = await db.execute(`
+            SELECT 
+                u.id, 
+                u.name, 
+                u.username, 
+                u.email, 
+                u.whatsapp_number, 
+                u.xp, 
+                u.is_suspended_from_tournament, 
+                u.tournament_opt_in, 
+                u.created_at,
+                (SELECT COUNT(*) FROM quiz_attempts WHERE user_id = u.id) AS total_attempts,
+                (SELECT MAX(created_at) FROM quiz_attempts WHERE user_id = u.id) AS last_attempt_at
+            FROM users u
+            WHERE u.tournament_opt_in = 1
+            ORDER BY u.xp DESC, u.id ASC
+        `);
+        res.json(contestants);
+    } catch (error) {
+        console.error('Error fetching contestants:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday soo akhrinta tartamayaasha' });
+    }
+});
+
+// 4. Adjust Contestant XP
+router.post('/tournament/contestants/:id/adjust-xp', async (req, res) => {
+    try {
+        const contestantId = req.params.id;
+        const { amount } = req.body;
+
+        if (amount === undefined || isNaN(Number(amount))) {
+            return res.status(400).json({ message: 'Fadlan qor dhibco (XP) sax ah' });
+        }
+
+        await db.execute('UPDATE users SET xp = xp + ? WHERE id = ?', [Number(amount), contestantId]);
+        res.json({ message: `Dhibcaha (XP) tartamaha si guul leh ayaa loogu beddelay ${amount > 0 ? '+' : ''}${amount}!` });
+    } catch (error) {
+        console.error('Error adjusting XP:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday inta lagu guda jiray beddelista XP' });
+    }
+});
+
+// 5. Toggle Contestant Suspension from Tournament
+router.post('/tournament/contestants/:id/toggle-suspend', async (req, res) => {
+    try {
+        const contestantId = req.params.id;
+        const [user] = await db.execute('SELECT is_suspended_from_tournament FROM users WHERE id = ?', [contestantId]);
+        if (user.length === 0) {
+            return res.status(404).json({ message: 'Contestant lama helin' });
+        }
+
+        const newStatus = user[0].is_suspended_from_tournament ? 0 : 1;
+        await db.execute('UPDATE users SET is_suspended_from_tournament = ? WHERE id = ?', [newStatus, contestantId]);
+
+        res.json({ 
+            message: newStatus 
+                ? 'Si guul leh ayaa tartamaya looga joojiyey tartanka!' 
+                : 'Si guul leh ayaa loogu fasaxay inuu tartanka dib ugu soo laabto!' 
+        });
+    } catch (error) {
+        console.error('Error toggling tournament suspension:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday badalida suspension-ka' });
+    }
+});
+
 module.exports = router;
+

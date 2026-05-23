@@ -36,6 +36,8 @@ const examGeneratorController = require('../controllers/examGeneratorController'
 router.get('/quiz/generate', auth, quizController.generateQuiz);
 router.post('/quiz/submit', auth, quizController.submitQuiz);
 router.get('/quiz/leaderboard', auth, quizController.getLeaderboard);
+router.post('/quiz/opt-in', auth, quizController.optIn);
+
 router.post('/quiz/generate-exam-pdf', auth, examGeneratorController.generateExamPdf);
 
 module.exports = router;

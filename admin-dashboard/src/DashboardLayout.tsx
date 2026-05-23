@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { 
-  LogOut, CreditCard, Book, FileText, PieChart, LayoutDashboard, Users, Bot, Settings, Megaphone, CheckSquare, Menu, X
+  LogOut, CreditCard, Book, FileText, PieChart, LayoutDashboard, Users, Bot, Settings, Megaphone, CheckSquare, Menu, X, Trophy
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import './Dashboard.css';
@@ -15,6 +15,7 @@ import ReportsPanel from './components/ReportsPanel';
 import GroupsPanel from './components/GroupsPanel';
 import PromoCardsPanel from './components/PromoCardsPanel';
 import PromoClaimsPanel from './components/PromoClaimsPanel';
+import TournamentPanel from './components/TournamentPanel';
 
 import { API_URL } from './config';
 
@@ -146,6 +147,7 @@ export default function DashboardLayout({ onLogout }: LayoutProps) {
     { path: '/books', icon: <Book size={20} />, label: 'Books' },
     { path: '/promo-cards', icon: <Megaphone size={20} />, label: 'Promo Cards' },
     { path: '/promo-claims', icon: <CheckSquare size={20} />, label: 'Promo Claims' },
+    { path: '/tournament', icon: <Trophy size={20} />, label: 'Tournament' },
     { path: '/ai-stats', icon: <Bot size={20} />, label: 'AI Stats' },
     { path: '/groups', icon: <Users size={20} />, label: 'Groups' },
     { path: '/reports', icon: <PieChart size={20} />, label: 'Reports' },
@@ -223,6 +225,7 @@ export default function DashboardLayout({ onLogout }: LayoutProps) {
             <Route path="/books" element={<BooksPanel />} />
             <Route path="/promo-cards" element={<PromoCardsPanel />} />
             <Route path="/promo-claims" element={<PromoClaimsPanel />} />
+            <Route path="/tournament" element={<TournamentPanel />} />
             <Route path="/ai-stats" element={<AIPanel />} />
             <Route path="/groups" element={<GroupsPanel />} />
             <Route path="/reports" element={<ReportsPanel />} />
