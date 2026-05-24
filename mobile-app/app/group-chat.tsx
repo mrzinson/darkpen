@@ -151,11 +151,54 @@ const renderFormattedText = (text: string, isDark: boolean, colors: any, default
     }
 
     // 5. Default/Paragraph block with inline formatting
+    const lines = block.split('\n');
     return (
-      <View key={blockKey} style={{ marginVertical: 2 }}>
-        <Text style={{ lineHeight: 20 }}>
-          {renderInlineText(block, blockKey)}
-        </Text>
+      <View key={blockKey} style={{ width: '100%', marginVertical: 2 }}>
+        {lines.map((line, lIdx) => {
+          const lineKey = `${blockKey}-line-${lIdx}`;
+          const trimmedLine = line.trim();
+          if (trimmedLine === '') {
+            return <View key={lIdx} style={{ height: 8 }} />;
+          }
+
+          // Bullet Point Check
+          const bulletMatch = line.match(/^(\s*)[-\*•]\s+(.*)$/);
+          if (bulletMatch) {
+            const indent = bulletMatch[1].length * 10;
+            const content = bulletMatch[2];
+            return (
+              <View key={lineKey} style={{ flexDirection: 'row', paddingLeft: indent + 12, marginVertical: 3, alignItems: 'flex-start' }}>
+                <Text style={{ color: colors.primary, fontSize: 15, marginRight: 8, lineHeight: 22 }}>•</Text>
+                <Text style={{ flex: 1, fontSize: 15, lineHeight: 22, color: textColor }}>
+                  {renderInlineText(content, lineKey)}
+                </Text>
+              </View>
+            );
+          }
+
+          // Numbered List Check
+          const numberMatch = line.match(/^(\s*)(\d+)\.\s+(.*)$/);
+          if (numberMatch) {
+            const indent = numberMatch[1].length * 10;
+            const number = numberMatch[2];
+            const content = numberMatch[3];
+            return (
+              <View key={lineKey} style={{ flexDirection: 'row', paddingLeft: indent + 12, marginVertical: 3, alignItems: 'flex-start' }}>
+                <Text style={{ color: colors.primary, fontWeight: 'bold', fontSize: 14, marginRight: 8, lineHeight: 22 }}>{number}.</Text>
+                <Text style={{ flex: 1, fontSize: 15, lineHeight: 22, color: textColor }}>
+                  {renderInlineText(content, lineKey)}
+                </Text>
+              </View>
+            );
+          }
+
+          // Standard paragraph line
+          return (
+            <Text key={lineKey} style={{ fontSize: 15, lineHeight: 24, color: textColor, marginVertical: 2 }}>
+              {renderInlineText(line, lineKey)}
+            </Text>
+          );
+        })}
       </View>
     );
   });
