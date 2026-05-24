@@ -406,7 +406,6 @@ export default function HomeScreen() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.greetingBrand}>
-          <AppLogo size={58} />
           <Text style={styles.greetingTitle}>Kuso dhawaaw Darkpen</Text>
         </View>
         <Text style={styles.subtitle}>waa madal ka caawinaysa ardayda qaybaha kala duwan ee waxbarshada</Text>
