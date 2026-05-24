@@ -23,6 +23,8 @@ const GRADES = ['Form 1', 'Form 2', 'Form 3', 'Form 4'];
 const QUESTION_COUNTS = [5, 10, 15, 20];
 const LANGUAGES = ['Somali', 'English', 'Bilingual (English/Somali)', 'Arabic'];
 
+// Cleaned old duplicate declaration block
+
 export default function ExamGeneratorScreen() {
   const { colors, isDark } = useTheme();
   const styles = getStyles(colors, isDark);
@@ -51,6 +53,7 @@ export default function ExamGeneratorScreen() {
   const [historyExams, setHistoryExams] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [generatingExams, setGeneratingExams] = useState<{[key: string]: string}>({});
 
   useEffect(() => {
     fetchHistory();
@@ -64,8 +67,8 @@ export default function ExamGeneratorScreen() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
-      if (res.ok && data) {
-        setWalletBalance(data.balance !== undefined ? data.balance : 0);
+      if (res.ok && data && data.user) {
+        setWalletBalance(data.user.balance !== undefined ? data.user.balance : 0);
       }
     } catch (e) {
       console.warn("Error fetching balance:", e);
@@ -122,9 +125,67 @@ export default function ExamGeneratorScreen() {
       return;
     }
 
-    setLoading(true);
-    setLoadingStep('AI is researching curriculum...');
-    
+    // Check if there is already an active pending generation
+    const isAlreadyGenerating = historyExams.some(e => e.status === 'pending');
+    if (isAlreadyGenerating) {
+      Alert.alert('Fadlan sug', 'Waxaa hadda socda abuurista imtixaan kale. Fadlan sug inta uu ka dhamaanayo.');
+      return;
+    }
+
+    // 1. Verify user balance and subscription status before generating
+    let latestBalance = walletBalance;
+    let latestSubscription = null;
+
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const res = await fetch(`${Config.API_URL}/api/user/profile`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data && data.user) {
+        latestBalance = data.user.balance !== undefined ? data.user.balance : 0;
+        latestSubscription = data.user.subscription_type || null;
+        setWalletBalance(latestBalance);
+      }
+    } catch (e) {
+      console.warn("Error verifying balance before generation:", e);
+    }
+
+    const hasActiveSub = latestSubscription !== null;
+    const cost = 25;
+
+    if (!hasActiveSub && (latestBalance === null || latestBalance < cost)) {
+      Alert.alert(
+        'Balance Kuma Filna',
+        latestBalance === 0 
+          ? 'Balance mahaysatid ee ku shubo lacag.' 
+          : `Credit kugu filan mahaysatid. Imtixaankan wuxuu u baahan yahay ${cost} Credits, laakiin waxaad haysataa ${latestBalance} Credits.`,
+        [
+          { text: 'Ku Shubo Lacag', onPress: () => router.push('/billing') },
+          { text: 'Xidh', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+
+    // 2. Generate a temp pending ID and push it to the history tab immediately
+    const tempId = `pending-${Date.now()}`;
+    const pendingExam = {
+      id: tempId,
+      title: topic.trim() || `${subject} - ${topic}`,
+      subject: subject,
+      grade: grade,
+      topic: topic.trim(),
+      pdf_url: '',
+      word_url: '',
+      created_at: new Date().toISOString(),
+      status: 'pending'
+    };
+
+    // Update history list and redirect user
+    setHistoryExams(prev => [pendingExam, ...prev]);
+    setActiveTab('history');
+
     const steps = [
       'AI is researching Somalian national curriculum textbooks...',
       'Extracting textbook reference and course objectives...',
@@ -134,10 +195,18 @@ export default function ExamGeneratorScreen() {
       'Compiling professional PDF and Word (.docx) formats...'
     ];
 
+    setGeneratingExams(prev => ({
+      ...prev,
+      [tempId]: 'AI is researching curriculum...'
+    }));
+
     let stepIdx = 0;
     const interval = setInterval(() => {
       if (stepIdx < steps.length) {
-        setLoadingStep(steps[stepIdx]);
+        setGeneratingExams(prev => ({
+          ...prev,
+          [tempId]: steps[stepIdx]
+        }));
         stepIdx++;
       }
     }, 2800);
@@ -164,11 +233,17 @@ export default function ExamGeneratorScreen() {
       });
 
       clearInterval(interval);
+      // Remove temp id from active steps
+      setGeneratingExams(prev => {
+        const copy = { ...prev };
+        delete copy[tempId];
+        return copy;
+      });
+
       const data = await response.json();
 
       if (response.ok && data.pdfUrl) {
-        // Auto switch to history to show the new exam
-        setActiveTab('history');
+        // Success: reload history and balance to replace the pending card
         fetchHistory();
         fetchWalletBalance();
 
@@ -193,15 +268,21 @@ export default function ExamGeneratorScreen() {
         );
 
       } else {
+        // Failed on backend: remove pending card from state
+        setHistoryExams(prev => prev.filter(e => e.id !== tempId));
         Alert.alert('Cilad', data.message || 'Waan ka xunnahay, imtixaankii lama soo saari karo hadda.');
       }
     } catch (err) {
       clearInterval(interval);
+      setGeneratingExams(prev => {
+        const copy = { ...prev };
+        delete copy[tempId];
+        return copy;
+      });
+      // Remove pending card
+      setHistoryExams(prev => prev.filter(e => e.id !== tempId));
       console.error(err);
       Alert.alert('Cilad Internet-ka ah', 'Fadlan hubi xiriirka internet-kaaga.');
-    } finally {
-      setLoading(false);
-      setLoadingStep('');
     }
   };
 
@@ -438,31 +519,32 @@ export default function ExamGeneratorScreen() {
                   <Text style={styles.examCardTitle}>{exam.title}</Text>
                   <Text style={styles.examCardDesc}>Fasalka: {exam.grade}  |  Mawduuca: {exam.topic}</Text>
                   
-                  <View style={styles.downloadRow}>
-                    <TouchableOpacity style={styles.downloadBtnPdf} onPress={() => downloadFile(exam.pdf_url)}>
-                      <Ionicons name="document-outline" size={16} color="white" style={{ marginRight: 4 }} />
-                      <Text style={styles.downloadText}>PDF</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.downloadBtnWord} onPress={() => downloadFile(exam.word_url)}>
-                      <Ionicons name="logo-wordpress" size={16} color="white" style={{ marginRight: 4 }} />
-                      <Text style={styles.downloadText}>WORD</Text>
-                    </TouchableOpacity>
-                  </View>
+                  {exam.status === 'pending' ? (
+                    <View style={styles.pendingContainer}>
+                      <ActivityIndicator size="small" color="#3B82F6" style={{ marginRight: 8 }} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.pendingText}>Diyaarinta AI...</Text>
+                        <Text style={styles.pendingStepText}>
+                          {generatingExams[exam.id] || 'AI is researching curriculum...'}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.downloadRow}>
+                      <TouchableOpacity style={styles.downloadBtnPdf} onPress={() => downloadFile(exam.pdf_url)}>
+                        <Ionicons name="document-outline" size={16} color="white" style={{ marginRight: 4 }} />
+                        <Text style={styles.downloadText}>PDF</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.downloadBtnWord} onPress={() => downloadFile(exam.word_url)}>
+                        <Ionicons name="logo-wordpress" size={16} color="white" style={{ marginRight: 4 }} />
+                        <Text style={styles.downloadText}>WORD</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               ))}
             </ScrollView>
           )}
-        </View>
-      )}
-
-      {/* Beautiful Loading Overlay */}
-      {loading && (
-        <View style={StyleSheet.absoluteFill}>
-          <BlurView intensity={isDark ? 50 : 80} tint={isDark ? "dark" : "light"} style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color="#3B82F6" />
-            <Text style={styles.loadingTitle}>DARKPEN AI WRITER</Text>
-            <Text style={styles.loadingStep}>{loadingStep}</Text>
-          </BlurView>
         </View>
       )}
     </SafeAreaView>
@@ -802,5 +884,26 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '800',
     fontSize: 12,
     letterSpacing: 0.5,
+  },
+  pendingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)',
+    borderColor: isDark ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.15)',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 8,
+    gap: 10,
+  },
+  pendingText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#3B82F6',
+  },
+  pendingStepText: {
+    fontSize: 11,
+    color: colors.neutral,
+    marginTop: 2,
   }
 });
