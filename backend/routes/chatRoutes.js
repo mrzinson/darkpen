@@ -41,6 +41,10 @@ router.get('/quiz/leaderboard', auth, quizController.getLeaderboard);
 router.post('/quiz/opt-in', auth, quizController.optIn);
 
 router.post('/quiz/generate-exam-pdf', auth, examGeneratorController.generateExamPdf);
+router.get('/quiz/my-exams', auth, examGeneratorController.getMyExams);
+
+// Shukaansi Call
+router.post('/shukaansi-call/deduct', auth, chatController.deductShukaansiCallCredit);
 
 module.exports = router;
 

@@ -226,7 +226,7 @@ export default function GroupDetailsScreen() {
         <View style={styles.infoSection}>
           <TouchableOpacity style={styles.groupIconLarge} onPress={pickImage} disabled={!isAdmin}>
             {groupInfo?.image_url ? (
-              <Image source={{ uri: groupInfo.image_url }} style={styles.iconImg} />
+              <Image source={{ uri: Config.getMediaUrl(groupInfo.image_url) || undefined }} style={styles.iconImg} />
             ) : (
               <Ionicons name="people" size={48} color="white" />
             )}
@@ -309,7 +309,7 @@ export default function GroupDetailsScreen() {
             <View key={member.id} style={styles.memberCard}>
               <View style={styles.memberAvatar}>
                 {member.profile_picture ? (
-                  <Image source={{ uri: member.profile_picture }} style={styles.avatarImg} />
+                  <Image source={{ uri: Config.getMediaUrl(member.profile_picture) || undefined }} style={styles.avatarImg} />
                 ) : (
                   <Text style={styles.avatarText}>{member.name?.charAt(0)}</Text>
                 )}

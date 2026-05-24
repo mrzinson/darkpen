@@ -7,6 +7,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthGuard } from '../components/AuthGuard';
 import { AppLogo } from '../components/AppLogo';
+import Config from '../constants/Config';
 
 export default function SettingsScreen() {
   const { colors, isDark, setTheme, theme, language, setLanguage, t } = useTheme();
@@ -46,7 +47,7 @@ export default function SettingsScreen() {
             >
               {userData?.profile_picture ? (
                 <Image 
-                  source={{ uri: userData.profile_picture }} 
+                  source={{ uri: Config.getMediaUrl(userData.profile_picture) || undefined }} 
                   style={styles.profileImage} 
                 />
               ) : (

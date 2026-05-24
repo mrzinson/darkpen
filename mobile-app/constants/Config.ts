@@ -11,6 +11,15 @@ const Config = {
   API_URL: 'https://darkpen-backend.onrender.com',
   // Always use production URL for things that need public access (e.g. Google Docs Viewer for PDFs)
   PRODUCTION_URL: 'https://darkpen-backend.onrender.com',
+  getMediaUrl: (path: string | null | undefined): string | null => {
+    if (!path) return null;
+    if (path.startsWith('http') || path.startsWith('data:image')) {
+      return path;
+    }
+    const baseUrl = 'https://darkpen-backend.onrender.com';
+    const cleanPath = path.startsWith('/') ? path : '/' + path;
+    return `${baseUrl}${cleanPath}`;
+  }
 };
 
 export default Config;

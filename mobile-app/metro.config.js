@@ -1,10 +1,1 @@
-const { getDefaultConfig } = require('expo/metro-config');
-
-const config = getDefaultConfig(__dirname);
-
-config.resolver.extraNodeModules = {
-  ...config.resolver.extraNodeModules,
-  // Add any modules that need polyfilling here if needed
-};
-
-module.exports = config;
+const { getDefaultConfig } = require("expo/metro-config"); const path = require("path"); const config = getDefaultConfig(__dirname); config.resolver.extraNodeModules = { ...config.resolver.extraNodeModules, "./ExponentGyroscope": path.resolve(__dirname, "mocks/ExponentGyroscope.js") }; module.exports = config;

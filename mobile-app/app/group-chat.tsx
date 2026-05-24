@@ -216,6 +216,8 @@ export default function GroupChatScreen() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [imageCaption, setImageCaption] = useState('');
   const [sendingImage, setSendingImage] = useState(false);
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
 
   const loadCache = async () => {
     try {
@@ -513,7 +515,18 @@ export default function GroupChatScreen() {
                     )}
                     
                     {msg.type === 'image' ? (
-                      <Image source={{ uri: msg.message.startsWith('http') || msg.message.startsWith('data:image') ? msg.message : `${Config.API_URL.endsWith('/') ? Config.API_URL.slice(0, -1) : Config.API_URL}${msg.message.startsWith('/') ? msg.message : '/' + msg.message}` }} style={styles.messageImage} resizeMode="cover" />
+                      <TouchableOpacity
+                        activeOpacity={0.9}
+                        onPress={() => {
+                          const imgUri = msg.message.startsWith('http') || msg.message.startsWith('data:image') 
+                            ? msg.message 
+                            : `${Config.API_URL.endsWith('/') ? Config.API_URL.slice(0, -1) : Config.API_URL}${msg.message.startsWith('/') ? msg.message : '/' + msg.message}`;
+                          setViewerUrl(imgUri);
+                          setViewerVisible(true);
+                        }}
+                      >
+                        <Image source={{ uri: msg.message.startsWith('http') || msg.message.startsWith('data:image') ? msg.message : `${Config.API_URL.endsWith('/') ? Config.API_URL.slice(0, -1) : Config.API_URL}${msg.message.startsWith('/') ? msg.message : '/' + msg.message}` }} style={styles.messageImage} resizeMode="cover" />
+                      </TouchableOpacity>
                     ) : (
                       renderFormattedText(msg.message, isDark, colors, isMe ? '#FFFFFF' : (isDark ? '#FFFFFF' : '#1F2937'))
                     )}
@@ -699,6 +712,22 @@ export default function GroupChatScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+        </View>
+      </Modal>
+
+      {/* Full screen Image Viewer Modal */}
+      <Modal visible={viewerVisible} transparent={true} animationType="fade" onRequestClose={() => setViewerVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.95)', justifyContent: 'center', alignItems: 'center' }}>
+          <TouchableOpacity style={{ position: 'absolute', top: 50, right: 20, zIndex: 10, padding: 10 }} onPress={() => setViewerVisible(false)}>
+            <Ionicons name="close" size={32} color="white" />
+          </TouchableOpacity>
+          {viewerUrl && (
+            <Image 
+              source={{ uri: viewerUrl }} 
+              style={{ width: '100%', height: '80%' }} 
+              resizeMode="contain" 
+            />
+          )}
         </View>
       </Modal>
     </View>

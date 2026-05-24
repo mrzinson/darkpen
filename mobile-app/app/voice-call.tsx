@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, Image, Dimensions, Platform, 
-  Vibration, ActivityIndicator 
+  Vibration, ActivityIndicator, Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -11,7 +11,7 @@ import { useTheme } from '../context/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
-import { Accelerometer } from 'expo-sensors';
+
 import Config from '../constants/Config';
 
 const { width, height } = Dimensions.get('window');
@@ -34,7 +34,7 @@ export default function VoiceCallScreen() {
   const ringSoundRef = useRef<Audio.Sound | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const sensorSubscriptionRef = useRef<any>(null);
+
 
   // Load AI Custom Name & Start Ringing on mount
   useEffect(() => {
@@ -75,33 +75,7 @@ export default function VoiceCallScreen() {
     };
   }, []);
 
-  // Proximity Sensor Logic (using Accelerometer to detect when vertical next to ear)
-  useEffect(() => {
-    if (callState === 'connected') {
-      try {
-        // Accelerometer update rate
-        Accelerometer.setUpdateInterval(500);
-        
-        sensorSubscriptionRef.current = Accelerometer.addListener(data => {
-          const { y } = data;
-          // y near 1 or -1 means held vertically (close to ear)
-          const isHeldToEar = Math.abs(y) > 0.85;
-          
-          // Route sound accordingly
-          routeAudio(isHeldToEar ? 'earpiece' : 'speaker');
-        });
-      } catch (e) {
-        console.warn('Accelerometer proximity sensor error:', e);
-      }
-    }
 
-    return () => {
-      if (sensorSubscriptionRef.current) {
-        sensorSubscriptionRef.current.remove();
-        sensorSubscriptionRef.current = null;
-      }
-    };
-  }, [callState]);
 
   // Route Audio output between earpiece and speaker
   const routeAudio = async (mode: 'earpiece' | 'speaker') => {
@@ -126,8 +100,39 @@ export default function VoiceCallScreen() {
     }
   };
 
+  const deductCallCredit = async () => {
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const res = await fetch(`${Config.API_URL}/api/chat/shukaansi-call/deduct`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (data.status === 'insufficient') {
+          Alert.alert('Credits la\'aan', 'Wicitaanku wuxuu u baahan yahay ugu yaraan 5 Credits daqiiqaddii. Fadlan ku shubo credits.');
+          handleHangup();
+          return false;
+        }
+        console.log('Call credit deducted. Remaining:', data.balance);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.warn('Call credit deduction failed:', e);
+      return true; // continue call if network transient issue
+    }
+  };
+
   // Connect Call & Trigger Greeting
   const connectCall = async () => {
+    // 1. Check and deduct first minute
+    const ok = await deductCallCredit();
+    if (!ok) return;
+
     // Stop ringing
     if (ringSoundRef.current) {
       try {
@@ -143,7 +148,13 @@ export default function VoiceCallScreen() {
 
     // Start Timer
     timerIntervalRef.current = setInterval(() => {
-      setTimer(prev => prev + 1);
+      setTimer(prev => {
+        const nextTime = prev + 1;
+        if (nextTime > 0 && nextTime % 60 === 0) {
+          deductCallCredit();
+        }
+        return nextTime;
+      });
     }, 1000);
 
     // Initial greeting from Gemini
@@ -329,10 +340,6 @@ export default function VoiceCallScreen() {
       timerIntervalRef.current = null;
     }
 
-    if (sensorSubscriptionRef.current) {
-      sensorSubscriptionRef.current.remove();
-      sensorSubscriptionRef.current = null;
-    }
   };
 
   const handleHangup = async () => {
@@ -390,12 +397,28 @@ export default function VoiceCallScreen() {
           </Text>
         </View>
 
-        {/* Center Live Subtitles / Conversation Box */}
+        {/* Center Calling Visual Section (No transcripts/subtitles shown) */}
         <View style={styles.subtitleBox}>
-          <BlurView intensity={25} tint="dark" style={styles.subtitleCard}>
-            {isProcessing && <ActivityIndicator size="small" color="#E11D48" style={{ marginBottom: 12 }} />}
-            <Text style={styles.subtitleText}>{subtitles}</Text>
-          </BlurView>
+          <View style={styles.avatarRingingContainer}>
+            <View style={[styles.avatarRingingOuter, isRecording && styles.avatarRingingActive]}>
+              <BlurView intensity={20} tint="light" style={styles.avatarRingingInner}>
+                <Ionicons name="person" size={70} color="white" />
+              </BlurView>
+            </View>
+            
+            {isProcessing && (
+              <View style={styles.callProcessingOverlay}>
+                <ActivityIndicator size="large" color="#E11D48" />
+                <Text style={styles.callProcessingText}>Waa la baaraa...</Text>
+              </View>
+            )}
+            
+            {isRecording && (
+              <View style={styles.callRecordingOverlay}>
+                <Text style={styles.callRecordingText}>🎙️ Hadal, waan ku dhegeysanayaa...</Text>
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Bottom Unique Floating Layout */}
@@ -493,24 +516,58 @@ const styles = StyleSheet.create({
     marginVertical: 20,
     flex: 1,
   },
-  subtitleCard: {
-    padding: 20,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    width: '100%',
-    maxWidth: 320,
-    backgroundColor: 'rgba(15, 23, 42, 0.3)',
+  avatarRingingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+    width: '100%',
+    height: 250,
+  },
+  avatarRingingOuter: {
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  avatarRingingActive: {
+    backgroundColor: 'rgba(225, 29, 72, 0.25)',
+    borderColor: '#E11D48',
+  },
+  avatarRingingInner: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
     overflow: 'hidden',
   },
-  subtitleText: {
-    fontSize: 18,
-    color: '#FFFFFF',
-    textAlign: 'center',
-    lineHeight: 26,
-    fontWeight: '600',
+  callProcessingOverlay: {
+    position: 'absolute',
+    bottom: -10,
+    alignItems: 'center',
+  },
+  callProcessingText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 8,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  callRecordingOverlay: {
+    position: 'absolute',
+    bottom: -10,
+    alignItems: 'center',
+  },
+  callRecordingText: {
+    color: '#EF4444',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   bottomSection: {
     paddingBottom: Platform.OS === 'ios' ? 24 : 40,

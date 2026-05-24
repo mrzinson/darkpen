@@ -2,6 +2,7 @@ const db = require('../config/db');
 const aiService = require('../services/aiService');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const PDFDocument = require('pdfkit');
+const { Document, Packer, Paragraph, TextRun, AlignmentType } = require("docx");
 const fs = require('fs');
 const path = require('path');
 
@@ -9,14 +10,36 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 exports.generateExamPdf = async (req, res) => {
     try {
-        const { topic, grade, subject, questionCount = 10 } = req.body;
+        const userId = req.user.id;
+        const { topic, grade, subject, questionCount = 10, logo, instructions, language = 'Somali', duration = '1 saac', totalMarks = '100 dhibcood' } = req.body;
 
         if (!topic || !grade || !subject) {
             return res.status(400).json({ message: 'Fadlan buuxi dhammaan xogta (topic, grade, subject)' });
         }
 
-        console.log(`Generating exam for: ${subject} - ${topic} (${grade})`);
+        console.log(`Generating exam for User: ${userId} - ${subject} - ${topic} (${grade})`);
 
+        // --- CREDIT CHECK & DEDUCTION ---
+        // 1. Check if user has active subscription
+        const [sub] = await db.execute(
+            'SELECT * FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW()',
+            [userId]
+        );
+        const hasActiveSub = sub.length > 0;
+
+        // 2. Check wallet balance
+        const cost = 25; // 25 credits per exam
+        const [wallet] = await db.execute('SELECT balance FROM user_wallet WHERE user_id = ?', [userId]);
+        const balance = wallet.length > 0 ? wallet[0].balance : 0;
+
+        if (!hasActiveSub && balance < cost) {
+            return res.status(402).json({ 
+                message: `Dhibcahaagu kuma filna imtixaan-sameeyaha. Imtixaankan wuxuu u baahan yahay ${cost} Credits, laakiin waxaad haysataa ${balance} Credits.`, 
+                needsPayment: true 
+            });
+        }
+
+        // --- GENERATE QUESTIONS VIA GEMINI ---
         // 1. Gather context from book embeddings related to the subject/topic
         const queryText = `${subject} ${topic} ${grade}`;
         let context = await aiService.findRelevantChunks(queryText);
@@ -32,7 +55,6 @@ exports.generateExamPdf = async (req, res) => {
             }
         }
 
-        // 2. Generate questions via Gemini
         const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
         const prompt = `Based on the following curriculum context (if provided), generate a high-quality academic exam paper for Somali secondary schools.
@@ -41,12 +63,17 @@ exports.generateExamPdf = async (req, res) => {
         - Subject: ${subject}
         - Topic: ${topic}
         - Grade: ${grade}
-        - Total Questions: ${questionCount} (Provide a mix of multiple-choice questions and short-answer/structured questions).
+        - Total Questions: ${questionCount}
+        - Language: ${language}
+        - Duration: ${duration}
+        - Total Marks: ${totalMarks}
         
         Curriculum Context:
-        ${context || "No context provided. Use standard high-quality Somali curriculum knowledge."}
+        ${context || "No context provided. Use standard high-quality Somalian secondary school curriculum knowledge."}
         
-        The exam must be written completely in SOMALI language.
+        ${instructions ? `User Custom Instructions (Follow these strictly):\n${instructions}` : ""}
+        
+        The exam must be written completely in ${language} language.
         Please structure your output exactly as a structured JSON object with two fields so we can format it nicely:
         {
           "title": "A high-quality educational title for the exam",
@@ -89,9 +116,9 @@ exports.generateExamPdf = async (req, res) => {
             throw new Error("AI failed to generate a valid exam format. Try again.");
         }
 
-        // 3. Generate PDF using PDFKit
-        const doc = new PDFDocument({ margin: 50 });
-        const filename = `exam-${Date.now()}.pdf`;
+        // --- PREPARE FILES PATHS ---
+        const timestamp = Date.now();
+        const baseFilename = `exam-${timestamp}`;
         const examsDir = path.join(__dirname, '..', 'uploads', 'exams');
 
         // Ensure directory exists
@@ -99,7 +126,10 @@ exports.generateExamPdf = async (req, res) => {
             fs.mkdirSync(examsDir, { recursive: true });
         }
 
-        const pdfPath = path.join(examsDir, filename);
+        // --- 1. GENERATE PDF ---
+        const pdfFilename = `${baseFilename}.pdf`;
+        const pdfPath = path.join(examsDir, pdfFilename);
+        const doc = new PDFDocument({ margin: 50 });
         const writeStream = fs.createWriteStream(pdfPath);
         doc.pipe(writeStream);
 
@@ -112,53 +142,73 @@ exports.generateExamPdf = async (req, res) => {
             border: '#E5E7EB'
         };
 
+        // Parse optional logo base64 if provided
+        let logoBuffer = null;
+        if (logo) {
+            try {
+                const cleanBase64 = logo.replace(/^data:image\/\w+;base64,/, "");
+                logoBuffer = Buffer.from(cleanBase64, 'base64');
+            } catch (logoErr) {
+                console.warn("Logo base64 parsing failed:", logoErr.message);
+            }
+        }
+
         // --- PAGE 1: EXAM PAPER ---
+        // Overlay Logo in top right corner of PDF if uploaded
+        if (logoBuffer) {
+            try {
+                doc.image(logoBuffer, 460, 40, { width: 55, height: 55 });
+            } catch (pdfLogoErr) {
+                console.warn("PDFKit logo render failed:", pdfLogoErr.message);
+            }
+        }
+
         doc.fillColor(colors.primary)
-           .fontSize(22)
+           .fontSize(20)
            .text('MADASHA WAXBARASHADA DARKPEN', { align: 'center' })
            .moveDown(0.2);
 
         doc.fillColor(colors.secondary)
-           .fontSize(14)
+           .fontSize(13)
            .text(`IMTIXAANKA: ${examData.title || subject.toUpperCase()}`, { align: 'center' })
            .moveDown(0.4);
 
         doc.fillColor(colors.text)
-           .fontSize(11)
-           .text(`Mawduuca: ${topic}   |   Fasalka: ${grade}   |   Maaddada: ${subject}`, { align: 'center' })
-           .moveDown(0.8);
+           .fontSize(10)
+           .text(`Maaddada: ${subject}  |  Grade: ${grade}  |  Duration: ${duration}  |  Marks: ${totalMarks}`, { align: 'center' })
+           .moveDown(0.6);
 
         // Draw horizontal line
         doc.moveTo(50, doc.y).lineTo(562, doc.y).strokeColor(colors.primary).lineWidth(1.5).stroke().moveDown(1);
 
         // Instructions
-        doc.fillColor('#B91C1C') // Red-ish for instructions
-           .fontSize(11)
+        doc.fillColor('#B91C1C')
+           .fontSize(10)
            .text(`Hanuunin: ${examData.instructions || "Ka jawaab dhammaan su'aalaha si taxadir leh."}`, { oblique: true })
            .moveDown(1.5);
 
         // Render Questions
-        doc.fillColor(colors.text).fontSize(12);
+        doc.fillColor(colors.text).fontSize(11);
         
         examData.questions.forEach((q, idx) => {
-            doc.fillColor(colors.primary).fontSize(12).text(`Su'aasha ${idx + 1}: `, { continued: true });
-            doc.fillColor(colors.text).fontSize(11).text(q.question);
-            doc.moveDown(0.5);
+            doc.fillColor(colors.primary).fontSize(11).text(`Su'aasha ${idx + 1}: `, { continued: true });
+            doc.fillColor(colors.text).fontSize(10.5).text(q.question);
+            doc.moveDown(0.4);
 
             if (q.type === 'multiple-choice' && Array.isArray(q.options)) {
                 q.options.forEach((opt, optIdx) => {
                     const letter = String.fromCharCode(65 + optIdx); // A, B, C, D
-                    doc.fontSize(10).text(`      ${letter}) ${opt}`).moveDown(0.3);
+                    doc.fontSize(9.5).text(`      ${letter}) ${opt}`).moveDown(0.25);
                 });
             } else {
                 // Draw space for structured answer
-                doc.fontSize(10).fillColor(colors.lightGray).text('      Jawaab: __________________________________________________________________').moveDown(0.4);
-                doc.text('      __________________________________________________________________________').moveDown(0.4);
+                doc.fontSize(9.5).fillColor(colors.lightGray).text('      Jawaab: __________________________________________________________________').moveDown(0.35);
+                doc.text('      __________________________________________________________________________').moveDown(0.35);
             }
-            doc.moveDown(1);
+            doc.moveDown(0.8);
 
             // Add new page if current page height exceeds safe limit
-            if (doc.y > 650) {
+            if (doc.y > 660) {
                 doc.addPage();
             }
         });
@@ -166,40 +216,262 @@ exports.generateExamPdf = async (req, res) => {
         // --- PAGE 2: ANSWER KEY ---
         doc.addPage();
         doc.fillColor(colors.primary)
-           .fontSize(18)
+           .fontSize(16)
            .text('FURAHA JAWAABAHA (ANSWER KEY)', { align: 'center' })
-           .moveDown(0.5);
+           .moveDown(0.4);
 
         doc.fillColor(colors.secondary)
-           .fontSize(12)
+           .fontSize(11)
            .text(`Macalimiinta & Waalidiinta Kaliya`, { align: 'center' })
-           .moveDown(0.5);
+           .moveDown(0.4);
 
-        doc.moveTo(50, doc.y).lineTo(562, doc.y).strokeColor(colors.secondary).lineWidth(1).stroke().moveDown(1.5);
+        doc.moveTo(50, doc.y).lineTo(562, doc.y).strokeColor(colors.secondary).lineWidth(1).stroke().moveDown(1.2);
 
-        doc.fillColor(colors.text).fontSize(11);
+        doc.fillColor(colors.text).fontSize(10);
 
         examData.questions.forEach((q, idx) => {
-            doc.fillColor(colors.primary).fontSize(11).text(`Jawaabta S${idx + 1}: `, { continued: true });
-            doc.fillColor('#047857').fontSize(11).text(q.answer);
-            doc.moveDown(0.8);
+            doc.fillColor(colors.primary).fontSize(10.5).text(`Jawaabta S${idx + 1}: `, { continued: true });
+            doc.fillColor('#047857').fontSize(10.5).text(q.answer);
+            doc.moveDown(0.7);
         });
 
         doc.end();
 
-        // Wait for PDF writing to finish
+        // --- 2. GENERATE WORD (.docx) ---
+        const docxFilename = `${baseFilename}.docx`;
+        const docxPath = path.join(examsDir, docxFilename);
+        
+        // Build Word Document Children
+        const docxChildren = [];
+        
+        docxChildren.push(
+            new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 120 },
+                children: [
+                    new TextRun({
+                        text: "MADASHA WAXBARASHADA DARKPEN",
+                        bold: true,
+                        size: 28,
+                        color: "1E3A8A"
+                    })
+                ]
+            }),
+            new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 100 },
+                children: [
+                    new TextRun({
+                        text: `IMTIXAANKA: ${examData.title ? examData.title.toUpperCase() : subject.toUpperCase()}`,
+                        bold: true,
+                        size: 22,
+                        color: "3B82F6"
+                    })
+                ]
+            }),
+            new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 200 },
+                children: [
+                    new TextRun({
+                        text: `Maaddada: ${subject}  |  Grade: ${grade}  |  Duration: ${duration}  |  Marks: ${totalMarks}`,
+                        size: 18,
+                        color: "1F2937"
+                    })
+                ]
+            }),
+            new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 150 },
+                children: [
+                    new TextRun({
+                        text: "_________________________________________________________________________________",
+                        color: "1E3A8A"
+                    })
+                ]
+            }),
+            new Paragraph({
+                spacing: { after: 250 },
+                children: [
+                    new TextRun({
+                        text: `Hanuunin: ${examData.instructions || "Ka jawaab dhammaan su'aalaha si taxadir leh."}`,
+                        italics: true,
+                        size: 20,
+                        color: "B91C1C"
+                    })
+                ]
+            })
+        );
+
+        // Word Questions
+        examData.questions.forEach((q, idx) => {
+            docxChildren.push(
+                new Paragraph({
+                    spacing: { before: 120, after: 80 },
+                    children: [
+                        new TextRun({
+                            text: `Su'aasha ${idx + 1}: `,
+                            bold: true,
+                            size: 20,
+                            color: "1E3A8A"
+                        }),
+                        new TextRun({
+                            text: q.question,
+                            size: 20,
+                            color: "1F2937"
+                        })
+                    ]
+                })
+            );
+
+            if (q.type === 'multiple-choice' && Array.isArray(q.options)) {
+                q.options.forEach((opt, optIdx) => {
+                    const letter = String.fromCharCode(65 + optIdx);
+                    docxChildren.push(
+                        new Paragraph({
+                            spacing: { before: 40, after: 40 },
+                            indent: { left: 540 },
+                            children: [
+                                new TextRun({
+                                    text: `${letter}) ${opt}`,
+                                    size: 19,
+                                    color: "1F2937"
+                                })
+                            ]
+                        })
+                    );
+                });
+            } else {
+                docxChildren.push(
+                    new Paragraph({
+                        spacing: { before: 80, after: 40 },
+                        indent: { left: 540 },
+                        children: [
+                            new TextRun({
+                                text: "Jawaab: __________________________________________________________________",
+                                color: "9CA3AF",
+                                size: 19
+                            })
+                        ]
+                    }),
+                    new Paragraph({
+                        spacing: { before: 40, after: 80 },
+                        indent: { left: 540 },
+                        children: [
+                            new TextRun({
+                                text: "__________________________________________________________________________",
+                                color: "9CA3AF",
+                                size: 19
+                            })
+                        ]
+                    })
+                );
+            }
+        });
+
+        // Word Answer Key Page
+        docxChildren.push(
+            new Paragraph({
+                spacing: { before: 400, after: 150 },
+                pageBreakBefore: true,
+                children: [
+                    new TextRun({
+                        text: "FURAHA JAWAABAHA (ANSWER KEY)",
+                        bold: true,
+                        size: 24,
+                        color: "1E3A8A"
+                    })
+                ]
+            }),
+            new Paragraph({
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 150 },
+                children: [
+                    new TextRun({
+                        text: "Macalimiinta & Waalidiinta Kaliya",
+                        bold: true,
+                        size: 18,
+                        color: "3B82F6"
+                    })
+                ]
+            })
+        );
+
+        examData.questions.forEach((q, idx) => {
+            docxChildren.push(
+                new Paragraph({
+                    spacing: { before: 80, after: 80 },
+                    children: [
+                        new TextRun({
+                            text: `Jawaabta S${idx + 1}: `,
+                            bold: true,
+                            size: 20,
+                            color: "1E3A8A"
+                        }),
+                        new TextRun({
+                            text: q.answer,
+                            bold: true,
+                            size: 20,
+                            color: "047857"
+                        })
+                    ]
+                })
+            );
+        });
+
+        const docxObj = new Document({
+            sections: [{
+                properties: {},
+                children: docxChildren
+            }]
+        });
+
+        const docxBuffer = await Packer.toBuffer(docxObj);
+        fs.writeFileSync(docxPath, docxBuffer);
+
+        // --- DEDUCT CREDITS IN WALLET ---
+        if (!hasActiveSub) {
+            await db.execute('UPDATE user_wallet SET balance = balance - ? WHERE user_id = ?', [cost, userId]);
+        }
+
+        // --- SAVE TO DATABASE ---
+        const pdfUrl = `/uploads/exams/${pdfFilename}`;
+        const wordUrl = `/uploads/exams/${docxFilename}`;
+
+        await db.execute(
+            `INSERT INTO user_generated_exams (user_id, title, subject, grade, topic, pdf_url, word_url) 
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [userId, examData.title || `${subject} - ${topic}`, subject, grade, topic, pdfUrl, wordUrl]
+        );
+
+        // Wait for PDF writing to finish and return
         writeStream.on('finish', () => {
-            const pdfUrl = `/uploads/exams/${filename}`;
             res.json({
                 status: 'success',
-                title: examData.title,
+                title: examData.title || `${subject} - ${topic}`,
                 pdfUrl: pdfUrl,
-                message: 'Imtixaankaaga PDF-ka ah si guul leh ayaa loo diyaariyey!'
+                wordUrl: wordUrl,
+                message: 'Imtixaankaaga si guul leh ayaa loo diyaariyey!'
             });
         });
 
     } catch (error) {
         console.error("Exam Generator Error:", error);
-        res.status(500).json({ message: 'Cilad ayaa ku dhacday soo saarista imtixaanka PDF-ka ah' });
+        res.status(500).json({ message: 'Cilad ayaa ku dhacday soo saarista imtixaanka' });
+    }
+};
+
+// GET My generated exams
+exports.getMyExams = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const [rows] = await db.execute(
+            'SELECT * FROM user_generated_exams WHERE user_id = ? ORDER BY created_at DESC',
+            [userId]
+        );
+        res.json(rows);
+    } catch (error) {
+        console.error("Fetch My Exams Error:", error);
+        res.status(500).json({ message: 'Cilad ayaa ku dhacday soo akhrinta imtixaanadii aad diyaarisay.' });
     }
 };

@@ -33,6 +33,51 @@ type Message = {
 
 const INITIAL_MESSAGES: Message[] = [];
 
+const CHAT_THEMES = [
+  { id: 'rose',   color: '#E11D48' },
+  { id: 'purple', color: '#7C3AED' },
+  { id: 'blue',   color: '#2563EB' },
+  { id: 'teal',   color: '#0D9488' },
+  { id: 'orange', color: '#EA580C' },
+  { id: 'gold',   color: '#D97706' },
+];
+
+const TypingDots = ({ isDark }: { isDark: boolean }) => {
+  const dot1 = useRef(new Animated.Value(0)).current;
+  const dot2 = useRef(new Animated.Value(0)).current;
+  const dot3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const animate = (dot: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, { toValue: -8, duration: 280, useNativeDriver: true }),
+          Animated.timing(dot, { toValue: 0,  duration: 280, useNativeDriver: true }),
+          Animated.delay(560),
+        ])
+      );
+    const a1 = animate(dot1, 0);
+    const a2 = animate(dot2, 160);
+    const a3 = animate(dot3, 320);
+    a1.start(); a2.start(); a3.start();
+    return () => { a1.stop(); a2.stop(); a3.stop(); };
+  }, []);
+
+  const dotColor = isDark ? 'rgba(255,255,255,0.85)' : '#475569';
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 4 }}>
+      {[dot1, dot2, dot3].map((dot, i) => (
+        <Animated.View key={i} style={{
+          width: 8, height: 8, borderRadius: 4,
+          backgroundColor: dotColor, marginHorizontal: 4,
+          transform: [{ translateY: dot }],
+        }} />
+      ))}
+    </View>
+  );
+};
+
 export default function ShukaansiScreen() {
   const { colors, isDark, setTheme, theme, t, language } = useTheme();
   const styles = getStyles(colors, isDark);
@@ -55,6 +100,9 @@ export default function ShukaansiScreen() {
   const [tempName, setTempName] = useState('GACALO');
   const [activeReactionMsgId, setActiveReactionMsgId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [chatTheme, setChatTheme] = useState(CHAT_THEMES[0]);
 
   useEffect(() => {
     const loadAiName = async () => {
@@ -62,6 +110,11 @@ export default function ShukaansiScreen() {
       if (saved) {
         setAiName(saved.toUpperCase());
         setTempName(saved);
+      }
+      const savedThemeId = await AsyncStorage.getItem('shukaansi_chat_theme');
+      if (savedThemeId) {
+        const found = CHAT_THEMES.find(t => t.id === savedThemeId);
+        if (found) setChatTheme(found);
       }
     };
     loadAiName();
@@ -473,13 +526,22 @@ export default function ShukaansiScreen() {
                 )}
 
                 {msg.image && (
-                  <View style={styles.imageContainer}>
+                  <TouchableOpacity 
+                    style={styles.imageContainer}
+                    onPress={() => {
+                      if (msg.image) {
+                        setViewerUrl(msg.image);
+                        setViewerVisible(true);
+                      }
+                    }}
+                    activeOpacity={0.9}
+                  >
                     <Animated.Image 
                       source={{ uri: msg.image }} 
                       style={styles.messageImage}
                       resizeMode="cover"
                     />
-                  </View>
+                  </TouchableOpacity>
                 )}
                 
                 {msg.text ? (
@@ -494,7 +556,7 @@ export default function ShukaansiScreen() {
                       </Text>
                     </BlurView>
                   ) : (
-                    <View style={StyleSheet.flatten([styles.messageBubble, styles.messageBubbleUser])}>
+                    <View style={StyleSheet.flatten([styles.messageBubble, styles.messageBubbleUser, { backgroundColor: chatTheme.color }])}>
                       <Text style={StyleSheet.flatten([styles.messageText, styles.messageTextUser])}>
                         {msg.text}
                       </Text>
@@ -521,18 +583,16 @@ export default function ShukaansiScreen() {
             </View>
           ))}
 
-          {/* Typing Indicator */}
+          {/* Typing Indicator – animated dots only, no text */}
           {isAiTyping && (
             <View style={[styles.messageRow, styles.messageRowAi]}>
               <View style={styles.messageContent}>
                 <BlurView 
                   intensity={isDark ? 45 : 75} 
                   tint={isDark ? 'dark' : 'light'} 
-                  style={StyleSheet.flatten([styles.messageBubble, styles.messageBubbleAi, { overflow: 'hidden', minWidth: 150 }])}
+                  style={StyleSheet.flatten([styles.messageBubble, styles.messageBubbleAi, { overflow: 'hidden' }])}
                 >
-                  <Text style={StyleSheet.flatten([styles.messageText, styles.messageTextAi, { fontStyle: 'italic', opacity: 0.8 }])}>
-                    {aiName.toLowerCase()} wuu fekerayaa... 💭
-                  </Text>
+                  <TypingDots isDark={isDark} />
                 </BlurView>
               </View>
             </View>
@@ -607,7 +667,7 @@ export default function ShukaansiScreen() {
               {inputText.trim() ? (
                 /* Send Button */
                 <TouchableOpacity 
-                  style={[styles.sendButtonBox, styles.sendButtonActive, { backgroundColor: '#E11D48' }]} 
+                  style={[styles.sendButtonBox, styles.sendButtonActive, { backgroundColor: chatTheme.color }]} 
                   onPress={handleSend}
                   activeOpacity={0.8}
                 >
@@ -627,7 +687,7 @@ export default function ShukaansiScreen() {
                   style={[
                     styles.sendButtonBox, 
                     isRecording ? styles.recordingButton : styles.micButton,
-                    !isRecording && { backgroundColor: '#E11D48' }
+                    !isRecording && { backgroundColor: chatTheme.color }
                   ]} 
                   onPressIn={startRecording}
                   onPressOut={stopRecording}
@@ -727,6 +787,33 @@ export default function ShukaansiScreen() {
                 <Text style={styles.buyButtonText}>{t('buy_more_points')}</Text>
               </TouchableOpacity>
             </View>
+
+            {/* NEW Chat Theme Picker */}
+            <View style={styles.themePickerCard}>
+              <Text style={styles.themePickerTitle}>🎨 NEW Chat Theme</Text>
+              <Text style={styles.themePickerSub}>Dooro midabka chatka aad jeceshahay</Text>
+              <View style={styles.themeColorRow}>
+                {CHAT_THEMES.map(theme => (
+                  <TouchableOpacity
+                    key={theme.id}
+                    style={[
+                      styles.themeColorDot,
+                      { backgroundColor: theme.color },
+                      chatTheme.id === theme.id && styles.themeColorDotActive,
+                    ]}
+                    onPress={async () => {
+                      setChatTheme(theme);
+                      await AsyncStorage.setItem('shukaansi_chat_theme', theme.id);
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    {chatTheme.id === theme.id && (
+                      <Ionicons name="checkmark" size={18} color="white" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
           </ScrollView>
 
           <View style={styles.sidebarFooter}>
@@ -802,6 +889,22 @@ export default function ShukaansiScreen() {
             </TouchableOpacity>
           </BlurView>
         </Pressable>
+      </Modal>
+
+      {/* Full screen Image Viewer Modal */}
+      <Modal visible={viewerVisible} transparent={true} animationType="fade" onRequestClose={() => setViewerVisible(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.95)', justifyContent: 'center', alignItems: 'center' }}>
+          <TouchableOpacity style={{ position: 'absolute', top: 50, right: 20, zIndex: 10, padding: 10 }} onPress={() => setViewerVisible(false)}>
+            <Ionicons name="close" size={32} color="white" />
+          </TouchableOpacity>
+          {viewerUrl && (
+            <Image 
+              source={{ uri: viewerUrl }} 
+              style={{ width: '100%', height: '80%' }} 
+              resizeMode="contain" 
+            />
+          )}
+        </View>
       </Modal>
 
     </SafeAreaView>
@@ -1410,6 +1513,52 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: '#FFF',
     fontSize: 15,
     fontWeight: '800',
-  }
+  },
+
+  // Theme Picker
+  themePickerCard: {
+    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+    borderRadius: 20,
+    padding: 18,
+    marginHorizontal: 16,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.07)',
+  },
+  themePickerTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.secondary,
+    marginBottom: 4,
+    letterSpacing: 0.3,
+  },
+  themePickerSub: {
+    fontSize: 12,
+    color: colors.neutral,
+    marginBottom: 16,
+    lineHeight: 17,
+  },
+  themeColorRow: {
+    flexDirection: 'row',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  themeColorDot: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  themeColorDotActive: {
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.7)',
+    transform: [{ scale: 1.12 }],
+  },
 });
 

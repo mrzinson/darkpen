@@ -123,7 +123,7 @@ export default function EditProfileScreen() {
           <View style={styles.avatarSection}>
             <TouchableOpacity onPress={pickImage} style={styles.avatarContainer}>
               {form.profile_picture ? (
-                <Image source={{ uri: form.profile_picture }} style={styles.avatarImage} />
+                <Image source={{ uri: Config.getMediaUrl(form.profile_picture) || undefined }} style={styles.avatarImage} />
               ) : (
                 <View style={styles.avatarPlaceholder}>
                   <Ionicons name="camera" size={40} color="white" />

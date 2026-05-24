@@ -207,6 +207,17 @@ exports.askAI = async (req, res) => {
             );
             if (hasImage) {
                 cost = 10;
+            } else if (message) {
+                const len = message.length;
+                if (len < 150) {
+                    cost = 1;
+                } else if (len < 500) {
+                    cost = 3;
+                } else if (len < 1500) {
+                    cost = 7;
+                } else {
+                    cost = 12;
+                }
             }
 
             const usedFreeAI = await tryUseFreeAI(userId, hasImage ? 'image' : 'text');
@@ -425,7 +436,7 @@ exports.processVoice = async (req, res) => {
         const chatType = req.body.chatType || 'general';
         
         // Use OpenAI Whisper to transcribe
-        const transcribedText = await aiService.transcribeAudio(filePath);
+        const transcribedText = await aiService.transcribeAudio(filePath, req.file.mimetype);
         
         // Remove file after transcription to save space
         fs.unlinkSync(filePath);
@@ -507,6 +518,41 @@ exports.reactToShukaansiMessage = async (req, res) => {
     } catch (error) {
         console.error("Reaction Error:", error);
         res.status(500).json({ message: 'Cilad ayaa dhacday samaynta reaction-ka' });
+    }
+};
+
+// POST Deduct Shukaansi Call Credit (5 credits per minute)
+exports.deductShukaansiCallCredit = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        
+        // 1. Check if user has an active subscription in shukaansi_subscriptions
+        const [sub] = await db.execute(
+            'SELECT * FROM shukaansi_subscriptions WHERE user_id = ? AND expiry_date > NOW()',
+            [userId]
+        );
+        
+        if (sub.length > 0) {
+            return res.json({ status: 'success', balance: 'unlimited', isSubscribed: true });
+        }
+        
+        // 2. Fetch current wallet balance
+        const [wallet] = await db.execute('SELECT balance FROM shukaansi_wallet WHERE user_id = ?', [userId]);
+        const currentBalance = wallet.length > 0 ? wallet[0].balance : 0;
+        
+        const cost = 5; // 5 credits per minute
+        if (currentBalance < cost) {
+            return res.json({ status: 'insufficient', balance: currentBalance });
+        }
+        
+        // 3. Deduct balance
+        const newBalance = currentBalance - cost;
+        await db.execute('UPDATE shukaansi_wallet SET balance = ? WHERE user_id = ?', [newBalance, userId]);
+        
+        res.json({ status: 'success', balance: newBalance });
+    } catch (error) {
+        console.error("Deduct Call Credit Error:", error);
+        res.status(500).json({ message: 'Error checking/deducting call credit' });
     }
 };
 

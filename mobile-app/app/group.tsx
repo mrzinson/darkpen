@@ -116,7 +116,7 @@ export default function GroupScreen() {
     >
       <View style={styles.groupIconBox}>
         {group.image_url ? (
-          <Image source={{ uri: group.image_url }} style={styles.groupImage} />
+          <Image source={{ uri: Config.getMediaUrl(group.image_url) || undefined }} style={styles.groupImage} />
         ) : (
           <View style={StyleSheet.flatten([styles.groupIcon, { backgroundColor: colors.primary + '20' }])}>
             <Ionicons name="people" size={28} color={colors.primary} />
@@ -127,7 +127,7 @@ export default function GroupScreen() {
       <View style={styles.groupInfo}>
         <View style={styles.groupHeaderRow}>
           <Text style={styles.groupName} numberOfLines={1}>{group.name}</Text>
-          {isMember && (group.last_message_time || group.created_at) && (
+          {isMember && !!(group.last_message_time || group.created_at) && (
             <Text style={styles.timeText}>{formatTime(group.last_message_time || group.created_at)}</Text>
           )}
         </View>

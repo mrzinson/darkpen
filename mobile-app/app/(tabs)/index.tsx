@@ -346,15 +346,31 @@ export default function HomeScreen() {
     router.push('/login');
   };
 
-  const menuItems = [
-    { id: 'profile', icon: 'person-outline', label: t('profile'), route: '/profile' },
-    { id: 'books', icon: 'book-outline', label: t('books'), route: '/manhajka' },
-    { id: 'groups', icon: 'people-outline', label: t('groups'), route: '/group' },
-    { id: 'billing', icon: 'card-outline', label: t('billing'), route: '/billing' },
-    { id: 'settings', icon: 'settings-outline', label: t('settings'), route: '/settings' },
-    { id: 'terms', icon: 'document-text-outline', label: t('terms'), route: '/terms-content' },
-    { id: 'privacy', icon: 'shield-checkmark-outline', label: t('privacy_policy'), route: '/privacy' },
-    { id: 'about', icon: 'information-circle-outline', label: t('about_darkpen'), route: '/about' },
+  const menuSections = [
+    {
+      title: 'Waxbarashada & AI',
+      items: [
+        { id: 'profile', icon: 'person-outline', label: t('profile'), route: '/profile' },
+        { id: 'exam-generator', icon: 'sparkles-outline', label: 'AI Exam Generator', route: '/exam-generator', isNew: true },
+        { id: 'books', icon: 'book-outline', label: t('books'), route: '/manhajka' },
+        { id: 'groups', icon: 'people-outline', label: t('groups'), route: '/group' },
+      ]
+    },
+    {
+      title: 'Akoonka & Settings',
+      items: [
+        { id: 'billing', icon: 'card-outline', label: t('billing'), route: '/billing' },
+        { id: 'settings', icon: 'settings-outline', label: t('settings'), route: '/settings' },
+      ]
+    },
+    {
+      title: 'Xog & Xeerarka',
+      items: [
+        { id: 'terms', icon: 'document-text-outline', label: t('terms'), route: '/terms-content' },
+        { id: 'privacy', icon: 'shield-checkmark-outline', label: t('privacy_policy'), route: '/privacy' },
+        { id: 'about', icon: 'information-circle-outline', label: t('about_darkpen'), route: '/about' },
+      ]
+    }
   ];
 
 
@@ -618,7 +634,7 @@ export default function HomeScreen() {
                 <View style={styles.drawerProfile}>
                   <View style={styles.drawerAvatar}>
                     {userData?.profile_picture ? (
-                      <Image source={{ uri: userData.profile_picture }} style={{ width: 60, height: 60, borderRadius: 30 }} />
+                      <Image source={{ uri: Config.getMediaUrl(userData.profile_picture) || undefined }} style={{ width: 60, height: 60, borderRadius: 30 }} />
                     ) : (
                       <AppLogo size={48} variant="white" />
                     )}
@@ -627,21 +643,31 @@ export default function HomeScreen() {
                     <Text style={styles.drawerName}>{userData?.username ? `@${userData.username}` : (userData?.name || 'Darkpen Guest')}</Text>
                     <Text style={styles.drawerEmail}>{userData ? userData.whatsapp_number : 'Welcome to Darkpen'}</Text>
                     {userData && (
-                      <View style={styles.walletBadge}>
-                        <Ionicons name="wallet" size={14} color="white" />
-                        <Text style={styles.walletBalance}>{userData.balance || 0} Credits</Text>
+                      <View style={[styles.walletBadge, isDark && { backgroundColor: 'rgba(59, 130, 246, 0.2)', borderWidth: 1, borderColor: 'rgba(59, 130, 246, 0.4)' }]}>
+                        <Ionicons name="wallet" size={14} color={isDark ? '#60A5FA' : 'white'} />
+                        <Text style={[styles.walletBalance, isDark && { color: '#60A5FA' }]}>{userData.balance || 0} Credits</Text>
                       </View>
                     )}
                   </View>
                 </View>
               </View>
 
-              <ScrollView style={styles.drawerMenu}>
-                {menuItems.map((item) => (
-                  <TouchableOpacity key={item.id} style={styles.drawerMenuItem} onPress={() => handleMenuPress(item.route)}>
-                    <Ionicons name={item.icon as any} size={22} color={colors.secondary} style={styles.drawerMenuIcon} />
-                    <Text style={styles.drawerMenuLabel}>{item.label}</Text>
-                  </TouchableOpacity>
+              <ScrollView style={styles.drawerMenu} showsVerticalScrollIndicator={false}>
+                {menuSections.map((section, sIdx) => (
+                  <View key={sIdx} style={styles.drawerSection}>
+                    <Text style={styles.drawerSectionTitle}>{section.title}</Text>
+                    {section.items.map((item) => (
+                      <TouchableOpacity key={item.id} style={styles.drawerMenuItem} onPress={() => handleMenuPress(item.route)}>
+                        <Ionicons name={item.icon as any} size={20} color={colors.secondary} style={styles.drawerMenuIcon} />
+                        <Text style={styles.drawerMenuLabel}>{item.label}</Text>
+                        {item.isNew && (
+                          <View style={styles.newBadge}>
+                            <Text style={styles.newBadgeText}>NEW</Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 ))}
 
                 {/* Dark Mode Toggle Switch inside Sidebar */}
@@ -1221,6 +1247,35 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 10,
     color: colors.neutral,
     textAlign: 'center',
+  },
+
+  drawerSection: {
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+    paddingBottom: 8,
+  },
+  drawerSectionTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.neutral,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+    marginBottom: 6,
+    paddingLeft: 4,
+    opacity: 0.75,
+  },
+  newBadge: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 8,
+  },
+  newBadgeText: {
+    color: 'white',
+    fontSize: 9,
+    fontWeight: '900',
   },
 
   // Right Drawer Notifications
