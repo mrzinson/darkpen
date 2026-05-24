@@ -294,3 +294,22 @@ exports.transcribeAudio = async (filePath) => {
         throw new Error("Waan ka xunnahay, codka lama fahmin.");
     }
 };
+
+/**
+ * Generate image using OpenAI DALL-E 3
+ */
+exports.generateAIImage = async (prompt) => {
+    try {
+        const response = await openai.images.generate({
+            model: "dall-e-3",
+            prompt: prompt,
+            n: 1,
+            size: "1024x1024",
+            response_format: "b64_json"
+        });
+        return response.data[0].b64_json;
+    } catch (error) {
+        console.error("DALL-E Image Generation Error:", error);
+        throw new Error("Waan ka xunnahay, image generation is busy right now.");
+    }
+};

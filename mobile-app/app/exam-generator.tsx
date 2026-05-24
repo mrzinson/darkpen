@@ -22,6 +22,10 @@ const SUBJECTS = [
 const GRADES = ['Form 1', 'Form 2', 'Form 3', 'Form 4'];
 const QUESTION_COUNTS = [5, 10, 15, 20];
 const LANGUAGES = ['Somali', 'English', 'Bilingual (English/Somali)', 'Arabic'];
+const FONTS = ['Times New Roman', 'Arial / Helvetica', 'Georgia', 'Courier New'];
+const PAGES = ['Auto', '1', '2', '3', '4', '5+'];
+const SPACINGS = ['Standard', 'Double Spacing', 'Bulleted / List Style'];
+const DIFFICULTIES = ['Easy', 'Medium', 'Hard'];
 
 // Cleaned old duplicate declaration block
 
@@ -42,10 +46,21 @@ export default function ExamGeneratorScreen() {
   const [duration, setDuration] = useState('1 saac (1 Hour)');
   const [totalMarks, setTotalMarks] = useState('100 dhibcood (100 Marks)');
   
-  // Advanced features
+  // Advanced features & new accessibility options
   const [instructions, setInstructions] = useState('');
   const [logo, setLogo] = useState<string | null>(null);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
+  const [fontStyle, setFontStyle] = useState(FONTS[0]);
+  const [pageCount, setPageCount] = useState(PAGES[0]);
+  const [paragraphStyle, setParagraphStyle] = useState(SPACINGS[0]);
+  const [difficulty, setDifficulty] = useState(DIFFICULTIES[1]);
+  const [includeAnswerKey, setIncludeAnswerKey] = useState(true);
+
+  // Illustrations / Images State
+  const [imageMode, setImageMode] = useState<'none' | 'upload' | 'ai'>('none');
+  const [imagePrompt, setImagePrompt] = useState('');
+  const [examIllustration, setExamIllustration] = useState<string | null>(null);
+  const [examIllustrationBase64, setExamIllustrationBase64] = useState<string | null>(null);
 
   // Status & History Data
   const [loading, setLoading] = useState(false);
@@ -119,9 +134,73 @@ export default function ExamGeneratorScreen() {
     }
   };
 
+  const calculateEstimatedCost = () => {
+    const baseCost = 5;
+    const perQuestionCost = 1.5;
+    const pageCost = 2;
+    const answerKeyCost = 4;
+    const formattingCost = 3;
+    const aiImageCost = 20;
+
+    let cost = baseCost;
+    cost += questionCount * perQuestionCost;
+
+    const targetPages = parseInt(pageCount) || 0;
+    cost += targetPages * pageCost;
+
+    if (includeAnswerKey) {
+      cost += answerKeyCost;
+    }
+
+    if (fontStyle !== 'Times New Roman' || paragraphStyle !== 'Standard') {
+      cost += formattingCost;
+    }
+
+    if (imageMode === 'ai' && imagePrompt.trim()) {
+      cost += aiImageCost;
+    }
+
+    return Math.ceil(cost);
+  };
+
+  const pickIllustration = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permission.status !== 'granted') {
+        Alert.alert('Ogolaansho', 'Waxaan u baahanahay ogolaanshaha sawirada si aad u soo geliso sawirka/shaxanka.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+        base64: true
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        setExamIllustration(asset.uri);
+        setExamIllustrationBase64(`data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`);
+      }
+    } catch (err) {
+      console.error('Pick Illustration Error:', err);
+    }
+  };
+
   const handleGenerateExam = async () => {
     if (!topic.trim()) {
       Alert.alert('Fadlan buuxi', 'Fadlan qor casharka ama mawduuca aad rabto in laga sameeyo imtixaanka.');
+      return;
+    }
+
+    if (imageMode === 'ai' && !imagePrompt.trim()) {
+      Alert.alert('Fadlan buuxi', 'Fadlan qor waxa aad rabto in sawirka AI lagu soo saaro.');
+      return;
+    }
+
+    if (imageMode === 'upload' && !examIllustration) {
+      Alert.alert('Fadlan buuxi', 'Fadlan soo dooro sawirka/shaxanka aad rabto in imtixaanka lagu daro.');
       return;
     }
 
@@ -152,7 +231,7 @@ export default function ExamGeneratorScreen() {
     }
 
     const hasActiveSub = latestSubscription !== null;
-    const cost = 25;
+    const cost = calculateEstimatedCost();
 
     if (!hasActiveSub && (latestBalance === null || latestBalance < cost)) {
       Alert.alert(
@@ -187,11 +266,10 @@ export default function ExamGeneratorScreen() {
     setActiveTab('history');
 
     const steps = [
-      'AI is researching Somalian national curriculum textbooks...',
-      'Extracting textbook reference and course objectives...',
-      'Applying custom AI instructions and teaching objectives...',
-      'Overlaying school/institution branding logo...',
+      'AI is researching curriculum...',
+      'Applying custom instructions & advanced formatting...',
       'Generating high-quality exam questions with marking guides...',
+      'Creating/attaching illustrations & school logo...',
       'Compiling professional PDF and Word (.docx) formats...'
     ];
 
@@ -228,7 +306,14 @@ export default function ExamGeneratorScreen() {
           instructions: instructions.trim(),
           language: examLanguage,
           duration,
-          totalMarks
+          totalMarks,
+          fontStyle,
+          pageCount,
+          paragraphStyle,
+          difficulty,
+          includeAnswerKey,
+          examIllustration: imageMode === 'upload' ? examIllustrationBase64 : null,
+          imagePrompt: imageMode === 'ai' ? imagePrompt.trim() : null
         })
       });
 
@@ -335,148 +420,310 @@ export default function ExamGeneratorScreen() {
 
       {activeTab === 'create' ? (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <View style={styles.greetingBox}>
-            <Ionicons name="sparkles" size={32} color="#3B82F6" style={styles.greetingIcon} />
-            <Text style={styles.pageTitle}>AI Imtixaan-Sameeye</Text>
-            <Text style={styles.pageSubtitle}>
-              U samee imtixaan PDF iyo Word (.docx) ah dhowr ilbiriqsi gudahood. Generate-kasta wuxuu jarayaa 25 credits.
+          {/* Header Cost Notice */}
+          <View style={styles.priceBanner}>
+            <View style={styles.priceHeader}>
+              <Ionicons name="sparkles" size={22} color="#F59E0B" />
+              <Text style={styles.priceTitle}>Darkpen AI Imtixaan-Sameeye</Text>
+            </View>
+            <Text style={styles.priceDesc}>
+              Hadda waxaad u samayn kartaa imtixaan si gaar ah loo naqshadeeyey. Qiimaha credits-ka la goosanayo wuxuu isku beddelayaa si DYNAMIC ah oo waafaqsan xulashooyinkaaga hoose.
             </Text>
+            <View style={styles.priceCostBadgeContainer}>
+              <Text style={styles.priceCostText}>Qiimaha Qiyaasta: </Text>
+              <Text style={styles.priceCostVal}>{calculateEstimatedCost()} Credits</Text>
+            </View>
           </View>
 
-          {/* 1. Subject Select */}
-          <Text style={styles.sectionLabel}>Dooro Maaddada (Subject)</Text>
-          <View style={styles.optionsGrid}>
-            {SUBJECTS.map((sub) => {
-              const isSelected = subject === sub;
-              return (
-                <TouchableOpacity
-                  key={sub}
-                  style={[styles.pillButton, isSelected && styles.pillButtonActive]}
-                  onPress={() => setSubject(sub)}
-                >
-                  <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>{sub}</Text>
-                </TouchableOpacity>
-              );
-            })}
+          {/* CARD 1: EXAM INFORMATION */}
+          <View style={styles.formCard}>
+            <View style={styles.cardHeader}>
+              <Ionicons name="book-outline" size={20} color="#3B82F6" />
+              <Text style={styles.cardTitle}>1. Xogta Maaddada (Exam Subject & Grade)</Text>
+            </View>
+
+            <Text style={styles.subSectionLabel}>Dooro Maaddada (Subject)</Text>
+            <View style={styles.optionsGrid}>
+              {SUBJECTS.map((sub) => {
+                const isSelected = subject === sub;
+                return (
+                  <TouchableOpacity
+                    key={sub}
+                    style={[styles.pillButton, isSelected && styles.pillButtonActive]}
+                    onPress={() => setSubject(sub)}
+                  >
+                    <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>{sub}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.subSectionLabel}>Dooro Fasalka (Grade)</Text>
+            <View style={styles.optionsGrid}>
+              {GRADES.map((gr) => {
+                const isSelected = grade === gr;
+                return (
+                  <TouchableOpacity
+                    key={gr}
+                    style={[styles.pillButton, isSelected && styles.pillButtonActive]}
+                    onPress={() => setGrade(gr)}
+                  >
+                    <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>{gr}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.subSectionLabel}>Qor Cutubka ama Casharka (Topic)</Text>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[styles.textInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
+                placeholder="Tusaale: Cell Division, Photosynthesis, Dagaalkii 2aad..."
+                placeholderTextColor="#9CA3AF"
+                value={topic}
+                onChangeText={setTopic}
+              />
+            </View>
           </View>
 
-          {/* 2. Grade Select */}
-          <Text style={styles.sectionLabel}>Dooro Fasalka (Grade)</Text>
-          <View style={styles.optionsGrid}>
-            {GRADES.map((gr) => {
-              const isSelected = grade === gr;
-              return (
-                <TouchableOpacity
-                  key={gr}
-                  style={[styles.pillButton, isSelected && styles.pillButtonActive]}
-                  onPress={() => setGrade(gr)}
-                >
-                  <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>{gr}</Text>
-                </TouchableOpacity>
-              );
-            })}
+          {/* CARD 2: QUESTIONS & CONFIGURATION */}
+          <View style={styles.formCard}>
+            <View style={styles.cardHeader}>
+              <Ionicons name="list-circle-outline" size={20} color="#3B82F6" />
+              <Text style={styles.cardTitle}>2. Qaabka Su'aalaha (Questions & Format)</Text>
+            </View>
+
+            <Text style={styles.subSectionLabel}>Tirada Su'aalaha (Questions)</Text>
+            <View style={styles.optionsGrid}>
+              {QUESTION_COUNTS.map((count) => {
+                const isSelected = questionCount === count;
+                return (
+                  <TouchableOpacity
+                    key={count}
+                    style={[styles.pillButton, isSelected && styles.pillButtonActive]}
+                    onPress={() => setQuestionCount(count)}
+                  >
+                    <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>{count} Su'aalood</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.subSectionLabel}>Heerka Imtixaanka (Difficulty)</Text>
+            <View style={styles.optionsGrid}>
+              {DIFFICULTIES.map((diff) => {
+                const isSelected = difficulty === diff;
+                return (
+                  <TouchableOpacity
+                    key={diff}
+                    style={[styles.pillButton, isSelected && styles.pillButtonActive]}
+                    onPress={() => setDifficulty(diff)}
+                  >
+                    <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>{diff === 'Easy' ? 'Fudud' : diff === 'Medium' ? 'Dhexdhexaad' : 'Adag'}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.subSectionLabel}>Luuqadda Imtixaanka</Text>
+            <View style={styles.optionsGrid}>
+              {LANGUAGES.map((lang) => {
+                const isSelected = examLanguage === lang;
+                return (
+                  <TouchableOpacity
+                    key={lang}
+                    style={[styles.pillButton, isSelected && styles.pillButtonActive]}
+                    onPress={() => setExamLanguage(lang)}
+                  >
+                    <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>{lang}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.subSectionLabel}>Waqtiga Loo Qondeeyey (Duration)</Text>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[styles.textInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
+                placeholder="Tusaale: 1 saac, 2 saac iyo bar..."
+                placeholderTextColor="#9CA3AF"
+                value={duration}
+                onChangeText={setDuration}
+              />
+            </View>
+
+            <Text style={styles.subSectionLabel}>Dhibcaha Guud (Total Marks)</Text>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[styles.textInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
+                placeholder="Tusaale: 100 dhibcood, 50 dhibcood..."
+                placeholderTextColor="#9CA3AF"
+                value={totalMarks}
+                onChangeText={setTotalMarks}
+              />
+            </View>
           </View>
 
-          {/* 3. Topic Input */}
-          <Text style={styles.sectionLabel}>Qor Cutubka ama Casharka (Topic)</Text>
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={[styles.textInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
-              placeholder="Tusaale: Cell Division, Photosynthesis, Dagaalkii 2aad..."
-              placeholderTextColor="#9CA3AF"
-              value={topic}
-              onChangeText={setTopic}
-            />
-          </View>
+          {/* CARD 3: DESIGN & ADVANCED LAYOUT */}
+          <View style={styles.formCard}>
+            <View style={styles.cardHeader}>
+              <Ionicons name="color-palette-outline" size={20} color="#3B82F6" />
+              <Text style={styles.cardTitle}>3. Naqshadda Qoraalka (Advanced Formatting)</Text>
+            </View>
 
-          {/* 4. Question Count Select */}
-          <Text style={styles.sectionLabel}>Tirada Su'aalaha (Questions)</Text>
-          <View style={styles.optionsGrid}>
-            {QUESTION_COUNTS.map((count) => {
-              const isSelected = questionCount === count;
-              return (
-                <TouchableOpacity
-                  key={count}
-                  style={[styles.pillButton, isSelected && styles.pillButtonActive]}
-                  onPress={() => setQuestionCount(count)}
-                >
-                  <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>{count} Su'aalood</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+            <Text style={styles.subSectionLabel}>Nooca Farta (Font Style)</Text>
+            <View style={styles.optionsGrid}>
+              {FONTS.map((font) => {
+                const isSelected = fontStyle === font;
+                return (
+                  <TouchableOpacity
+                    key={font}
+                    style={[styles.pillButton, isSelected && styles.pillButtonActive]}
+                    onPress={() => setFontStyle(font)}
+                  >
+                    <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>{font}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-          {/* 5. Logo Picker (Optional) */}
-          <Text style={styles.sectionLabel}>Logo-ga Iskuulka/Astaanta (Optional)</Text>
-          <View style={styles.logoPickerRow}>
-            {logo ? (
-              <View style={styles.logoPreviewContainer}>
-                <Image source={{ uri: logo }} style={styles.logoPreview} />
-                <TouchableOpacity style={styles.logoRemoveBtn} onPress={() => { setLogo(null); setLogoBase64(null); }}>
-                  <Ionicons name="close-circle" size={24} color="#EF4444" />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity style={styles.logoPickerBtn} onPress={pickLogo}>
-                <Ionicons name="image-outline" size={24} color="#3B82F6" />
-                <Text style={styles.logoPickerText}>Soo xulo Astaanta</Text>
+            <Text style={styles.subSectionLabel}>Inta Bog ee Ugu Talo Galay (Page Count)</Text>
+            <View style={styles.optionsGrid}>
+              {PAGES.map((p) => {
+                const isSelected = pageCount === p;
+                return (
+                  <TouchableOpacity
+                    key={p}
+                    style={[styles.pillButton, isSelected && styles.pillButtonActive]}
+                    onPress={() => setPageCount(p)}
+                  >
+                    <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>{p === 'Auto' ? 'AI Decides (Auto)' : `${p} Pages`}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.subSectionLabel}>Qaabka Paragraphs (Spacing Style)</Text>
+            <View style={styles.optionsGrid}>
+              {SPACINGS.map((sp) => {
+                const isSelected = paragraphStyle === sp;
+                return (
+                  <TouchableOpacity
+                    key={sp}
+                    style={[styles.pillButton, isSelected && styles.pillButtonActive]}
+                    onPress={() => setParagraphStyle(sp)}
+                  >
+                    <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>{sp}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={styles.toggleRow}>
+              <Text style={styles.toggleLabel}>Ku dar Furaha Jawaabaha (Answer Key)</Text>
+              <TouchableOpacity 
+                style={[styles.toggleBtn, includeAnswerKey ? styles.toggleBtnActive : styles.toggleBtnInactive]}
+                onPress={() => setIncludeAnswerKey(!includeAnswerKey)}
+              >
+                <Text style={[styles.toggleText, includeAnswerKey ? styles.toggleTextActive : styles.toggleTextInactive]}>
+                  {includeAnswerKey ? 'HAA (Yes)' : 'MAYA (No)'}
+                </Text>
               </TouchableOpacity>
-            )}
+            </View>
+
+            <Text style={styles.subSectionLabel}>Astaamaha gaarka ah oo AI-ga raacayo (Optional)</Text>
+            <View style={styles.textAreaContainer}>
+              <TextInput
+                style={[styles.textAreaInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
+                placeholder="Tusaale: Ku dar qaybta DNA, ka dhig su'aalaha kuwa si qoto dheer u cabiraya fahamka..."
+                placeholderTextColor="#9CA3AF"
+                value={instructions}
+                onChangeText={setInstructions}
+                multiline
+                numberOfLines={3}
+              />
+            </View>
           </View>
 
-          {/* 6. AI Instructions (Optional) */}
-          <Text style={styles.sectionLabel}>Talaabooyin gaar ah oo AI-ga raacayo (Optional)</Text>
-          <View style={styles.textAreaContainer}>
-            <TextInput
-              style={[styles.textAreaInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
-              placeholder="Tusaale: Imtixaanka ku dar qaybta DNA, ka dhig su'aalaha kuwa dhexdhexaad ah..."
-              placeholderTextColor="#9CA3AF"
-              value={instructions}
-              onChangeText={setInstructions}
-              multiline
-              numberOfLines={3}
-            />
-          </View>
+          {/* CARD 4: BRANDING & ILLUSTRATIONS */}
+          <View style={styles.formCard}>
+            <View style={styles.cardHeader}>
+              <Ionicons name="image-outline" size={20} color="#3B82F6" />
+              <Text style={styles.cardTitle}>4. Sawirro & Astaamo (Imagery & Branding)</Text>
+            </View>
 
-          {/* 7. Additional Tools & Configurations */}
-          <Text style={styles.sectionLabel}>Habaynta Kale ee Imtixaanka</Text>
-          
-          <Text style={styles.subSectionLabel}>Luuqadda Imtixaanka</Text>
-          <View style={styles.optionsGrid}>
-            {LANGUAGES.map((lang) => {
-              const isSelected = examLanguage === lang;
-              return (
-                <TouchableOpacity
-                  key={lang}
-                  style={[styles.pillButton, isSelected && styles.pillButtonActive]}
-                  onPress={() => setExamLanguage(lang)}
-                >
-                  <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>{lang}</Text>
+            <Text style={styles.subSectionLabel}>Logo-ga Iskuulka/Astaanta (Optional)</Text>
+            <View style={styles.logoPickerRow}>
+              {logo ? (
+                <View style={styles.logoPreviewContainer}>
+                  <Image source={{ uri: logo }} style={styles.logoPreview} />
+                  <TouchableOpacity style={styles.logoRemoveBtn} onPress={() => { setLogo(null); setLogoBase64(null); }}>
+                    <Ionicons name="close-circle" size={24} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity style={styles.logoPickerBtn} onPress={pickLogo}>
+                  <Ionicons name="image-outline" size={24} color="#3B82F6" />
+                  <Text style={styles.logoPickerText}>Soo xulo Astaanta</Text>
                 </TouchableOpacity>
-              );
-            })}
-          </View>
+              )}
+            </View>
 
-          <Text style={styles.subSectionLabel}>Waqtiga Loo Qondeeyey (Duration)</Text>
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={[styles.textInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
-              placeholder="Tusaale: 1 saac, 2 saac iyo bar..."
-              placeholderTextColor="#9CA3AF"
-              value={duration}
-              onChangeText={setDuration}
-            />
-          </View>
+            <Text style={styles.subSectionLabel}>Ku dar Shaxan/Illustration imtixaanka</Text>
+            <View style={styles.optionsGrid}>
+              {[
+                { id: 'none', label: 'Bilaa Sawir' },
+                { id: 'upload', label: 'Soo Geli Sawir (Upload)' },
+                { id: 'ai', label: 'AI Image Generator' }
+              ].map((mode) => {
+                const isSelected = imageMode === mode.id;
+                return (
+                  <TouchableOpacity
+                    key={mode.id}
+                    style={[styles.pillButton, isSelected && styles.pillButtonActive]}
+                    onPress={() => setImageMode(mode.id as any)}
+                  >
+                    <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>{mode.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-          <Text style={styles.subSectionLabel}>Dhibcaha Guud (Total Marks)</Text>
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={[styles.textInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
-              placeholder="Tusaale: 100 dhibcood, 50 dhibcood..."
-              placeholderTextColor="#9CA3AF"
-              value={totalMarks}
-              onChangeText={setTotalMarks}
-            />
+            {imageMode === 'upload' && (
+              <View style={{ marginTop: 12 }}>
+                {examIllustration ? (
+                  <View style={styles.logoPreviewContainer}>
+                    <Image source={{ uri: examIllustration }} style={styles.logoPreview} />
+                    <TouchableOpacity style={styles.logoRemoveBtn} onPress={() => { setExamIllustration(null); setExamIllustrationBase64(null); }}>
+                      <Ionicons name="close-circle" size={24} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity style={styles.logoPickerBtn} onPress={pickIllustration}>
+                    <Ionicons name="cloud-upload-outline" size={24} color="#3B82F6" />
+                    <Text style={styles.logoPickerText}>Soo xulo Shaxanka/Sawirka</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {imageMode === 'ai' && (
+              <View style={{ marginTop: 12 }}>
+                <Text style={styles.subSectionLabel}>AI Prompt (e.g. Draw a labelled human respiratory system...)</Text>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={[styles.textInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
+                    placeholder="Tusaale: Diagram of photosynthesis showing leaf cell, water, and sunlight..."
+                    placeholderTextColor="#9CA3AF"
+                    value={imagePrompt}
+                    onChangeText={setImagePrompt}
+                  />
+                </View>
+                <Text style={{ fontSize: 11, color: '#D97706', marginTop: 4 }}>
+                  * Abuurista sawirka AI ee imtixaanka waxay goosanaysaa 20 credits oo dheeraad ah.
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Generate Button */}
@@ -487,7 +734,9 @@ export default function ExamGeneratorScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="document-text-outline" size={22} color="white" style={{ marginRight: 8 }} />
-            <Text style={styles.generateButtonText}>DIYAARI IMTIXAANKA</Text>
+            <Text style={styles.generateButtonText}>
+              DIYAARI IMTIXAANKA ({calculateEstimatedCost()} Credits)
+            </Text>
           </TouchableOpacity>
         </ScrollView>
       ) : (
@@ -905,5 +1154,110 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 11,
     color: colors.neutral,
     marginTop: 2,
+  },
+  priceBanner: {
+    backgroundColor: isDark ? 'rgba(245, 158, 11, 0.12)' : '#FEF3C7',
+    borderColor: isDark ? 'rgba(245, 158, 11, 0.3)' : '#FCD34D',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+  },
+  priceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  priceTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: isDark ? '#F59E0B' : '#D97706',
+  },
+  priceDesc: {
+    fontSize: 12,
+    color: isDark ? '#D1D5DB' : '#4B5563',
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  priceCostBadgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : 'rgba(245, 158, 11, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  priceCostText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: isDark ? '#F59E0B' : '#D97706',
+  },
+  priceCostVal: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: isDark ? '#F59E0B' : '#D97706',
+  },
+  formCard: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: colors.border || '#333',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border || '#333',
+    paddingBottom: 8,
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.secondary,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    marginTop: 8,
+    marginBottom: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border || '#333',
+  },
+  toggleLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.secondary,
+  },
+  toggleBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1.5,
+  },
+  toggleBtnActive: {
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    borderColor: '#3B82F6',
+  },
+  toggleBtnInactive: {
+    backgroundColor: colors.card,
+    borderColor: colors.border || '#333',
+  },
+  toggleText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  toggleTextActive: {
+    color: '#3B82F6',
+  },
+  toggleTextInactive: {
+    color: colors.neutral,
   }
 });
