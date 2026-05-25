@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, TextInput, 
   KeyboardAvoidingView, Platform, ScrollView, Animated, Dimensions, Pressable, Keyboard,
-  Modal, Vibration, Alert
+  Modal, Vibration, Alert, Image
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -198,7 +198,7 @@ export default function ShukaansiScreen() {
           playsInSilentModeIOS: true,
         });
         const { recording: newRecording } = await Audio.Recording.createAsync(
-          Audio.RecordingOptionsPresets.HIGH_QUALITY
+          Audio.RecordingOptionsPresets.HIGH_QUALITY as any
         );
         setRecording(newRecording);
         setIsRecording(true);

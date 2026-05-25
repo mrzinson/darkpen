@@ -3,6 +3,7 @@ const { saveBase64Image } = require('../utils/fileHelper');
 const aiService = require('../services/aiService');
 const { checkAndExpireWallet } = require('../utils/walletHelper');
 const { tryUseFreeAI } = require('../utils/freeUsageHelper');
+const pushService = require('../services/pushNotificationService');
 
 // Helper to get or create AI user
 async function getOrCreateAIUser() {
@@ -19,6 +20,33 @@ async function getOrCreateAIUser() {
     // Create wallet for the AI
     await db.query('INSERT IGNORE INTO user_wallet (user_id, balance) VALUES (?, 999999)', [aiUserId]);
     return aiUserId;
+}
+
+// Helper to send push notifications to all other group members
+async function sendGroupPushNotifications(groupId, senderId, senderName, messageText, type = 'text') {
+    try {
+        const [groupRows] = await db.query('SELECT name FROM groups WHERE id = ?', [groupId]);
+        const groupName = groupRows.length > 0 ? groupRows[0].name : 'Group Chat';
+
+        const [members] = await db.query('SELECT user_id FROM group_members WHERE group_id = ? AND user_id != ?', [groupId, senderId]);
+        
+        let messageBody = '';
+        if (type === 'image') {
+            messageBody = `${senderName} wuxuu soo diray sawir.`;
+        } else {
+            // Trim message to fit push notification nicely
+            const trimmedMessage = messageText.length > 100 ? messageText.substring(0, 97) + '...' : messageText;
+            messageBody = `${senderName}: ${trimmedMessage}`;
+        }
+
+        for (const member of members) {
+            pushService.sendPushNotification(member.user_id, groupName, messageBody).catch(err => {
+                console.error(`Error sending push notification to user ${member.user_id}:`, err);
+            });
+        }
+    } catch (err) {
+        console.error("Error in sendGroupPushNotifications helper:", err);
+    }
 }
 
 // Helper to check if AI should respond to message
@@ -126,6 +154,11 @@ Waligaa ha dhihin Google ama OpenAI ayaa ku sameeyay. Adigu waxaad tahay Darkpen
         if (io) {
             io.to(`group_${groupId}`).emit('receive_message', aiSocketMessage);
         }
+
+        // 7. Send Push Notification to all group members
+        sendGroupPushNotifications(groupId, aiUserId, aiUserRow[0].name || 'Darkpen', aiReply, 'text').catch(err => {
+            console.error("Failed to send AI push notification to group members:", err);
+        });
     } catch (err) {
         console.error("Error generating/sending AI group response:", err);
     }
@@ -368,6 +401,13 @@ exports.sendGroupMessage = async (req, res) => {
             'UPDATE group_members SET last_read_id = ? WHERE group_id = ? AND user_id = ?',
             [messageId, groupId, userId]
         );
+
+        // Send Push Notifications to other group members
+        const [senderRows] = await db.query('SELECT name FROM users WHERE id = ?', [userId]);
+        const senderName = senderRows.length > 0 ? senderRows[0].name : 'Student';
+        sendGroupPushNotifications(groupId, userId, senderName, finalMessage, type || 'text').catch(err => {
+            console.error("Failed to send user message push notification to group members:", err);
+        });
 
         // Check if AI should respond
         try {

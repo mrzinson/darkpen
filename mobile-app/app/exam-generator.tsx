@@ -31,7 +31,7 @@ const DIFFICULTIES = ['Easy', 'Medium', 'Hard'];
 
 export default function ExamGeneratorScreen() {
   const { colors, isDark } = useTheme();
-  const styles = getStyles(colors, isDark);
+  const styles: any = getStyles(colors, isDark);
   const router = useRouter();
 
   // Navigation Tabs: 'create' | 'history'
@@ -864,7 +864,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   tabTextActive: {
     color: '#3B82F6',
-    fontWeight: '750',
+    fontWeight: '700',
   },
   scrollContent: {
     padding: 20,
@@ -1089,7 +1089,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   examBadgeText: {
     color: '#3B82F6',
     fontSize: 11,
-    fontWeight: '750',
+    fontWeight: '700',
   },
   examDate: {
     color: colors.neutral,

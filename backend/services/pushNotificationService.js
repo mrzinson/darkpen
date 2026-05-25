@@ -19,6 +19,7 @@ exports.sendPushNotification = async (userId, title, body) => {
             sound: 'default',
             title: title,
             body: body,
+            channelId: 'default',
             data: { 
                 userId: userId,
                 timestamp: new Date().toISOString()

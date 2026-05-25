@@ -1289,6 +1289,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     zIndex: 20,
   },
   messageRow: {
+    width: '100%',
     flexDirection: 'row',
     marginBottom: 16,
     paddingHorizontal: 0,
@@ -1306,9 +1307,11 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   messageContentUser: {
     alignItems: 'flex-end',
+    alignSelf: 'flex-end',
   },
   messageContentAi: {
     alignItems: 'flex-start',
+    alignSelf: 'flex-start',
   },
   aiContentContainer: {
     maxWidth: '100%',

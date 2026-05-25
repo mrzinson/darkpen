@@ -11,7 +11,7 @@ Notifications.setNotificationHandler({
     shouldSetBadge: true,
     shouldShowBanner: true,
     shouldShowList: true,
-  }),
+  } as any),
 });
 
 export interface PushNotificationState {
@@ -20,8 +20,8 @@ export interface PushNotificationState {
 }
 
 export const usePushNotifications = (): PushNotificationState => {
-  const [expoPushToken, setExpoPushToken] = useState<Notifications.ExpoPushToken | undefined>();
-  const [notification, setNotification] = useState<Notifications.Notification | undefined>();
+  const [expoPushToken, setExpoPushToken] = useState<Notifications.ExpoPushToken | undefined>(undefined);
+  const [notification, setNotification] = useState<Notifications.Notification | undefined>(undefined);
 
   const notificationListener = useRef<Notifications.EventSubscription | undefined>(undefined);
   const responseListener = useRef<Notifications.EventSubscription | undefined>(undefined);

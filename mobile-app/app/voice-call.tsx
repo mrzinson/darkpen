@@ -33,7 +33,7 @@ export default function VoiceCallScreen() {
   
   const ringSoundRef = useRef<Audio.Sound | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
-  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const timerIntervalRef = useRef<any>(null);
 
 
   // Load AI Custom Name & Start Ringing on mount
