@@ -19,7 +19,9 @@ export default function TournamentPanel() {
   const [saveStatus, setSaveStatus] = useState('');
 
   const fetchSettings = () => {
-    fetch(`${API_URL}/admin/tournament/settings`)
+    fetch(`${API_URL}/admin/tournament/settings`, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+    })
       .then(res => res.json())
       .then(data => {
         setSettings(data);
@@ -30,7 +32,9 @@ export default function TournamentPanel() {
   };
 
   const fetchContestants = () => {
-    fetch(`${API_URL}/admin/tournament/contestants`)
+    fetch(`${API_URL}/admin/tournament/contestants`, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+    })
       .then(res => res.json())
       .then(data => {
         setContestants(data);
@@ -51,7 +55,10 @@ export default function TournamentPanel() {
     try {
       const res = await fetch(`${API_URL}/admin/tournament/settings`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        },
         body: JSON.stringify(settings)
       });
       if (res.ok) {
@@ -73,7 +80,10 @@ export default function TournamentPanel() {
     try {
       const res = await fetch(`${API_URL}/admin/tournament/contestants/${id}/adjust-xp`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        },
         body: JSON.stringify({ amount: Number(amount) })
       });
       if (res.ok) {
@@ -89,7 +99,8 @@ export default function TournamentPanel() {
 
     try {
       const res = await fetch(`${API_URL}/admin/tournament/contestants/${id}/toggle-suspend`, {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
       });
       if (res.ok) {
         fetchContestants();

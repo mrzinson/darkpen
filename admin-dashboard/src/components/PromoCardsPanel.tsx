@@ -34,7 +34,9 @@ export default function PromoCardsPanel() {
   ];
 
   const fetchCards = () => {
-    fetch(`${API_URL}/admin/promo-cards`)
+    fetch(`${API_URL}/admin/promo-cards`, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+    })
       .then(res => res.json())
       .then(data => setCards(data))
       .catch(console.error);
@@ -76,6 +78,7 @@ export default function PromoCardsPanel() {
         
       const res = await fetch(url, {
         method: editingId ? 'PUT' : 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` },
         body: formData
       });
 
@@ -135,7 +138,8 @@ export default function PromoCardsPanel() {
   const handleToggleActive = async (id: number) => {
     try {
       const res = await fetch(`${API_URL}/admin/promo-cards/${id}/toggle`, {
-        method: 'PUT'
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
       });
       if (res.ok) {
         fetchCards();
@@ -149,7 +153,8 @@ export default function PromoCardsPanel() {
     if (!confirm('Ma hubtaa inaad tirtirto xayaysiiskan? (Are you sure you want to delete this promo card?)')) return;
     try {
       const res = await fetch(`${API_URL}/admin/promo-cards/${id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
       });
       if (res.ok) {
         fetchCards();

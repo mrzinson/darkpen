@@ -16,7 +16,9 @@ export default function ExamsPanel() {
   ];
 
   const fetchExams = () => {
-    fetch(`${API_URL}/admin/exams`)
+    fetch(`${API_URL}/admin/exams`, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+    })
       .then(res => res.json())
       .then(data => {
         setExams(data);
@@ -43,6 +45,7 @@ export default function ExamsPanel() {
     try {
       const res = await fetch(`${API_URL}/admin/exams`, {
         method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` },
         body: formData
       });
       if (res.ok) {
@@ -60,7 +63,10 @@ export default function ExamsPanel() {
 
   const handleDelete = async (id: number) => {
     if (!confirm('Ma hubtaa inaad tirtirto imtixaankan?')) return;
-    await fetch(`${API_URL}/admin/exams/${id}`, { method: 'DELETE' });
+    await fetch(`${API_URL}/admin/exams/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+    });
     fetchExams();
   };
 

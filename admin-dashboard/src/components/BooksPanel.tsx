@@ -16,7 +16,9 @@ export default function BooksPanel() {
   ];
 
   const fetchBooks = () => {
-    fetch(`${API_URL}/admin/books`)
+    fetch(`${API_URL}/admin/books`, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+    })
       .then(res => res.json())
       .then(data => {
         setBooks(data);
@@ -43,6 +45,7 @@ export default function BooksPanel() {
     try {
       const res = await fetch(`${API_URL}/admin/books`, {
         method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` },
         body: formData
       });
       if (res.ok) {
@@ -60,7 +63,10 @@ export default function BooksPanel() {
 
   const handleDelete = async (id: number) => {
     if (!confirm('Ma hubtaa inaad tirtirto buuggan?')) return;
-    await fetch(`${API_URL}/admin/books/${id}`, { method: 'DELETE' });
+    await fetch(`${API_URL}/admin/books/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+    });
     fetchBooks();
   };
 

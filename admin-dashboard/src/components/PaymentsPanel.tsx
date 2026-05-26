@@ -8,7 +8,9 @@ export default function PaymentsPanel() {
 
   const fetchPayments = () => {
     setLoading(true);
-    fetch(`${API_URL}/admin/payments`)
+    fetch(`${API_URL}/admin/payments`, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+    })
       .then(res => res.json())
       .then(data => {
         setPayments(data);
@@ -27,7 +29,8 @@ export default function PaymentsPanel() {
   const handleAction = async (id: number, action: 'approve' | 'reject') => {
     try {
       const res = await fetch(`${API_URL}/admin/payments/${id}/${action}`, {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
       });
       if (res.ok) {
         fetchPayments();

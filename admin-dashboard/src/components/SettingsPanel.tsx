@@ -216,7 +216,7 @@ export default function SettingsPanel() {
             <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '10px', marginTop: '20px' }}>Pricing & Subscription Plans (USD)</h3>
             <div className="file-inputs">
               <div className="input-group">
-                <label>Monthly Subscription Price ($)</label>
+                <label>Monthly Basic Price ($3.00)</label>
                 <input 
                   type="number" 
                   step="0.01"
@@ -226,7 +226,7 @@ export default function SettingsPanel() {
                 />
               </div>
               <div className="input-group">
-                <label>Yearly Subscription Price ($)</label>
+                <label>Monthly Premium Price ($11.00)</label>
                 <input 
                   type="number" 
                   step="0.01"
@@ -245,37 +245,6 @@ export default function SettingsPanel() {
                 onChange={(e) => setSettings({ ...settings, credit_per_dollar: e.target.value })}
                 placeholder="200" 
               />
-            </div>
-
-            <h3 style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '10px', marginTop: '20px' }}>AI Message Costs (Credits)</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-              <div className="input-group">
-                <label>Text Message Cost</label>
-                <input 
-                  type="number" 
-                  value={settings.text_message_credit_cost}
-                  onChange={(e) => setSettings({ ...settings, text_message_credit_cost: e.target.value })}
-                  placeholder="1" 
-                />
-              </div>
-              <div className="input-group">
-                <label>Voice Message Cost</label>
-                <input 
-                  type="number" 
-                  value={settings.voice_message_credit_cost}
-                  onChange={(e) => setSettings({ ...settings, voice_message_credit_cost: e.target.value })}
-                  placeholder="20" 
-                />
-              </div>
-              <div className="input-group">
-                <label>Image Generation Cost</label>
-                <input 
-                  type="number" 
-                  value={settings.image_generation_credit_cost}
-                  onChange={(e) => setSettings({ ...settings, image_generation_credit_cost: e.target.value })}
-                  placeholder="10" 
-                />
-              </div>
             </div>
 
             <div className="input-group" style={{ marginTop: '10px' }}>
