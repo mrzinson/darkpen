@@ -327,7 +327,6 @@ exports.askAI = async (req, res) => {
                     aiResponseText += chunkText;
                     res.write(`data: ${JSON.stringify({ text: chunkText })}\n\n`);
                 }
-
                 res.write('data: [DONE]\n\n');
                 res.end();
 
@@ -336,6 +335,10 @@ exports.askAI = async (req, res) => {
                     'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "ai", ?)',
                     [userId, sessionId || null, aiResponseText]
                 );
+
+                // Log AI usage!
+                const aiLogger = require('../utils/aiLogger');
+                aiLogger.logAIUsage(userId, modelName, message || "[Attachment]", aiResponseText, chatType || 'education');
             } catch (err) {
                 console.error("Gemini stream generation error:", err);
                 res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
@@ -375,6 +378,10 @@ exports.askAI = async (req, res) => {
                     [chosenReaction, insertedUserMsgId]
                 );
             }
+
+            // Log AI usage!
+            const aiLogger = require('../utils/aiLogger');
+            aiLogger.logAIUsage(userId, modelName, message || "[Attachment]", aiResponseText, 'shukaansi');
         } else {
             // Save User and AI messages for private chat
             await db.execute(
@@ -385,6 +392,10 @@ exports.askAI = async (req, res) => {
                 'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "ai", ?)',
                 [userId, sessionId || null, aiResponseText]
             );
+
+            // Log AI usage!
+            const aiLogger = require('../utils/aiLogger');
+            aiLogger.logAIUsage(userId, modelName, message || "[Attachment]", aiResponseText, 'education');
         }
 
         res.json({ sender: 'ai', message: aiResponseText });

@@ -14,6 +14,9 @@ export default function UsersPanel() {
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Email Edit State
+  const [editEmail, setEditEmail] = useState('');
+
   // Toast Alert State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'danger' | 'info' } | null>(null);
   // Copy feedback state tracker
@@ -43,6 +46,63 @@ export default function UsersPanel() {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  useEffect(() => {
+    if (selectedUser) {
+      setEditEmail(selectedUser.email || '');
+    } else {
+      setEditEmail('');
+    }
+  }, [selectedUser]);
+
+  const handleSaveEmail = async () => {
+    if (!selectedUser) return;
+    try {
+      const res = await fetch(`${API_URL}/admin/users/${selectedUser.id}/email`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+        },
+        body: JSON.stringify({ email: editEmail })
+      });
+      const data = await res.json();
+      if (res.ok && data.status === 'success') {
+        showToast("Email-ka waa la cusboonaysiiyey!", "success");
+        setUsers(prev => prev.map(u => u.id === selectedUser.id ? { ...u, email: editEmail } : u));
+        setSelectedUser((prev: any) => ({ ...prev, email: editEmail }));
+      } else {
+        showToast(data.message || "Cilad ayaa dhacday", "danger");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Cilad ayaa dhacday", "danger");
+    }
+  };
+
+  const sendWhatsAppReport = (user: any) => {
+    if (!user.whatsapp_number) {
+      showToast("User-ku ma laha lambar WhatsApp ah!", "danger");
+      return;
+    }
+    const cleanNumber = user.whatsapp_number.replace(/[^0-9]/g, '');
+    const dateJoined = new Date(user.created_at).toLocaleDateString();
+    const statusText = user.is_suspended ? 'Xaniban (Suspended)' : 'Firfircoon (Active)';
+    
+    const message = `*DARKPEN REPORT* 📝📚\n` +
+      `----------------------------------\n` +
+      `👤 *Magaca:* ${user.name}\n` +
+      `🆔 *Username:* @${user.username || 'ma jiro'}\n` +
+      `📅 *Ku biiray:* ${dateJoined}\n` +
+      `💎 *Credits-ka Wallet:* ${user.credits || 0}\n` +
+      `💬 *Wada-sheekaysiga AI:* ${user.private_messages_count || 0}\n` +
+      `🏆 *Dhibcaha Tartanka (XP):* ${user.xp || 0} XP\n` +
+      `🔒 *Status-ka:* ${statusText}\n\n` +
+      `Mahadsanid, sii wad isticmaalka Darkpen! 🚀`;
+      
+    const url = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+  };
 
   const handleCopy = (e: React.MouseEvent, text: string, id: string) => {
     e.stopPropagation();
@@ -467,11 +527,53 @@ export default function UsersPanel() {
                   </div>
 
                   {/* Email */}
-                  <div>
+                  <div style={{ gridColumn: 'span 2' }}>
                     <div className="text-muted" style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                      <Mail size={12} /> Email
+                      <Mail size={12} /> Email (Editable)
                     </div>
-                    <div style={{ fontWeight: 500, color: '#E4E4E7', wordBreak: 'break-all' }}>{selectedUser.email}</div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <input 
+                        type="email" 
+                        value={editEmail} 
+                        onChange={(e) => setEditEmail(e.target.value)}
+                        placeholder="Gali email-ka recovery-ga..."
+                        style={{
+                          flexGrow: 1,
+                          padding: '8px 12px',
+                          background: 'rgba(0,0,0,0.3)',
+                          border: '1px solid rgba(255,255,255,0.08)',
+                          borderRadius: 'var(--radius-sm)',
+                          color: '#FFF',
+                          fontSize: '14px',
+                          outline: 'none'
+                        }}
+                      />
+                      <button
+                        onClick={(e) => handleCopy(e, editEmail, 'modal-email-copy')}
+                        style={{
+                          padding: '8px',
+                          borderRadius: 'var(--radius-sm)',
+                          backgroundColor: 'rgba(255,255,255,0.03)',
+                          border: '1px solid rgba(255,255,255,0.05)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        title="Copy Email"
+                        type="button"
+                      >
+                        {copiedId === 'modal-email-copy' ? <Check size={14} style={{ color: 'var(--success)' }} /> : <Copy size={14} />}
+                      </button>
+                      <button
+                        onClick={handleSaveEmail}
+                        className="btn primary"
+                        style={{ padding: '8px 16px', fontSize: '13px', borderRadius: 'var(--radius-sm)' }}
+                        type="button"
+                      >
+                        Save
+                      </button>
+                    </div>
                   </div>
 
                   {/* WhatsApp */}
@@ -667,6 +769,30 @@ export default function UsersPanel() {
                 <Ban size={14} />
                 {selectedUser.is_suspended ? 'Ka qaad Xayiraadda (Activate)' : 'Xayir User-ka (Suspend)'}
               </button>
+
+              {/* WhatsApp Report Button */}
+              {selectedUser.whatsapp_number && (
+                <button
+                  onClick={() => sendWhatsAppReport(selectedUser)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    border: 'none',
+                    backgroundColor: 'rgba(37, 211, 102, 0.15)',
+                    color: '#25D366',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <MessageSquare size={14} />
+                  Send WhatsApp Report
+                </button>
+              )}
 
               {/* Delete Button */}
               <button

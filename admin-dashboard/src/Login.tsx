@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, Mail, ArrowRight } from 'lucide-react';
 import './Login.css';
+import { API_URL } from './config';
 
 interface LoginProps {
   onLogin: () => void;
@@ -12,28 +13,39 @@ export default function Login({ onLogin }: LoginProps) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     
-    // Hardcoded Admin Logic for now
     if (!email || !password) {
       setError('Fadlan geli email-ka iyo password-ka');
       return;
     }
 
     setLoading(true);
-    
-    setTimeout(() => {
-      setLoading(false);
-      // Hardcoded Admin check
-      if (email === 'admin@darkpen.com' && password === 'admin123') {
-        localStorage.setItem('adminToken', '12345');
+    try {
+      const res = await fetch(`${API_URL}/admin/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      
+      if (res.ok && data.status === 'success') {
+        localStorage.setItem('adminToken', data.token);
+        localStorage.setItem('adminUser', JSON.stringify(data.user));
         onLogin();
       } else {
-        setError('Email ama Password waa khalad');
+        setError(data.message || 'Email ama Password waa khalad');
       }
-    }, 1000);
+    } catch (err) {
+      console.error(err);
+      setError('Cilad ayaa dhacday, fadlan isku day mar kale.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

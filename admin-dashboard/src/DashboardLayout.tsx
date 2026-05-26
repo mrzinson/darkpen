@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { 
-  LogOut, CreditCard, Book, FileText, PieChart, LayoutDashboard, Users, Bot, Settings, Megaphone, CheckSquare, Menu, X, Trophy
+  LogOut, CreditCard, Book, FileText, PieChart, LayoutDashboard, Users, Bot, Settings, Megaphone, CheckSquare, Menu, X, Trophy, Shield
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import './Dashboard.css';
@@ -16,6 +16,9 @@ import GroupsPanel from './components/GroupsPanel';
 import PromoCardsPanel from './components/PromoCardsPanel';
 import PromoClaimsPanel from './components/PromoClaimsPanel';
 import TournamentPanel from './components/TournamentPanel';
+import AIStatsPanel from './components/AIStatsPanel';
+import SettingsPanel from './components/SettingsPanel';
+import AdminsPanel from './components/AdminsPanel';
 
 import { API_URL } from './config';
 
@@ -27,7 +30,9 @@ const Overview = () => {
   const [stats, setStats] = useState<any>(null);
 
   useEffect(() => {
-    fetch(`${API_URL}/admin/stats`)
+    fetch(`${API_URL}/admin/stats`, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+    })
       .then(res => res.json())
       .then(data => setStats(data))
       .catch(console.error);
@@ -128,12 +133,14 @@ const Overview = () => {
   );
 };
 
-const AIPanel = () => <div><h2>AI Chat Stats</h2><p className="text-muted">Detailed monitoring of Gemini & ElevenLabs usage coming soon.</p></div>;
-const SettingsPanel = () => <div><h2>Settings</h2><p className="text-muted">System configuration and API keys management.</p></div>;
+
 
 export default function DashboardLayout({ onLogout }: LayoutProps) {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const adminUser = JSON.parse(localStorage.getItem('adminUser') || '{}');
+  const isSuperAdmin = adminUser.role === 'superadmin';
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -152,6 +159,7 @@ export default function DashboardLayout({ onLogout }: LayoutProps) {
     { path: '/groups', icon: <Users size={20} />, label: 'Groups' },
     { path: '/reports', icon: <PieChart size={20} />, label: 'Reports' },
     { path: '/settings', icon: <Settings size={20} />, label: 'Settings' },
+    ...(isSuperAdmin ? [{ path: '/admins', icon: <Shield size={20} />, label: 'Manage Admins' }] : []),
   ];
 
   return (
@@ -211,8 +219,11 @@ export default function DashboardLayout({ onLogout }: LayoutProps) {
             </div>
           </div>
           <div className="admin-profile">
-            <div className="avatar">A</div>
-            <span>Admin</span>
+            <div className="avatar">{adminUser.name ? adminUser.name.charAt(0).toUpperCase() : 'A'}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              <span style={{ fontWeight: 600, fontSize: '13px' }}>{adminUser.name || 'Admin'}</span>
+              <span style={{ fontSize: '10px', color: 'var(--primary)', textTransform: 'uppercase', fontWeight: 700 }}>{adminUser.role || 'admin'}</span>
+            </div>
           </div>
         </header>
 
@@ -226,10 +237,11 @@ export default function DashboardLayout({ onLogout }: LayoutProps) {
             <Route path="/promo-cards" element={<PromoCardsPanel />} />
             <Route path="/promo-claims" element={<PromoClaimsPanel />} />
             <Route path="/tournament" element={<TournamentPanel />} />
-            <Route path="/ai-stats" element={<AIPanel />} />
+            <Route path="/ai-stats" element={<AIStatsPanel />} />
             <Route path="/groups" element={<GroupsPanel />} />
             <Route path="/reports" element={<ReportsPanel />} />
             <Route path="/settings" element={<SettingsPanel />} />
+            {isSuperAdmin && <Route path="/admins" element={<AdminsPanel />} />}
           </Routes>
         </div>
       </main>

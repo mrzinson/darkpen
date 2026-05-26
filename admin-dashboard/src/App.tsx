@@ -33,6 +33,7 @@ function App() {
             isAuthenticated ? 
             <DashboardLayout onLogout={() => {
               localStorage.removeItem('adminToken');
+              localStorage.removeItem('adminUser');
               setIsAuthenticated(false);
             }} /> : 
             <Navigate to="/login" replace />

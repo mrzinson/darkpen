@@ -3,8 +3,10 @@ const router = express.Router();
 const db = require('../config/db');
 const multer = require('multer');
 const path = require('path');
-
 const fs = require('fs');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const adminAuth = require('../middleware/adminAuth');
 const { clearEmbeddingsCache } = require('../services/aiService');
 
 // Robustly resolve and create uploads directory inside the backend folder
@@ -24,6 +26,75 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
+
+// Admin Activity Logging Helper
+async function logAdminAction(adminId, actionType, details) {
+    try {
+        if (!adminId) return;
+        await db.execute(
+            'INSERT INTO admin_logs (admin_id, action_type, details) VALUES (?, ?, ?)',
+            [adminId, actionType, details]
+        );
+    } catch (e) {
+        console.error('[Admin Log Error]:', e.message);
+    }
+}
+
+// ==========================================
+// PUBLIC ROUTE: Admin Login
+// ==========================================
+router.post('/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Fadlan geli email-ka iyo password-ka' });
+        }
+
+        const [users] = await db.execute('SELECT * FROM users WHERE email = ?', [email.trim().toLowerCase()]);
+        if (users.length === 0) {
+            return res.status(400).json({ message: 'Email ama Password waa khalad' });
+        }
+
+        const user = users[0];
+        if (user.role !== 'admin' && user.role !== 'superadmin') {
+            return res.status(403).json({ message: 'Ma lihid ogolaansho aad ku gasho dashboard-ka' });
+        }
+
+        if (user.is_suspended) {
+            return res.status(403).json({ message: 'Koontadaada waa la laalay (Suspended).' });
+        }
+
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(400).json({ message: 'Email ama Password waa khalad' });
+        }
+
+        const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+
+        // Log login action
+        await logAdminAction(user.id, 'LOGIN', `Logged in successfully`);
+
+        res.json({
+            status: 'success',
+            token,
+            user: {
+                id: user.id,
+                name: user.name,
+                username: user.username,
+                email: user.email,
+                role: user.role
+            }
+        });
+    } catch (error) {
+        console.error('Admin login error:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday login-ka' });
+    }
+});
+
+// ==========================================
+// SECURE MIDDLEWARE: Protect all subsequent routes
+// ==========================================
+router.use(adminAuth);
 
 // 1. Stats Overview
 router.get('/stats', async (req, res) => {
@@ -691,6 +762,420 @@ router.post('/tournament/contestants/:id/toggle-suspend', async (req, res) => {
     } catch (error) {
         console.error('Error toggling tournament suspension:', error);
         res.status(500).json({ message: 'Cilad ayaa dhacday badalida suspension-ka' });
+    }
+});
+
+// ==========================================
+// OVERHAUL ROUTING: New dashboard endpoints
+// ==========================================
+
+// Update user email
+router.put('/users/:id/email', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { email } = req.body;
+        
+        const [currentUser] = await db.execute('SELECT name, email FROM users WHERE id = ?', [id]);
+        if (currentUser.length === 0) {
+            return res.status(404).json({ message: 'User-ka lama helin' });
+        }
+        
+        await db.execute('UPDATE users SET email = ? WHERE id = ?', [email ? email.trim().toLowerCase() : null, id]);
+        
+        await logAdminAction(
+            req.user.id,
+            'UPDATE_USER_EMAIL',
+            `Changed email for user "${currentUser[0].name}" (ID: ${id}) from "${currentUser[0].email}" to "${email}"`
+        );
+        
+        res.json({ status: 'success', message: 'Email-ka user-ka waa la cusboonaysiiyay!' });
+    } catch (error) {
+        console.error('Error updating user email:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday cusboonaysiinta email-ka' });
+    }
+});
+
+// AI usage stats
+router.get('/ai-stats', async (req, res) => {
+    try {
+        const [totalStats] = await db.execute(`
+            SELECT 
+                COUNT(*) as totalRequests,
+                SUM(prompt_tokens) as totalPromptTokens,
+                SUM(completion_tokens) as totalCompletionTokens,
+                SUM(cost) as totalCost
+            FROM ai_usage_logs
+        `);
+
+        const [modelStats] = await db.execute(`
+            SELECT 
+                model_name as modelName,
+                COUNT(*) as requests,
+                SUM(prompt_tokens) as promptTokens,
+                SUM(completion_tokens) as completionTokens,
+                SUM(cost) as cost
+            FROM ai_usage_logs
+            GROUP BY model_name
+        `);
+
+        const [chatTypeStats] = await db.execute(`
+            SELECT 
+                chat_type as chatType,
+                COUNT(*) as requests,
+                SUM(cost) as cost
+            FROM ai_usage_logs
+            GROUP BY chat_type
+        `);
+
+        const [topUsers] = await db.execute(`
+            SELECT 
+                u.id,
+                u.name,
+                u.username,
+                COUNT(l.id) as requests,
+                SUM(l.prompt_tokens) as promptTokens,
+                SUM(l.completion_tokens) as completionTokens,
+                SUM(l.cost) as cost
+            FROM ai_usage_logs l
+            JOIN users u ON l.user_id = u.id
+            GROUP BY u.id
+            ORDER BY cost DESC
+            LIMIT 10
+        `);
+
+        const [chartData] = await db.execute(`
+            SELECT 
+                DATE(created_at) as date,
+                SUM(prompt_tokens + completion_tokens) as tokens,
+                SUM(cost) as cost,
+                COUNT(*) as requests
+            FROM ai_usage_logs
+            WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 15 DAY)
+            GROUP BY DATE(created_at)
+            ORDER BY date ASC
+        `);
+
+        res.json({
+            summary: totalStats[0] || { totalRequests: 0, totalPromptTokens: 0, totalCompletionTokens: 0, totalCost: 0 },
+            models: modelStats,
+            chatTypes: chatTypeStats,
+            topUsers,
+            chartData: chartData.map(item => ({
+                name: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                tokens: parseInt(item.tokens) || 0,
+                cost: parseFloat(item.cost) || 0,
+                requests: parseInt(item.requests) || 0
+            }))
+        });
+    } catch (error) {
+        console.error('Error fetching AI stats:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday AI stats-ka' });
+    }
+});
+
+// Custom reports (dynamic real data)
+router.get('/reports', async (req, res) => {
+    try {
+        const { range } = req.query; // '7', '30', '60', '90', 'all'
+        let intervalSql = '';
+        if (range === '7') {
+            intervalSql = "AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
+        } else if (range === '30') {
+            intervalSql = "AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)";
+        } else if (range === '60') {
+            intervalSql = "AND created_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)";
+        } else if (range === '90') {
+            intervalSql = "AND created_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)";
+        }
+
+        const revenueQuery = `SELECT SUM(amount) as total FROM payments WHERE status = "approved" ${intervalSql}`;
+        const [revRes] = await db.execute(revenueQuery);
+        const totalRevenue = parseFloat(revRes[0].total) || 0;
+
+        const aiCostQuery = `SELECT SUM(cost) as total FROM ai_usage_logs WHERE 1=1 ${intervalSql}`;
+        const [aiCostRes] = await db.execute(aiCostQuery);
+        const totalAICost = parseFloat(aiCostRes[0].total) || 0;
+
+        const netProfit = totalRevenue - totalAICost;
+
+        const usersQuery = `SELECT COUNT(*) as count FROM users WHERE 1=1 ${intervalSql}`;
+        const [usersRes] = await db.execute(usersQuery);
+        const newUsers = usersRes[0].count;
+
+        const approvedPaymentsQuery = `SELECT COUNT(*) as count FROM payments WHERE status = "approved" ${intervalSql}`;
+        const [payRes] = await db.execute(approvedPaymentsQuery);
+        const approvedPaymentsCount = payRes[0].count;
+
+        const activeAIChatsQuery = `SELECT COUNT(DISTINCT user_id) as count FROM messages_private WHERE 1=1 ${intervalSql}`;
+        const [chatsRes] = await db.execute(activeAIChatsQuery);
+        const activeAIChats = chatsRes[0].count;
+
+        const recentTxQuery = `
+            SELECT p.*, u.name as user_name, u.email as user_email
+            FROM payments p
+            JOIN users u ON p.user_id = u.id
+            ORDER BY p.created_at DESC
+            LIMIT 10
+        `;
+        const [recentTx] = await db.execute(recentTxQuery);
+
+        let chartDataQuery = '';
+        if (range === '7') {
+            chartDataQuery = `
+                SELECT DATE(created_at) as date, COUNT(*) as count 
+                FROM users 
+                WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                GROUP BY DATE(created_at) ORDER BY date ASC
+            `;
+        } else {
+            chartDataQuery = `
+                SELECT DATE(created_at) as date, COUNT(*) as count 
+                FROM users 
+                WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                GROUP BY DATE(created_at) ORDER BY date ASC
+            `;
+        }
+        const [chartRes] = await db.execute(chartDataQuery);
+        const signupChartData = chartRes.map(item => ({
+            name: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            users: item.count
+        }));
+
+        res.json({
+            summary: {
+                totalRevenue,
+                totalAICost,
+                netProfit,
+                newUsers,
+                approvedPaymentsCount,
+                activeAIChats
+            },
+            recentTransactions: recentTx,
+            signupChartData
+        });
+    } catch (error) {
+        console.error('Error fetching reports:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday soo saarista reports-ka' });
+    }
+});
+
+// App Settings CRUD
+router.get('/settings', async (req, res) => {
+    try {
+        const [rows] = await db.execute('SELECT * FROM app_settings');
+        const settings = {};
+        rows.forEach(row => {
+            settings[row.setting_key] = row.setting_value;
+        });
+        res.json(settings);
+    } catch (error) {
+        console.error('Error getting settings:', error);
+        res.status(500).json({ message: 'Error fetching settings' });
+    }
+});
+
+router.put('/settings', async (req, res) => {
+    try {
+        const settings = req.body;
+        for (const [key, value] of Object.entries(settings)) {
+            await db.execute(
+                `INSERT INTO app_settings (setting_key, setting_value) VALUES (?, ?) 
+                 ON DUPLICATE KEY UPDATE setting_value = ?`,
+                [key, String(value), String(value)]
+            );
+        }
+        await logAdminAction(req.user.id, 'UPDATE_SETTINGS', `Updated system configuration settings.`);
+        res.json({ status: 'success', message: 'Settings-ka si guul leh ayaa loo cusboonaysiiyey!' });
+    } catch (error) {
+        console.error('Error updating settings:', error);
+        res.status(500).json({ message: 'Error updating settings' });
+    }
+});
+
+// Safe reset/cleanup of database (preserving books/exams/users)
+router.post('/reset-data', async (req, res) => {
+    try {
+        if (req.user.role !== 'superadmin') {
+            return res.status(403).json({ message: 'Kaliya Super Admin ayaa tirtiri kara xogta tijaabada!' });
+        }
+
+        console.log(`[CLEANUP] Starting database cleanup, initiated by SuperAdmin ID: ${req.user.id}`);
+
+        // Truncate/delete testing tables
+        await db.execute('DELETE FROM payments');
+        await db.execute('DELETE FROM messages_private');
+        await db.execute('DELETE FROM messages_group');
+        await db.execute('DELETE FROM group_messages_v2');
+        await db.execute('DELETE FROM shukaansi_messages');
+        await db.execute('DELETE FROM chat_sessions');
+        await db.execute('DELETE FROM user_claimed_promos');
+        await db.execute('DELETE FROM quiz_attempts');
+        await db.execute('DELETE FROM ai_usage_logs');
+        
+        // Reset wallets & free usage limits to 0
+        await db.execute('UPDATE user_wallet SET balance = 0');
+        await db.execute('UPDATE shukaansi_wallet SET balance = 0');
+        await db.execute('UPDATE user_free_ai_usage SET free_text_used = 0, free_image_used = 0');
+
+        await logAdminAction(req.user.id, 'DATABASE_RESET', 'Cleared test data (payments, chats, sessions, claims, quiz attempts). Preserved users, schools, classes, books, and exams.');
+
+        res.json({ 
+            status: 'success', 
+            message: 'Si guul leh ayaa loo tirtiray xogta tijaabada (lacag-bixinta, fariimaha, sessions-ka) iyadoo la badbaadiyey users, books iyo exams!' 
+        });
+    } catch (error) {
+        console.error('Error in database cleanup:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday inta lagu guda jiray tirtirista xogta' });
+    }
+});
+
+// Admin management: List admins (superadmin only)
+router.get('/admins', async (req, res) => {
+    try {
+        if (req.user.role !== 'superadmin') {
+            return res.status(403).json({ message: 'Kaliya Super Admin ayaa geli kara qaybtan' });
+        }
+
+        const [admins] = await db.execute(`
+            SELECT id, name, username, email, role, is_suspended, created_at
+            FROM users
+            WHERE role IN ('admin', 'superadmin')
+            ORDER BY created_at DESC
+        `);
+        res.json(admins);
+    } catch (error) {
+        console.error('Error fetching admins:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday soo qaadista admins-ka' });
+    }
+});
+
+// Create new admin (superadmin only)
+router.post('/admins', async (req, res) => {
+    try {
+        if (req.user.role !== 'superadmin') {
+            return res.status(403).json({ message: 'Kaliya Super Admin ayaa abuuri kara admins cusub' });
+        }
+
+        const { name, username, email, whatsapp_number, password, role } = req.body;
+        if (!name || !username || !email || !password) {
+            return res.status(400).json({ message: 'Fadlan buuxi dhamaan xogta lagama maarmaanka ah' });
+        }
+
+        const [existing] = await db.execute('SELECT id FROM users WHERE email = ? OR username = ?', [email.trim().toLowerCase(), username.trim().toLowerCase()]);
+        if (existing.length > 0) {
+            return res.status(400).json({ message: 'Email ama Username kan mar hore ayaa la isticmaalay' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 12);
+        const adminRole = role === 'superadmin' ? 'superadmin' : 'admin';
+
+        const [result] = await db.execute(
+            `INSERT INTO users (name, username, email, whatsapp_number, password, role, is_verified)
+             VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
+            [name, username.trim().toLowerCase(), email.trim().toLowerCase(), whatsapp_number || null, hashedPassword, adminRole]
+        );
+
+        await logAdminAction(
+            req.user.id,
+            'CREATE_ADMIN',
+            `Created new admin "${name}" (Email: ${email}, Role: ${adminRole})`
+        );
+
+        res.json({ status: 'success', message: 'Admin-ka si guul leh ayaa loo abuuray!', adminId: result.insertId });
+    } catch (error) {
+        console.error('Error creating admin:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday abuurista admin-ka' });
+    }
+});
+
+// Suspend/unsuspend admin (superadmin only)
+router.post('/admins/:id/suspend', async (req, res) => {
+    try {
+        if (req.user.role !== 'superadmin') {
+            return res.status(403).json({ message: 'Kaliya Super Admin ayaa xadidi kara admins' });
+        }
+
+        const { id } = req.params;
+        if (parseInt(id) === req.user.id) {
+            return res.status(400).json({ message: 'Iskama joojin kartid koontadaada!' });
+        }
+
+        const [admins] = await db.execute('SELECT name, role, is_suspended FROM users WHERE id = ? AND role IN ("admin", "superadmin")', [id]);
+        if (admins.length === 0) {
+            return res.status(404).json({ message: 'Admin-ka lama helin' });
+        }
+
+        const admin = admins[0];
+        const newStatus = admin.is_suspended ? 0 : 1;
+        await db.execute('UPDATE users SET is_suspended = ? WHERE id = ?', [newStatus, id]);
+
+        await logAdminAction(
+            req.user.id,
+            newStatus ? 'SUSPEND_ADMIN' : 'UNSUSPEND_ADMIN',
+            `${newStatus ? 'Suspended' : 'Unsuspended'} admin user "${admin.name}" (ID: ${id})`
+        );
+
+        res.json({
+            status: 'success',
+            message: newStatus ? 'Admin-ka waa la laalay (Suspended)' : 'Admin-ka waa laga qaaday laaliddii (Active)',
+            is_suspended: newStatus
+        });
+    } catch (error) {
+        console.error('Error suspending admin:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday' });
+    }
+});
+
+// Delete admin (superadmin only)
+router.delete('/admins/:id', async (req, res) => {
+    try {
+        if (req.user.role !== 'superadmin') {
+            return res.status(403).json({ message: 'Kaliya Super Admin ayaa tirtiri kara admins' });
+        }
+
+        const { id } = req.params;
+        if (parseInt(id) === req.user.id) {
+            return res.status(400).json({ message: 'Ma tirtiri kartid koontadaada!' });
+        }
+
+        const [admins] = await db.execute('SELECT name FROM users WHERE id = ? AND role IN ("admin", "superadmin")', [id]);
+        if (admins.length === 0) {
+            return res.status(404).json({ message: 'Admin-ka lama helin' });
+        }
+
+        await db.execute('DELETE FROM users WHERE id = ?', [id]);
+
+        await logAdminAction(
+            req.user.id,
+            'DELETE_ADMIN',
+            `Deleted admin user "${admins[0].name}" (ID: ${id})`
+        );
+
+        res.json({ status: 'success', message: 'Admin-kii waa la tirtiray!' });
+    } catch (error) {
+        console.error('Error deleting admin:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday tirtirista admin-ka' });
+    }
+});
+
+// Get admin logs (superadmin only)
+router.get('/admin-logs', async (req, res) => {
+    try {
+        if (req.user.role !== 'superadmin') {
+            return res.status(403).json({ message: 'Kaliya Super Admin ayaa arki kara logs-ka' });
+        }
+
+        const [logs] = await db.execute(`
+            SELECT l.*, u.name as admin_name, u.email as admin_email, u.role as admin_role
+            FROM admin_logs l
+            JOIN users u ON l.admin_id = u.id
+            ORDER BY l.created_at DESC
+            LIMIT 100
+        `);
+        res.json(logs);
+    } catch (error) {
+        console.error('Error fetching admin logs:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday soo qaadista logs-ka' });
     }
 });
 
