@@ -5,7 +5,7 @@ import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Modal, Dimensions
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { BlurView } from 'expo-blur';
+import { CustomBlurView as BlurView } from '../../components/CustomBlurView';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, Image, Linking, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -20,7 +20,7 @@ const CARD_SPACING = 16;
 const SNAP_INTERVAL = CARD_WIDTH + CARD_SPACING;
 
 export default function HomeScreen() {
-  const { colors, isDark, setTheme, theme, t, language } = useTheme();
+  const { colors, isDark, setTheme, theme, t, language, setLanguage } = useTheme();
   const styles = getStyles(colors, isDark);
 
   const router = useRouter();
@@ -389,7 +389,7 @@ export default function HomeScreen() {
         </TouchableOpacity>
 
         <View style={styles.brandTitle}>
-          <AppLogo size={34} />
+          
           <Text style={styles.appName}>DARKPEN</Text>
         </View>
 
@@ -679,6 +679,19 @@ export default function HomeScreen() {
                   <Text style={styles.drawerMenuLabel}>{isDark ? "Light Mode" : "Dark Mode"}</Text>
                   <View style={{ flex: 1, alignItems: 'flex-end', marginRight: 16 }}>
                     <Ionicons name={isDark ? "toggle" : "toggle-outline"} size={32} color={isDark ? "#3B82F6" : "#9CA3AF"} />
+                  </View>
+                </TouchableOpacity>
+
+                {/* Language Toggle Switch inside Sidebar */}
+                <TouchableOpacity 
+                  style={[styles.drawerMenuItem, { marginTop: 0 }]} 
+                  onPress={() => setLanguage(language === 'en' ? 'so' : 'en')}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="language-outline" size={22} color={colors.secondary} style={styles.drawerMenuIcon} />
+                  <Text style={styles.drawerMenuLabel}>{language === 'en' ? "Somali (SO)" : "English (EN)"}</Text>
+                  <View style={{ flex: 1, alignItems: 'flex-end', marginRight: 16 }}>
+                    <Ionicons name={language === 'so' ? "toggle" : "toggle-outline"} size={32} color={language === 'so' ? "#10B981" : "#9CA3AF"} />
                   </View>
                 </TouchableOpacity>
               </ScrollView>

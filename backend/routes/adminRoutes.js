@@ -313,13 +313,13 @@ const ingestionService = require('../services/ingestionService');
 
 router.post('/exams', upload.fields([{ name: 'image', maxCount: 1 }, { name: 'pdf', maxCount: 1 }]), async (req, res) => {
     try {
-        const { title, description, category, year } = req.body;
+        const { title, description, category, year, country, region_state } = req.body;
         const imageUrl = req.files['image'] ? `/uploads/${req.files['image'][0].filename}` : null;
         const pdfUrl = req.files['pdf'] ? `/uploads/${req.files['pdf'][0].filename}` : null;
 
         const [result] = await db.execute(
-            'INSERT INTO exams (title, description, category, year, image_url, pdf_url) VALUES (?, ?, ?, ?, ?, ?)',
-            [title, description, category || 'General', year || '2025', imageUrl, pdfUrl]
+            'INSERT INTO exams (title, description, category, year, image_url, pdf_url, country, region_state) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [title, description, category || 'General', year || '2025', imageUrl, pdfUrl, country || null, region_state || null]
         );
 
         // Ingest into RAG in background
@@ -358,13 +358,13 @@ router.get('/books', async (req, res) => {
 
 router.post('/books', upload.fields([{ name: 'image', maxCount: 1 }, { name: 'pdf', maxCount: 1 }]), async (req, res) => {
     try {
-        const { title, author, category, grade } = req.body;
+        const { title, author, category, grade, country, region_state } = req.body;
         const imageUrl = req.files['image'] ? `/uploads/${req.files['image'][0].filename}` : null;
         const pdfUrl = req.files['pdf'] ? `/uploads/${req.files['pdf'][0].filename}` : null;
 
         const [result] = await db.execute(
-            'INSERT INTO books (title, author, category, grade, image_url, pdf_url) VALUES (?, ?, ?, ?, ?, ?)',
-            [title, author, category || 'General', grade || 'Form 4', imageUrl, pdfUrl]
+            'INSERT INTO books (title, author, category, grade, image_url, pdf_url, country, region_state) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [title, author, category || 'General', grade || 'Form 4', imageUrl, pdfUrl, country || null, region_state || null]
         );
 
         // Ingest into RAG in background

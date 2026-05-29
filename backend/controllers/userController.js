@@ -9,7 +9,7 @@ exports.getProfile = async (req, res) => {
     try {
         const userId = req.user.id;
         const [users] = await db.execute(
-            'SELECT id, name, email, whatsapp_number, username, profile_picture, gender, created_at FROM users WHERE id = ?',
+            'SELECT id, name, email, whatsapp_number, username, profile_picture, gender, country, region_state, created_at FROM users WHERE id = ?',
             [userId]
         );
 
@@ -27,7 +27,7 @@ exports.getProfile = async (req, res) => {
 exports.updateProfile = async (req, res) => {
     try {
         const userId = req.user.id;
-        const { name, username, email, gender, password, profile_picture } = req.body;
+        const { name, username, email, gender, country, region_state, password, profile_picture } = req.body;
 
         // Fetch current user data
         const [users] = await db.execute('SELECT * FROM users WHERE id = ?', [userId]);
@@ -57,9 +57,11 @@ exports.updateProfile = async (req, res) => {
             await db.execute('UPDATE users SET username = ?, last_username_change = CURRENT_TIMESTAMP WHERE id = ?', [username, userId]);
         }
 
-        // Update Name & Gender
+        // Update Name, Gender, Country & region_state
         if (name) await db.execute('UPDATE users SET name = ? WHERE id = ?', [name, userId]);
-        if (gender) await db.execute('UPDATE users SET gender = ? WHERE id = ?', [gender, userId]);
+        if (gender !== undefined) await db.execute('UPDATE users SET gender = ? WHERE id = ?', [gender || null, userId]);
+        if (country !== undefined) await db.execute('UPDATE users SET country = ? WHERE id = ?', [country || null, userId]);
+        if (region_state !== undefined) await db.execute('UPDATE users SET region_state = ? WHERE id = ?', [region_state || null, userId]);
 
         if (email !== undefined) {
             const cleanEmail = String(email || '').trim().toLowerCase();
@@ -94,7 +96,7 @@ exports.updateProfile = async (req, res) => {
 
         // Fetch updated user to return
         const [updated] = await db.execute(
-            'SELECT id, name, email, whatsapp_number, username, profile_picture, gender FROM users WHERE id = ?',
+            'SELECT id, name, email, whatsapp_number, username, profile_picture, gender, country, region_state FROM users WHERE id = ?',
             [userId]
         );
 

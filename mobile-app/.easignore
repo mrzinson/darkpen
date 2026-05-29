@@ -1,0 +1,47 @@
+# Node modules
+node_modules/
+
+# Expo cache
+.expo/
+
+# Build outputs
+dist/
+web-build/
+android/
+ios/
+
+# Logs
+*.log
+expo.stdout.log
+expo.stderr.log
+
+# OS files
+.DS_Store
+
+# Git history (not needed for build)
+../.git/
+
+# Other project folders not needed for mobile build
+../backend/
+../admin-dashboard/
+../get_sizes_root.js
+
+# Inspection folders
+my-archive-folder/
+
+# Fix scripts
+clean-garbage.js
+final-fix-v2.js
+final-fix.js
+fix-commas.js
+fix-syntax.js
+fix-ui.js
+fix.js
+refactor-theme.js
+
+# Error dumps
+tsc_errors.txt
+tsc_errors_utf8.txt
+
+# VSCode
+.vscode/

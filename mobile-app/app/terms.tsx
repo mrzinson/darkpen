@@ -38,12 +38,17 @@ export default function TermsScreen() {
       if (!response.ok) throw new Error(data.message || 'Waa la keydin waayay');
 
       const cached = await AsyncStorage.getItem('userData');
+      let user = null;
       if (cached) {
-        const user = JSON.parse(cached);
+        user = JSON.parse(cached);
         await AsyncStorage.setItem('userData', JSON.stringify({ ...user, terms_accepted_at: new Date().toISOString() }));
       }
 
-      router.push('/(tabs)');
+      if (user && (!user.country || !user.gender)) {
+        router.push('/onboarding');
+      } else {
+        router.push('/(tabs)');
+      }
     } catch (err: any) {
       setErrorMsg(err.message);
     } finally {

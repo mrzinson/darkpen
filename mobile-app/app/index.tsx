@@ -4,6 +4,8 @@ import { StyleSheet, Text, View, Animated, Easing } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { AppLogo } from '../components/AppLogo';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Config from '../constants/Config';
 
 export default function SplashScreen() {
   const { colors, isDark, setTheme, theme } = useTheme();
@@ -55,8 +57,64 @@ export default function SplashScreen() {
       useNativeDriver: true,
     }).start();
 
+    const checkAuthAndRedirect = async () => {
+      try {
+        const token = await AsyncStorage.getItem('userToken');
+        if (!token) {
+          router.replace('/login');
+          return;
+        }
+
+        const response = await fetch(`${Config.API_URL}/api/user/profile`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (!response.ok) {
+          await AsyncStorage.removeItem('userToken');
+          await AsyncStorage.removeItem('userData');
+          router.replace('/login');
+          return;
+        }
+
+        const data = await response.json();
+        if (data.user) {
+          await AsyncStorage.setItem('userData', JSON.stringify(data.user));
+
+          if (!data.user.terms_accepted_at) {
+            router.replace('/terms');
+          } else if (!data.user.country || !data.user.gender) {
+            router.replace('/onboarding');
+          } else {
+            router.replace('/(tabs)');
+          }
+        } else {
+          router.replace('/login');
+        }
+      } catch (err) {
+        const token = await AsyncStorage.getItem('userToken');
+        if (!token) {
+          router.replace('/login');
+          return;
+        }
+
+        const cached = await AsyncStorage.getItem('userData');
+        if (cached) {
+          const user = JSON.parse(cached);
+          if (!user.terms_accepted_at) {
+            router.replace('/terms');
+          } else if (!user.country || !user.gender) {
+            router.replace('/onboarding');
+          } else {
+            router.replace('/(tabs)');
+          }
+        } else {
+          router.replace('/(tabs)');
+        }
+      }
+    };
+
     const timer = setTimeout(() => {
-      router.replace('/(tabs)');
+      checkAuthAndRedirect();
     }, 2800);
 
     return () => clearTimeout(timer);

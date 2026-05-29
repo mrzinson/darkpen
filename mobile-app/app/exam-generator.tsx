@@ -38,22 +38,22 @@ export default function ExamGeneratorScreen() {
   const [activeTab, setActiveTab] = useState<'create' | 'history'>('create');
 
   // Form State
-  const [subject, setSubject] = useState(SUBJECTS[0]);
-  const [grade, setGrade] = useState(GRADES[3]);
+  const [subject, setSubject] = useState('');
+  const [grade, setGrade] = useState('');
   const [topic, setTopic] = useState('');
-  const [questionCount, setQuestionCount] = useState(10);
-  const [examLanguage, setExamLanguage] = useState(LANGUAGES[0]);
-  const [duration, setDuration] = useState('1 saac (1 Hour)');
-  const [totalMarks, setTotalMarks] = useState('100 dhibcood (100 Marks)');
+  const [questionCount, setQuestionCount] = useState('');
+  const [examLanguage, setExamLanguage] = useState('');
+  const [duration, setDuration] = useState('');
+  const [totalMarks, setTotalMarks] = useState('');
   
   // Advanced features & new accessibility options
   const [instructions, setInstructions] = useState('');
   const [logo, setLogo] = useState<string | null>(null);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
-  const [fontStyle, setFontStyle] = useState(FONTS[0]);
-  const [pageCount, setPageCount] = useState(PAGES[0]);
-  const [paragraphStyle, setParagraphStyle] = useState(SPACINGS[0]);
-  const [difficulty, setDifficulty] = useState(DIFFICULTIES[1]);
+  const [fontStyle, setFontStyle] = useState('');
+  const [pageCount, setPageCount] = useState('');
+  const [paragraphStyle, setParagraphStyle] = useState('');
+  const [difficulty, setDifficulty] = useState('');
   const [includeAnswerKey, setIncludeAnswerKey] = useState(true);
 
   // Illustrations / Images State
@@ -143,7 +143,7 @@ export default function ExamGeneratorScreen() {
     const aiImageCost = 20;
 
     let cost = baseCost;
-    cost += questionCount * perQuestionCost;
+    cost += (parseInt(String(questionCount)) || 0) * perQuestionCost;
 
     const targetPages = parseInt(pageCount) || 0;
     cost += targetPages * pageCost;
@@ -301,7 +301,7 @@ export default function ExamGeneratorScreen() {
           subject,
           grade,
           topic: topic.trim(),
-          questionCount,
+          questionCount: parseInt(String(questionCount)) || 10,
           logo: logoBase64,
           instructions: instructions.trim(),
           language: examLanguage,
@@ -442,8 +442,17 @@ export default function ExamGeneratorScreen() {
               <Text style={styles.cardTitle}>1. Xogta Maaddada (Exam Subject & Grade)</Text>
             </View>
 
-            <Text style={styles.subSectionLabel}>Dooro Maaddada (Subject)</Text>
-            <View style={styles.optionsGrid}>
+            <Text style={styles.subSectionLabel}>Maaddada (Subject)</Text>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[styles.textInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
+                placeholder="Tusaale: Biology, History, Mathematics..."
+                placeholderTextColor="#9CA3AF"
+                value={subject}
+                onChangeText={setSubject}
+              />
+            </View>
+            <View style={[styles.optionsGrid, { marginTop: 10 }]}>
               {SUBJECTS.map((sub) => {
                 const isSelected = subject === sub;
                 return (
@@ -458,8 +467,17 @@ export default function ExamGeneratorScreen() {
               })}
             </View>
 
-            <Text style={styles.subSectionLabel}>Dooro Fasalka (Grade)</Text>
-            <View style={styles.optionsGrid}>
+            <Text style={styles.subSectionLabel}>Fasalka (Grade)</Text>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[styles.textInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
+                placeholder="Tusaale: Form 1, Grade 8, University Year 1..."
+                placeholderTextColor="#9CA3AF"
+                value={grade}
+                onChangeText={setGrade}
+              />
+            </View>
+            <View style={[styles.optionsGrid, { marginTop: 10 }]}>
               {GRADES.map((gr) => {
                 const isSelected = grade === gr;
                 return (
@@ -494,14 +512,24 @@ export default function ExamGeneratorScreen() {
             </View>
 
             <Text style={styles.subSectionLabel}>Tirada Su'aalaha (Questions)</Text>
-            <View style={styles.optionsGrid}>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[styles.textInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
+                placeholder="Tusaale: 10, 20, 50..."
+                placeholderTextColor="#9CA3AF"
+                value={String(questionCount)}
+                onChangeText={(text) => setQuestionCount(text.replace(/[^0-9]/g, '') as any)}
+                keyboardType="numeric"
+              />
+            </View>
+            <View style={[styles.optionsGrid, { marginTop: 10 }]}>
               {QUESTION_COUNTS.map((count) => {
-                const isSelected = questionCount === count;
+                const isSelected = String(questionCount) === String(count);
                 return (
                   <TouchableOpacity
                     key={count}
                     style={[styles.pillButton, isSelected && styles.pillButtonActive]}
-                    onPress={() => setQuestionCount(count)}
+                    onPress={() => setQuestionCount(String(count))}
                   >
                     <Text style={[styles.pillText, isSelected && styles.pillTextActive]}>{count} Su'aalood</Text>
                   </TouchableOpacity>
@@ -510,7 +538,16 @@ export default function ExamGeneratorScreen() {
             </View>
 
             <Text style={styles.subSectionLabel}>Heerka Imtixaanka (Difficulty)</Text>
-            <View style={styles.optionsGrid}>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[styles.textInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
+                placeholder="Tusaale: Fudud (Easy), Dhexdhexaad (Medium), Adag (Hard)..."
+                placeholderTextColor="#9CA3AF"
+                value={difficulty}
+                onChangeText={setDifficulty}
+              />
+            </View>
+            <View style={[styles.optionsGrid, { marginTop: 10 }]}>
               {DIFFICULTIES.map((diff) => {
                 const isSelected = difficulty === diff;
                 return (
@@ -526,7 +563,16 @@ export default function ExamGeneratorScreen() {
             </View>
 
             <Text style={styles.subSectionLabel}>Luuqadda Imtixaanka</Text>
-            <View style={styles.optionsGrid}>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[styles.textInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
+                placeholder="Tusaale: Somali, English, Arabic..."
+                placeholderTextColor="#9CA3AF"
+                value={examLanguage}
+                onChangeText={setExamLanguage}
+              />
+            </View>
+            <View style={[styles.optionsGrid, { marginTop: 10 }]}>
               {LANGUAGES.map((lang) => {
                 const isSelected = examLanguage === lang;
                 return (
@@ -572,7 +618,16 @@ export default function ExamGeneratorScreen() {
             </View>
 
             <Text style={styles.subSectionLabel}>Nooca Farta (Font Style)</Text>
-            <View style={styles.optionsGrid}>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[styles.textInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
+                placeholder="Tusaale: Times New Roman, Arial..."
+                placeholderTextColor="#9CA3AF"
+                value={fontStyle}
+                onChangeText={setFontStyle}
+              />
+            </View>
+            <View style={[styles.optionsGrid, { marginTop: 10 }]}>
               {FONTS.map((font) => {
                 const isSelected = fontStyle === font;
                 return (
@@ -588,7 +643,16 @@ export default function ExamGeneratorScreen() {
             </View>
 
             <Text style={styles.subSectionLabel}>Inta Bog ee Ugu Talo Galay (Page Count)</Text>
-            <View style={styles.optionsGrid}>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[styles.textInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
+                placeholder="Tusaale: Auto, 2, 5..."
+                placeholderTextColor="#9CA3AF"
+                value={pageCount}
+                onChangeText={setPageCount}
+              />
+            </View>
+            <View style={[styles.optionsGrid, { marginTop: 10 }]}>
               {PAGES.map((p) => {
                 const isSelected = pageCount === p;
                 return (
@@ -604,7 +668,16 @@ export default function ExamGeneratorScreen() {
             </View>
 
             <Text style={styles.subSectionLabel}>Qaabka Paragraphs (Spacing Style)</Text>
-            <View style={styles.optionsGrid}>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[styles.textInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
+                placeholder="Tusaale: Standard, Double Spacing..."
+                placeholderTextColor="#9CA3AF"
+                value={paragraphStyle}
+                onChangeText={setParagraphStyle}
+              />
+            </View>
+            <View style={[styles.optionsGrid, { marginTop: 10 }]}>
               {SPACINGS.map((sp) => {
                 const isSelected = paragraphStyle === sp;
                 return (

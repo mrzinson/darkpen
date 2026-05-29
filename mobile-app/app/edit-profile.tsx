@@ -23,6 +23,8 @@ export default function EditProfileScreen() {
     email: '',
     password: '',
     gender: '',
+    country: '',
+    region_state: '',
     profile_picture: ''
   });
 
@@ -37,6 +39,8 @@ export default function EditProfileScreen() {
           username: user.username || '',
           email: user.email || '',
           gender: user.gender || '',
+          country: user.country || '',
+          region_state: user.region_state || '',
           profile_picture: user.profile_picture || ''
         }));
       }
@@ -72,6 +76,8 @@ export default function EditProfileScreen() {
       if (form.username) updateData.username = form.username;
       updateData.email = form.email.trim();
       if (form.gender) updateData.gender = form.gender;
+      updateData.country = form.country;
+      updateData.region_state = form.country === 'Somalia' ? form.region_state : null;
       if (form.profile_picture) updateData.profile_picture = form.profile_picture;
       if (form.password) updateData.password = form.password;
 
@@ -91,6 +97,13 @@ export default function EditProfileScreen() {
       }
 
       await AsyncStorage.setItem('userData', JSON.stringify(data.user));
+      
+      // Clear books/exams cache to fetch new region specific data
+      await AsyncStorage.removeItem('home_books');
+      await AsyncStorage.removeItem('home_exams');
+      await AsyncStorage.removeItem('manhajka_books');
+      await AsyncStorage.removeItem('exams_list');
+
       Alert.alert('Guul', 'Profile-ka si guul leh ayaa loo bedelay!', [
         { text: 'OK', onPress: () => router.back() }
       ]);
@@ -191,6 +204,54 @@ export default function EditProfileScreen() {
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* Country Selection */}
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Country (Wadanka)</Text>
+            <View style={styles.gridContainer}>
+              {['Somaliland', 'Somalia', 'Kenya', 'Ethiopia', 'Nairobi'].map((c) => (
+                <TouchableOpacity
+                  key={c}
+                  style={[styles.gridBtn, form.country === c && styles.gridBtnActive]}
+                  onPress={() => setForm({ ...form, country: c, region_state: '' })}
+                >
+                  <Text style={[styles.gridBtnText, form.country === c && styles.gridBtnTextActive]}>{c}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput
+              style={[styles.input, { marginTop: 8 }]}
+              placeholder="Or type other country..."
+              value={['Somaliland', 'Somalia', 'Kenya', 'Ethiopia', 'Nairobi'].includes(form.country) ? '' : form.country}
+              onChangeText={(t) => setForm({ ...form, country: t, region_state: '' })}
+            />
+          </View>
+
+          {/* Regional State (Visible only if Somalia is selected) */}
+          {form.country === 'Somalia' && (
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Regional State (Maamul Goboleedka)</Text>
+              <View style={styles.stateSelectContainer}>
+                {[
+                  'Puntland',
+                  'Jubaland',
+                  'Galmudug',
+                  'Hirshabelle',
+                  'South West State',
+                  'SSC Khatumo',
+                  'Villa Somalia / Mogadishu (Banaadir)'
+                ].map((s) => (
+                  <TouchableOpacity
+                    key={s}
+                    style={[styles.stateSelectBtn, form.region_state === s && styles.stateSelectBtnActive]}
+                    onPress={() => setForm({ ...form, region_state: s })}
+                  >
+                    <Text style={[styles.stateSelectText, form.region_state === s && styles.stateSelectTextActive]}>{s}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
 
           <View style={styles.formGroup}>
             <Text style={styles.label}>New Password (Optional)</Text>
@@ -334,6 +395,61 @@ const getStyles = (colors: any) => StyleSheet.create({
     color: colors.secondary,
   },
   genderTextActive: {
+    color: 'white',
+  },
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 4,
+  },
+  gridBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.border || '#333',
+    backgroundColor: colors.card,
+    minWidth: '28%',
+    alignItems: 'center',
+  },
+  gridBtnActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
+  },
+  gridBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.secondary,
+  },
+  gridBtnTextActive: {
+    color: 'white',
+  },
+  stateSelectContainer: {
+    flexDirection: 'column',
+    gap: 8,
+  },
+  stateSelectBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.border || '#333',
+    backgroundColor: colors.card,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  stateSelectBtnActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
+  },
+  stateSelectText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.secondary,
+  },
+  stateSelectTextActive: {
     color: 'white',
   }
 });

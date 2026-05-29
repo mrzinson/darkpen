@@ -8,7 +8,7 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import { CustomBlurView as BlurView } from '../../components/CustomBlurView';
 import { AuthGuard } from '../../components/AuthGuard';
 
 const { width, height } = Dimensions.get('window');
@@ -103,6 +103,10 @@ export default function QuizScreen() {
         setUserCredits(data.user_credits || 0);
         setLockoutSeconds(data.lockout_seconds || 0);
         setTournamentActive(!!data.tournament_active);
+
+        // Cache these status values to bypass blocking loading screens
+        await AsyncStorage.setItem('quiz_opted_in', String(!!data.opted_in));
+        await AsyncStorage.setItem('quiz_tournament_active', String(!!data.tournament_active));
         
         // Sync dynamic ad settings if they exist
         setAdSettings({
@@ -123,6 +127,27 @@ export default function QuizScreen() {
       setOptedIn(false);
     }
   };
+
+  // Load cached status on initial mount
+  useEffect(() => {
+    const loadCachedQuizStatus = async () => {
+      try {
+        const cachedOptedIn = await AsyncStorage.getItem('quiz_opted_in');
+        const cachedTournamentActive = await AsyncStorage.getItem('quiz_tournament_active');
+        if (cachedOptedIn !== null) {
+          setOptedIn(cachedOptedIn === 'true');
+        } else {
+          setOptedIn(false); // Default to false to bypass the blocking spinner
+        }
+        if (cachedTournamentActive !== null) {
+          setTournamentActive(cachedTournamentActive === 'true');
+        }
+      } catch (e) {
+        setOptedIn(false);
+      }
+    };
+    loadCachedQuizStatus();
+  }, []);
 
   useEffect(() => {
     fetchStatus();

@@ -1,0 +1,23 @@
+# Ignore entire backend and admin-dashboard directories
+backend/
+admin-dashboard/
+
+# Ignore node_modules
+node_modules/
+mobile-app/node_modules/
+
+# Ignore .git folder to save space
+.git/
+
+# Ignore local build caches and logs
+mobile-app/.expo/
+mobile-app/dist/
+mobile-app/web-build/
+mobile-app/android/
+mobile-app/ios/
+mobile-app/my-archive-folder/
+*.log
+*/.log
+mobile-app/expo.stdout.log
+mobile-app/expo.stderr.log
+get_sizes_root.js

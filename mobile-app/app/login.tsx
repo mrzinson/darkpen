@@ -80,6 +80,8 @@ export default function LoginScreen() {
         router.push('/verify');
       } else if (!data.user?.terms_accepted_at) {
         router.push('/terms');
+      } else if (!data.user?.country || !data.user?.gender) {
+        router.push('/onboarding');
       } else {
         router.push('/(tabs)');
       }

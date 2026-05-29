@@ -4,7 +4,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Platform, Animated } from 're
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { BlurView } from 'expo-blur';
+import { CustomBlurView as BlurView } from './CustomBlurView';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const AnimatedIcon = ({ iconName, isFocused, label }: any) => {

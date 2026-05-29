@@ -762,10 +762,10 @@ export default function ChatScreen() {
 
   return (
     <AuthGuard>
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['top']}>
 
         {/* HEADER */}
-        <View style={StyleSheet.flatten([styles.header, { top: Math.max(insets.top, 10) }])}>
+        <View style={styles.header}>
           <View style={styles.headerLeft}>
             <TouchableOpacity style={styles.headerIconSolidBox} onPress={() => router.navigate('/(tabs)')} activeOpacity={0.7}>
               <Ionicons name="chevron-back" size={22} color={colors.primary} />
@@ -801,8 +801,8 @@ export default function ChatScreen() {
         {/* CHAT AREA */}
         <KeyboardAvoidingView
           style={styles.chatArea}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 60}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
           {/* Pending Payment Notice Banner */}
           {paymentStatus === 'pending' && (
@@ -1152,7 +1152,7 @@ export default function ChatScreen() {
             )}
           </View>
         </Modal>
-      </View>
+      </SafeAreaView>
     </AuthGuard>
   );
 }
@@ -1165,15 +1165,14 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
 
   // Header
   header: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 20,
-    backgroundColor: 'transparent',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.background,
+    backgroundColor: colors.card,
     zIndex: 10,
   },
   headerLeft: {
@@ -1261,11 +1260,10 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
 
   // Chat Area
   chatArea: {
-    flex: 1,
+    flex: 2,
   },
   scrollContent: {
     padding: 16,
-    paddingTop: 100,
     paddingBottom: 40,
     flexGrow: 1,
   },
@@ -1302,6 +1300,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'flex-start',
   },
   messageContent: {
+    flex: 1,
     maxWidth: '85%',
     gap: 6,
   },
@@ -1310,8 +1309,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignSelf: 'flex-end',
   },
   messageContentAi: {
-    alignItems: 'flex-start',
-    alignSelf: 'flex-start',
+    // Removed align to allow stretching and fixing vertical column text issue
   },
   aiContentContainer: {
     maxWidth: '100%',
@@ -1346,16 +1344,22 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 3,
     elevation: 2,
-    backgroundColor: '#3B82F6',
+    backgroundColor: isDark ? '#2563EB' : colors.primary,
     borderBottomRightRadius: 4,
     borderTopRightRadius: 20,
     borderTopLeftRadius: 20,
     borderBottomLeftRadius: 20,
   },
   messageBubbleAi: {
-    paddingVertical: 8,
-    backgroundColor: 'transparent',
-    borderWidth: 0,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.45)',
+    borderBottomLeftRadius: 4,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    borderBottomRightRadius: 16,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.08)',
   },
   smallCopyBtn: {
     flexDirection: 'row',

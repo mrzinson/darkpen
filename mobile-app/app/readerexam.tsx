@@ -114,9 +114,28 @@ export default function ReaderExamScreen() {
         </TouchableOpacity>
         <Text style={styles.title} numberOfLines={1}>{title || 'Exam Reader'}</Text>
         
-        {/* Offline reader shortcut button */}
-
+        {isCached ? (
+          <TouchableOpacity onPress={handleOpenOffline} style={styles.offlineBtn} activeOpacity={0.7}>
+            <Ionicons name="flash" size={22} color="#10B981" />
+          </TouchableOpacity>
+        ) : (
+          <ActivityIndicator size="small" color={colors.primary} style={{ marginRight: 8 }} />
+        )}
       </View>
+
+      {isCached && (
+        <TouchableOpacity 
+          style={styles.instantBanner} 
+          onPress={handleOpenOffline}
+          activeOpacity={0.9}
+        >
+          <Ionicons name="flash" size={16} color="white" style={{ marginRight: 6 }} />
+          <Text style={styles.instantBannerText}>
+            ⚡ Si degdeg ah ugu akhriso NATIVE (Speed)
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color="white" style={{ marginLeft: 'auto' }} />
+        </TouchableOpacity>
+      )}
 
       <View style={styles.content}>
         {Platform.OS === 'web' ? (
@@ -191,6 +210,26 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   offlineBtn: {
     padding: 8,
     marginRight: 4,
+  },
+  instantBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#10B981',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginHorizontal: 16,
+    marginTop: 10,
+    borderRadius: 10,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  instantBannerText: {
+    color: 'white',
+    fontSize: 13,
+    fontWeight: '700',
   },
   content: {
     flex: 1,

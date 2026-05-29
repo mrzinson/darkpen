@@ -27,22 +27,76 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// Soo akhrinta Imtixaanaadka
+// Soo akhrinta Imtixaanaadka (Filtered by Region)
 router.get('/exams', auth, async (req, res) => {
     try {
-        const [exams] = await db.execute('SELECT * FROM exams ORDER BY created_at DESC');
+        const userId = req.user.id;
+        const [users] = await db.execute('SELECT country, region_state FROM users WHERE id = ?', [userId]);
+        if (users.length === 0) return res.status(404).json({ message: 'User not found' });
+        const user = users[0];
+
+        let exams;
+        if (user.country === 'Somalia') {
+            [exams] = await db.execute(
+                `SELECT * FROM exams 
+                 WHERE country = 'Somalia' AND (region_state = ? OR region_state IS NULL OR region_state = 'All')
+                 ORDER BY created_at DESC`,
+                [user.region_state]
+            );
+        } else if (user.country === 'Somaliland') {
+            [exams] = await db.execute(
+                `SELECT * FROM exams 
+                 WHERE country = 'Somaliland'
+                 ORDER BY created_at DESC`
+            );
+        } else {
+            // Other countries or not set
+            [exams] = await db.execute(
+                `SELECT * FROM exams 
+                 WHERE country IS NULL OR country = 'General' OR country = 'All' OR country = 'Guud'
+                 ORDER BY created_at DESC`
+            );
+        }
         res.json(exams);
     } catch (error) {
+        console.error('Error fetching exams:', error);
         res.status(500).json({ message: 'Lama helin imtixaanaadka' });
     }
 });
 
-// Soo akhrinta Buugta Manhajka
+// Soo akhrinta Buugta Manhajka (Filtered by Region)
 router.get('/books', auth, async (req, res) => {
     try {
-        const [books] = await db.execute('SELECT * FROM books ORDER BY created_at DESC');
+        const userId = req.user.id;
+        const [users] = await db.execute('SELECT country, region_state FROM users WHERE id = ?', [userId]);
+        if (users.length === 0) return res.status(404).json({ message: 'User not found' });
+        const user = users[0];
+
+        let books;
+        if (user.country === 'Somalia') {
+            [books] = await db.execute(
+                `SELECT * FROM books 
+                 WHERE country = 'Somalia' AND (region_state = ? OR region_state IS NULL OR region_state = 'All')
+                 ORDER BY created_at DESC`,
+                [user.region_state]
+            );
+        } else if (user.country === 'Somaliland') {
+            [books] = await db.execute(
+                `SELECT * FROM books 
+                 WHERE country = 'Somaliland'
+                 ORDER BY created_at DESC`
+            );
+        } else {
+            // Other countries or not set
+            [books] = await db.execute(
+                `SELECT * FROM books 
+                 WHERE country IS NULL OR country = 'General' OR country = 'All' OR country = 'Guud'
+                 ORDER BY created_at DESC`
+            );
+        }
         res.json(books);
     } catch (error) {
+        console.error('Error fetching books:', error);
         res.status(500).json({ message: 'Lama helin buugta' });
     }
 });
@@ -57,6 +111,7 @@ router.get('/profile', auth, async (req, res) => {
         const [user] = await db.execute(`
             SELECT u.id, u.name, u.email, u.whatsapp_number, u.username, u.profile_picture, u.role,
                    u.payment_status, u.payment_reference, u.is_verified, u.terms_accepted_at,
+                   u.gender, u.country, u.region_state,
                    (SELECT balance FROM user_wallet WHERE user_id = u.id) as balance,
                    (SELECT type FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() LIMIT 1) as subscription_type
             FROM users u WHERE u.id = ?

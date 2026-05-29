@@ -26,6 +26,9 @@ function buildPublicUser(user) {
         payment_status: user.payment_status,
         is_verified: Boolean(user.is_verified),
         terms_accepted_at: user.terms_accepted_at || null,
+        gender: user.gender || null,
+        country: user.country || null,
+        region_state: user.region_state || null,
     };
 }
 

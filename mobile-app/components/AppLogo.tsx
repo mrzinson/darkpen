@@ -16,7 +16,7 @@ interface AppLogoProps {
   style?: StyleProp<ImageStyle>;
 }
 
-export function AppLogo({ size = 48, variant = 'auto', style }: AppLogoProps) {
+export function AppLogo({ size = 60, variant = 'auto', style }: AppLogoProps) {
   const { isDark } = useTheme();
   const resolvedVariant = variant === 'auto' ? (isDark ? 'white' : 'blue') : variant;
 

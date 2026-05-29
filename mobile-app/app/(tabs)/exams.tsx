@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput, Platform, Image } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import { CustomBlurView as BlurView } from '../../components/CustomBlurView';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Config from '../../constants/Config';
 
@@ -32,14 +32,15 @@ export default function ExamsScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchExams = async () => {
-    setLoading(true);
     setError(null);
     try {
       // 1. Try to load from cache first
       const cached = await AsyncStorage.getItem('exams_list');
       if (cached) {
         setExams(JSON.parse(cached));
-        setLoading(false); // Stop loading if we have cached data
+        setLoading(false); // We have cached data, bypass full-screen loading spinner
+      } else {
+        setLoading(true); // Only show spinner if there is NO cache at all
       }
 
       const token = await AsyncStorage.getItem('userToken');

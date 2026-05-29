@@ -75,6 +75,7 @@ function RootStack() {
       <Stack.Screen name="login" />
       <Stack.Screen name="verify" />
       <Stack.Screen name="terms" />
+      <Stack.Screen name="onboarding" />
       <Stack.Screen name="terms-content" />
       <Stack.Screen name="student-register" />
       <Stack.Screen name="group-register" />

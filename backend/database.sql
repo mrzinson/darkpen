@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS users (
     terms_accepted_at TIMESTAMP NULL,
     profile_picture LONGTEXT NULL,
     gender ENUM('male', 'female') NULL,
+    country VARCHAR(100) NULL,
+    region_state VARCHAR(100) NULL,
     last_username_change TIMESTAMP NULL,
     is_suspended TINYINT(1) DEFAULT 0,
     push_token TEXT NULL,

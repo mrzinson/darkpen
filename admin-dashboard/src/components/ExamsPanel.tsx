@@ -4,7 +4,7 @@ import { API_URL } from '../config';
 
 export default function ExamsPanel() {
   const [exams, setExams] = useState<any[]>([]);
-  const [form, setForm] = useState({ title: '', description: '', category: 'Biology', year: '2025' });
+  const [form, setForm] = useState({ title: '', description: '', category: 'Biology', year: '2025', country: 'Somaliland', region_state: '' });
   const [image, setImage] = useState<File | null>(null);
   const [pdf, setPdf] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -39,6 +39,8 @@ export default function ExamsPanel() {
     formData.append('description', form.description);
     formData.append('category', form.category);
     formData.append('year', form.year);
+    formData.append('country', form.country);
+    formData.append('region_state', form.country === 'Somalia' ? form.region_state : '');
     if (image) formData.append('image', image);
     if (pdf) formData.append('pdf', pdf);
 
@@ -49,7 +51,7 @@ export default function ExamsPanel() {
         body: formData
       });
       if (res.ok) {
-        setForm({ title: '', description: '', category: 'Biology', year: '2025' });
+        setForm({ title: '', description: '', category: 'Biology', year: '2025', country: 'Somaliland', region_state: '' });
         setImage(null);
         setPdf(null);
         fetchExams();
@@ -116,6 +118,40 @@ export default function ExamsPanel() {
                 />
               </div>
             </div>
+
+            <div className="grid-2">
+              <div className="input-group">
+                <label>Country (Wadanka)</label>
+                <select
+                  value={form.country}
+                  onChange={e => setForm({ ...form, country: e.target.value, region_state: '' })}
+                  className="admin-select"
+                >
+                  <option value="Somaliland">Somaliland</option>
+                  <option value="Somalia">Somalia</option>
+                  <option value="General">General / All Countries</option>
+                </select>
+              </div>
+              {form.country === 'Somalia' && (
+                <div className="input-group">
+                  <label>State (Maamul Goboleedka)</label>
+                  <select
+                    value={form.region_state}
+                    onChange={e => setForm({ ...form, region_state: e.target.value })}
+                    className="admin-select"
+                  >
+                    <option value="">Select State...</option>
+                    <option value="Puntland">Puntland</option>
+                    <option value="Jubaland">Jubaland</option>
+                    <option value="Galmudug">Galmudug</option>
+                    <option value="Hirshabelle">Hirshabelle</option>
+                    <option value="South West State">South West State</option>
+                    <option value="SSC Khatumo">SSC Khatumo</option>
+                    <option value="Villa Somalia / Mogadishu (Banaadir)">Villa Somalia / Mogadishu (Banaadir)</option>
+                  </select>
+                </div>
+              )}
+            </div>
             <div className="file-inputs">
               <div className="file-input">
                 <label><ImageIcon size={16} /> Cover Image</label>
@@ -139,7 +175,11 @@ export default function ExamsPanel() {
               <div key={e.id} className="list-item">
                 <div className="item-info">
                   <strong>{e.title}</strong>
-                  <span className="text-muted">{e.category} • {e.year}</span>
+                  <span className="text-muted">
+                    {e.category} • {e.year}
+                    {e.country && ` • ${e.country}`}
+                    {e.region_state && ` (${e.region_state})`}
+                  </span>
                 </div>
                 <button className="icon-btn danger" onClick={() => handleDelete(e.id)}>
                   <Trash2 size={18} />
