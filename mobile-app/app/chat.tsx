@@ -963,10 +963,13 @@ export default function ChatScreen() {
                       <View style={styles.aiContentContainer}>
                         <View style={styles.messageBubbleAi}>
                           {msg.status === 'thinking' ? (
-                            <View style={{ paddingVertical: 6, paddingHorizontal: 4 }}>
-                              <Animated.View style={{ transform: [{ rotate: spin }] }}>
-                                <AppLogo size={30} />
-                              </Animated.View>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, gap: 6 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <Animated.View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.primary, transform: [{ translateY: thinkingDot1 }] }} />
+                                <Animated.View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.primary, transform: [{ translateY: thinkingDot2 }] }} />
+                                <Animated.View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.primary, transform: [{ translateY: thinkingDot3 }] }} />
+                              </View>
+                              <Text style={{ fontSize: 13, color: colors.textLight || '#9CA3AF', fontStyle: 'italic' }}>Thinking...</Text>
                             </View>
                           ) : (
                             <View style={styles.aiTextContainer}>
