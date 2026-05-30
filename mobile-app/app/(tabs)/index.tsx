@@ -559,7 +559,17 @@ export default function HomeScreen() {
               </TouchableOpacity>
             ))
           ) : (
-            <View style={{ padding: 20 }}><Text>Wax buug ah lama helin.</Text></View>
+            <View style={styles.homeEmptyState}>
+              <Ionicons name="time-outline" size={24} color="#3B82F6" style={{ marginBottom: 6 }} />
+              <Text style={styles.homeEmptyStateTitle}>
+                {userData?.country === 'Somalia' && userData?.region_state
+                  ? `${userData.region_state}`
+                  : userData?.country || 'Gobolkaaga'}
+              </Text>
+              <Text style={styles.homeEmptyStateMessage}>
+                Buugaagtii manhajka ee aad u baahan tahay wali kuma jiraan nidaamka. Dhawr casho ka bacdi ayaa lasoo dari doonaa.
+              </Text>
+            </View>
           )}
         </ScrollView>
 
@@ -614,7 +624,17 @@ export default function HomeScreen() {
               </TouchableOpacity>
             ))
           ) : (
-            <View style={{ padding: 20 }}><Text>Wax imtixaan ah lama helin.</Text></View>
+            <View style={styles.homeEmptyState}>
+              <Ionicons name="time-outline" size={24} color="#3B82F6" style={{ marginBottom: 6 }} />
+              <Text style={styles.homeEmptyStateTitle}>
+                {userData?.country === 'Somalia' && userData?.region_state
+                  ? `${userData.region_state}`
+                  : userData?.country || 'Gobolkaaga'}
+              </Text>
+              <Text style={styles.homeEmptyStateMessage}>
+                Imtixaanadii aad u baahan tahay wali kuma jiraan nidaamka. Dhawr casho ka bacdi ayaa lasoo dari doonaa.
+              </Text>
+            </View>
           )}
         </ScrollView>
 
@@ -1389,5 +1409,30 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontWeight: '600',
     color: colors.secondary,
     marginLeft: 16,
+  },
+  homeEmptyState: {
+    backgroundColor: isDark ? '#161B22' : '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: isDark ? '#21262D' : '#E2E8F0',
+    padding: 18,
+    marginHorizontal: 16,
+    marginVertical: 4,
+    width: width - 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  homeEmptyStateTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.secondary,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  homeEmptyStateMessage: {
+    fontSize: 12,
+    color: colors.textLight,
+    lineHeight: 18,
+    textAlign: 'center',
   }
 });
