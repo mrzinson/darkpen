@@ -759,7 +759,7 @@ export default function HomeScreen() {
               style={styles.socialButton}
               onPress={() => {
                 setHelpVisible(false);
-                Linking.openURL('https://wa.me/252637930329').catch(() => {
+                Linking.openURL('https://wa.me/252659119779').catch(() => {
                   Alert.alert('Cilad', 'Ma awoodno inaan furno WhatsApp');
                 });
               }}

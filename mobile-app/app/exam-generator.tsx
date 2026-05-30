@@ -817,7 +817,7 @@ export default function ExamGeneratorScreen() {
           {loadingHistory ? (
             <View style={styles.centeredContainer}>
               <ActivityIndicator size="large" color="#3B82F6" />
-              <Text style={styles.loadingText}>Soo akhrinaya imtixaanadii aad diyaarisay...</Text>
+              <Text style={styles.loadingText}>Loading...</Text>
             </View>
           ) : historyExams.length === 0 ? (
             <View style={styles.centeredContainer}>

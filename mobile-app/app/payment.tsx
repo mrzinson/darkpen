@@ -109,7 +109,7 @@ export default function PaymentScreen() {
 
             {/* Price section - premium coloring */}
             <View style={styles.priceContainer}>
-              <Text style={styles.priceLabel}>Lacagta Laga Rabyo (Price)</Text>
+              <Text style={styles.priceLabel}>Lacagta Laga Rabo (Price)</Text>
               <View style={styles.priceBadge}>
                 <Text style={styles.priceText}>{priceDisplay}</Text>
               </View>
@@ -118,7 +118,7 @@ export default function PaymentScreen() {
 
           {/* Numbers list for sending payment */}
           <View style={styles.numbersCard}>
-            <Text style={styles.cardSectionTitle}>Fadlan lacagta ku dir mid ka mid ah lambaradan:</Text>
+            <Text style={styles.cardSectionTitle}>Fadlan lacagta kusoo dir mid ka mid ah lambaradan hoose kadibna halka hoose kusoo qor numberka aad ka soo dirtey.</Text>
             
             <View style={styles.numberItem}>
               <View style={styles.numberTextContainer}>

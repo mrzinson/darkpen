@@ -27,6 +27,14 @@ export default function ManhajkaScreen() {
   const [books, setBooks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [userData, setUserData] = useState<any>(null);
+
+  // Load user data for empty state message
+  React.useEffect(() => {
+    AsyncStorage.getItem('userData').then(raw => {
+      if (raw) setUserData(JSON.parse(raw));
+    });
+  }, []);
 
   const fetchBooks = async () => {
     setLoading(true);
@@ -145,7 +153,21 @@ export default function ManhajkaScreen() {
               </TouchableOpacity>
             ))
           ) : (
-            <Text style={{ textAlign: 'center', width: '100%', marginTop: 20, color: colors.text }}>{t('no_books_found')}</Text>
+            <View style={styles.emptyStateCard}>
+              <Ionicons name="time-outline" size={48} color="#3B82F6" style={{ marginBottom: 16 }} />
+              <Text style={styles.emptyStateTitle}>
+                {userData?.country === 'Somalia' && userData?.region_state
+                  ? `${userData.region_state}`
+                  : userData?.country || 'Gobolkaaga'}
+              </Text>
+              <Text style={styles.emptyStateMessage}>
+                Buugaagta aad u baahan tahay wali kuma jiraan nidaamka. Dhawr casho ka bacdi ayaa lasoo dari doonaa — raac oo dib u soo eeg!
+              </Text>
+              <View style={styles.emptyStateBadge}>
+                <Ionicons name="notifications-outline" size={14} color="#3B82F6" />
+                <Text style={styles.emptyStateBadgeText}>Dhawaan ayay soo geli doonaan</Text>
+              </View>
+            </View>
           )}
         </View>
       </ScrollView>
@@ -262,5 +284,51 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   filterTextActive: {
     color: isDark ? '#1E293B' : '#FFFFFF',
-  }
+  },
+  emptyStateCard: {
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 48,
+    marginTop: 8,
+    width: '100%',
+    backgroundColor: isDark ? '#161B22' : '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: isDark ? '#21262D' : '#E2E8F0',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  emptyStateMessage: {
+    fontSize: 14,
+    color: colors.textLight,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  emptyStateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: isDark ? 'rgba(59,130,246,0.12)' : '#EFF6FF',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(59,130,246,0.25)' : '#BFDBFE',
+  },
+  emptyStateBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#3B82F6',
+  },
 });

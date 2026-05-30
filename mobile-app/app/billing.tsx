@@ -62,7 +62,7 @@ export default function BillingScreen() {
       title: 'Bille (Premium)',
       price: '$11',
       somaliland: '110,000 SL Shilling',
-      description: 'Hel dhamaan adeegyada App-ka (Exams, Books, AI Voice).',
+      description: 'Hel AI model aad uga awood badan kuwii hore uu kuu qaban qara shaqo kasta oo aad ubaahato.',
       color: '#3882f6',
       icon: 'star'
     }

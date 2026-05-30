@@ -215,7 +215,7 @@ export default function OnboardingScreen() {
                   <View style={[styles.genderIconWrapper, { backgroundColor: '#EFF6FF' }]}>
                     <Ionicons name="male" size={48} color="#3B82F6" />
                   </View>
-                  <Text style={styles.genderLabelSO}>Lab (Nin)</Text>
+                  <Text style={styles.genderLabelSO}>Lab</Text>
                   <Text style={styles.genderLabelEN}>Male</Text>
                 </TouchableOpacity>
 
@@ -227,7 +227,7 @@ export default function OnboardingScreen() {
                   <View style={[styles.genderIconWrapper, { backgroundColor: '#FDF2F8' }]}>
                     <Ionicons name="female" size={48} color="#EC4899" />
                   </View>
-                  <Text style={styles.genderLabelSO}>Dhedig (Naag)</Text>
+                  <Text style={styles.genderLabelSO}>Dhedigs</Text>
                   <Text style={styles.genderLabelEN}>Female</Text>
                 </TouchableOpacity>
               </View>

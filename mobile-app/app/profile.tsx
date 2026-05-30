@@ -71,7 +71,7 @@ export default function ProfileScreen() {
         {loading && !userData ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', height: 300 }}>
             <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={{ marginTop: 12, color: colors.neutral }}>Soo raryaa xogta...</Text>
+            <Text style={{ marginTop: 12, color: colors.neutral }}>LOADING...</Text>
           </View>
         ) : (
           <>
