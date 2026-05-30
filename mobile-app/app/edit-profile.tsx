@@ -104,12 +104,21 @@ export default function EditProfileScreen() {
       await AsyncStorage.removeItem('manhajka_books');
       await AsyncStorage.removeItem('exams_list');
 
-      Alert.alert('Guul', 'Profile-ka si guul leh ayaa loo bedelay!', [
-        { text: 'OK', onPress: () => router.back() }
-      ]);
+      if (Platform.OS === 'web') {
+        alert('Profile-ka si guul leh ayaa loo bedelay!');
+        router.back();
+      } else {
+        Alert.alert('Guul', 'Profile-ka si guul leh ayaa loo bedelay!', [
+          { text: 'OK', onPress: () => router.back() }
+        ]);
+      }
 
     } catch (err: any) {
-      Alert.alert('Cilad', err.message);
+      if (Platform.OS === 'web') {
+        alert(err.message);
+      } else {
+        Alert.alert('Cilad', err.message);
+      }
     } finally {
       setLoading(false);
     }

@@ -3,7 +3,7 @@ import { useTheme } from '../context/ThemeContext';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet, Text, View, TouchableOpacity, ScrollView,
-  Animated, Dimensions, TextInput, ActivityIndicator, Alert
+  Animated, Dimensions, TextInput, ActivityIndicator, Alert, Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -134,15 +134,28 @@ export default function OnboardingScreen() {
       await AsyncStorage.removeItem('exams_list');
 
       // Success Alert and go to App
-      Alert.alert(
-        language === 'so' ? 'Guul' : 'Success',
-        language === 'so'
-          ? 'Xogtaada si guul leh ayaa loo keydiyey!'
-          : 'Your information has been successfully saved!',
-        [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]
-      );
+      if (Platform.OS === 'web') {
+        alert(
+          language === 'so'
+            ? 'Xogtaada si guul leh ayaa loo keydiyey!'
+            : 'Your information has been successfully saved!'
+        );
+        router.replace('/(tabs)');
+      } else {
+        Alert.alert(
+          language === 'so' ? 'Guul' : 'Success',
+          language === 'so'
+            ? 'Xogtaada si guul leh ayaa loo keydiyey!'
+            : 'Your information has been successfully saved!',
+          [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]
+        );
+      }
     } catch (err: any) {
-      Alert.alert(language === 'so' ? 'Cilad' : 'Error', err.message);
+      if (Platform.OS === 'web') {
+        alert(err.message);
+      } else {
+        Alert.alert(language === 'so' ? 'Cilad' : 'Error', err.message);
+      }
     } finally {
       setLoading(false);
     }

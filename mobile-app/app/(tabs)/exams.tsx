@@ -479,7 +479,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 11,
     color: colors.neutral,
     marginTop: 2,
-  }
+  },
   emptyStateCard: {
     alignItems: 'center',
     paddingHorizontal: 24,
