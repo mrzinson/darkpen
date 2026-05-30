@@ -36,17 +36,22 @@ router.get('/exams', auth, async (req, res) => {
         const user = users[0];
 
         let exams;
-        if (user.country === 'Somalia') {
-            [exams] = await db.execute(
-                `SELECT * FROM exams 
-                 WHERE country = 'Somalia' AND (region_state = ? OR region_state IS NULL OR region_state = 'All')
-                 ORDER BY created_at DESC`,
-                [user.region_state]
-            );
-        } else if (user.country === 'Somaliland') {
+        if (user.country === 'Somaliland') {
             [exams] = await db.execute(
                 `SELECT * FROM exams 
                  WHERE country = 'Somaliland'
+                 ORDER BY created_at DESC`
+            );
+        } else if (user.country === 'Puntland') {
+            [exams] = await db.execute(
+                `SELECT * FROM exams 
+                 WHERE country = 'Puntland'
+                 ORDER BY created_at DESC`
+            );
+        } else if (user.country === 'Somalia') {
+            [exams] = await db.execute(
+                `SELECT * FROM exams 
+                 WHERE country = 'Somalia'
                  ORDER BY created_at DESC`
             );
         } else {
@@ -73,17 +78,22 @@ router.get('/books', auth, async (req, res) => {
         const user = users[0];
 
         let books;
-        if (user.country === 'Somalia') {
-            [books] = await db.execute(
-                `SELECT * FROM books 
-                 WHERE country = 'Somalia' AND (region_state = ? OR region_state IS NULL OR region_state = 'All')
-                 ORDER BY created_at DESC`,
-                [user.region_state]
-            );
-        } else if (user.country === 'Somaliland') {
+        if (user.country === 'Somaliland') {
             [books] = await db.execute(
                 `SELECT * FROM books 
                  WHERE country = 'Somaliland'
+                 ORDER BY created_at DESC`
+            );
+        } else if (user.country === 'Puntland') {
+            [books] = await db.execute(
+                `SELECT * FROM books 
+                 WHERE country = 'Puntland'
+                 ORDER BY created_at DESC`
+            );
+        } else if (user.country === 'Somalia') {
+            [books] = await db.execute(
+                `SELECT * FROM books 
+                 WHERE country = 'Somalia'
                  ORDER BY created_at DESC`
             );
         } else {

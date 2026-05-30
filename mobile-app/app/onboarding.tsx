@@ -78,12 +78,8 @@ export default function OnboardingScreen() {
   const handleCountrySelect = (selectedCountry: string) => {
     setCountry(selectedCountry);
     setShowOtherCountries(false);
-    if (selectedCountry === 'Somalia') {
-      handleStepTransition(3);
-    } else {
-      setRegionState(''); // Clear state if not Somalia
-      handleStepTransition(4); // Skip to confirmation
-    }
+    setRegionState('');
+    handleStepTransition(4); // Skip to confirmation
   };
 
   const handleStateSelect = (selectedState: string) => {
@@ -106,7 +102,7 @@ export default function OnboardingScreen() {
         body: JSON.stringify({
           gender,
           country,
-          region_state: country === 'Somalia' ? regionState : null
+          region_state: null
         })
       });
 
@@ -123,7 +119,7 @@ export default function OnboardingScreen() {
           ...user,
           gender,
           country,
-          region_state: country === 'Somalia' ? regionState : null
+          region_state: null
         }));
       }
 
@@ -173,7 +169,7 @@ export default function OnboardingScreen() {
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => {
-              if (step === 4 && country !== 'Somalia') {
+              if (step === 4) {
                 handleStepTransition(2);
               } else {
                 handleStepTransition(step - 1);
@@ -280,12 +276,12 @@ export default function OnboardingScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.countryButton, country === 'Kenya' && styles.countryButtonActive]}
-                  onPress={() => handleCountrySelect('Kenya')}
+                  style={[styles.countryButton, country === 'Puntland' && styles.countryButtonActive]}
+                  onPress={() => handleCountrySelect('Puntland')}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="location" size={20} color={country === 'Kenya' ? 'white' : '#3B82F6'} />
-                  <Text style={[styles.countryButtonText, country === 'Kenya' && styles.countryButtonTextActive]}>Kenya</Text>
+                  <Ionicons name="location" size={20} color={country === 'Puntland' ? 'white' : '#3B82F6'} />
+                  <Text style={[styles.countryButtonText, country === 'Puntland' && styles.countryButtonTextActive]}>Puntland</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -426,20 +422,7 @@ export default function OnboardingScreen() {
                   </View>
                 </View>
 
-                {country === 'Somalia' && (
-                  <>
-                    <View style={styles.summaryDivider} />
-                    <View style={styles.summaryRow}>
-                      <View style={styles.summaryIconWrapper}>
-                        <Ionicons name="map" size={20} color="#F59E0B" />
-                      </View>
-                      <View>
-                        <Text style={styles.summaryLabel}>{language === 'so' ? 'Maamul Goboleedka' : 'State / Region'}</Text>
-                        <Text style={styles.summaryValue}>{regionState}</Text>
-                      </View>
-                    </View>
-                  </>
-                )}
+
               </View>
 
               {/* Action Banner for General Curriculum users */}

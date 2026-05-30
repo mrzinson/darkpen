@@ -218,7 +218,7 @@ export default function EditProfileScreen() {
           <View style={styles.formGroup}>
             <Text style={styles.label}>Country (Wadanka)</Text>
             <View style={styles.gridContainer}>
-              {['Somaliland', 'Somalia', 'Kenya', 'Ethiopia', 'Nairobi'].map((c) => (
+              {['Somaliland', 'Puntland', 'Somalia', 'Ethiopia', 'Nairobi'].map((c) => (
                 <TouchableOpacity
                   key={c}
                   style={[styles.gridBtn, form.country === c && styles.gridBtnActive]}
@@ -231,36 +231,12 @@ export default function EditProfileScreen() {
             <TextInput
               style={[styles.input, { marginTop: 8 }]}
               placeholder="Or type other country..."
-              value={['Somaliland', 'Somalia', 'Kenya', 'Ethiopia', 'Nairobi'].includes(form.country) ? '' : form.country}
+              value={['Somaliland', 'Puntland', 'Somalia', 'Ethiopia', 'Nairobi'].includes(form.country) ? '' : form.country}
               onChangeText={(t) => setForm({ ...form, country: t, region_state: '' })}
             />
           </View>
 
-          {/* Regional State (Visible only if Somalia is selected) */}
-          {form.country === 'Somalia' && (
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Regional State (Maamul Goboleedka)</Text>
-              <View style={styles.stateSelectContainer}>
-                {[
-                  'Puntland',
-                  'Jubaland',
-                  'Galmudug',
-                  'Hirshabelle',
-                  'South West State',
-                  'SSC Khatumo',
-                  'Villa Somalia / Mogadishu (Banaadir)'
-                ].map((s) => (
-                  <TouchableOpacity
-                    key={s}
-                    style={[styles.stateSelectBtn, form.region_state === s && styles.stateSelectBtnActive]}
-                    onPress={() => setForm({ ...form, region_state: s })}
-                  >
-                    <Text style={[styles.stateSelectText, form.region_state === s && styles.stateSelectTextActive]}>{s}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
+
 
           <View style={styles.formGroup}>
             <Text style={styles.label}>New Password (Optional)</Text>

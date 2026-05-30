@@ -17,6 +17,7 @@ export default function BillingScreen() {
 
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
   const [paymentReference, setPaymentReference] = useState<string | null>(null);
+  const [userCountry, setUserCountry] = useState<string>('Somaliland');
 
   const fetchProfile = async () => {
     try {
@@ -28,6 +29,7 @@ export default function BillingScreen() {
       if (response.ok && data.user) {
         setPaymentStatus(data.user.payment_status || null);
         setPaymentReference(data.user.payment_reference || null);
+        setUserCountry(data.user.country || 'Somaliland');
       }
     } catch (error) {
       console.error('Error fetching profile in billing:', error);
@@ -42,8 +44,8 @@ export default function BillingScreen() {
     {
       id: 'pay_as_you_go',
       title: 'Pay as you go',
-      price: '$0.5',
-      somaliland: '5,000 SL Shilling',
+      price: userCountry === 'Somaliland' ? '$0.5' : '$1.00',
+      somaliland: userCountry === 'Somaliland' ? '5,000 SL Shilling' : '',
       description: 'Ku hel 100 Credits ',
       color: '#0A84FF',
       icon: 'flash'
@@ -52,7 +54,7 @@ export default function BillingScreen() {
       id: 'monthly_basic',
       title: 'Bille (Basic)',
       price: '$3',
-      somaliland: '30,000 SL Shilling',
+      somaliland: userCountry === 'Somaliland' ? '30,000 SL Shilling' : '',
       description: 'Isticmaal chat-ka hal bil adiga oo aan xadidnayn.',
       color: '#32D74B',
       icon: 'calendar'
@@ -61,7 +63,7 @@ export default function BillingScreen() {
       id: 'monthly_premium',
       title: 'Bille (Premium)',
       price: '$11',
-      somaliland: '110,000 SL Shilling',
+      somaliland: userCountry === 'Somaliland' ? '110,000 SL Shilling' : '',
       description: 'Hel AI model aad uga awood badan kuwii hore uu kuu qaban qara shaqo kasta oo aad ubaahato.',
       color: '#3882f6',
       icon: 'star'

@@ -4,7 +4,7 @@ import { API_URL } from '../config';
 
 export default function ExamsPanel() {
   const [exams, setExams] = useState<any[]>([]);
-  const [form, setForm] = useState({ title: '', description: '', category: 'Biology', year: '2025', country: 'Somaliland', region_state: '' });
+  const [form, setForm] = useState({ title: '', description: '', category: 'Biology', grade: 'Form 4', year: '2025', country: 'Somaliland' });
   const [image, setImage] = useState<File | null>(null);
   const [pdf, setPdf] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -51,7 +51,7 @@ export default function ExamsPanel() {
         body: formData
       });
       if (res.ok) {
-        setForm({ title: '', description: '', category: 'Biology', year: '2025', country: 'Somaliland', region_state: '' });
+        setForm({ title: '', description: '', category: 'Biology', grade: 'Form 4', year: '2025', country: 'Somaliland' });
         setImage(null);
         setPdf(null);
         fetchExams();
@@ -121,36 +121,29 @@ export default function ExamsPanel() {
 
             <div className="grid-2">
               <div className="input-group">
+                <label>Class / Grade (Fasalka)</label>
+                <select
+                  value={form.grade}
+                  onChange={e => setForm({ ...form, grade: e.target.value })}
+                  className="admin-select"
+                >
+                  <option value="Class 8">Class 8</option>
+                  <option value="Form 4">Form 4</option>
+                </select>
+              </div>
+              <div className="input-group">
                 <label>Country (Wadanka)</label>
                 <select
                   value={form.country}
-                  onChange={e => setForm({ ...form, country: e.target.value, region_state: '' })}
+                  onChange={e => setForm({ ...form, country: e.target.value })}
                   className="admin-select"
                 >
                   <option value="Somaliland">Somaliland</option>
                   <option value="Somalia">Somalia</option>
+                  <option value="Puntland">Puntland</option>
                   <option value="General">General / All Countries</option>
                 </select>
               </div>
-              {form.country === 'Somalia' && (
-                <div className="input-group">
-                  <label>State (Maamul Goboleedka)</label>
-                  <select
-                    value={form.region_state}
-                    onChange={e => setForm({ ...form, region_state: e.target.value })}
-                    className="admin-select"
-                  >
-                    <option value="">Select State...</option>
-                    <option value="Puntland">Puntland</option>
-                    <option value="Jubaland">Jubaland</option>
-                    <option value="Galmudug">Galmudug</option>
-                    <option value="Hirshabelle">Hirshabelle</option>
-                    <option value="South West State">South West State</option>
-                    <option value="SSC Khatumo">SSC Khatumo</option>
-                    <option value="Villa Somalia / Mogadishu (Banaadir)">Villa Somalia / Mogadishu (Banaadir)</option>
-                  </select>
-                </div>
-              )}
             </div>
             <div className="file-inputs">
               <div className="file-input">
