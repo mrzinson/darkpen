@@ -15,6 +15,7 @@
     },
     "android": {
       "package": "com.zinsonai.darkpen",
+      "launchMode": "singleTask",
       "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",

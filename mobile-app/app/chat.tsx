@@ -2,7 +2,7 @@ import { useTheme } from '../context/ThemeContext';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet, Text, View, TouchableOpacity, TextInput,
-  KeyboardAvoidingView, Platform, ScrollView, Animated, Dimensions, Pressable, Keyboard, PanResponder, Modal, Alert
+  KeyboardAvoidingView, Platform, ScrollView, Animated, Dimensions, Pressable, Keyboard, PanResponder, Modal, Alert, Easing
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -45,15 +45,19 @@ const renderFormattedText = (text: string, isDark: boolean, colors: any) => {
   const blocks = text.split(blockRegex);
 
   const renderInlineText = (inlineText: string, keyPrefix: string) => {
-    const inlineRegex = /(\*\*.*?\*\*|<blue>[\s\S]*?<\/blue>|<green>[\s\S]*?<\/green>|<red>[\s\S]*?<\/red>|Q\d+:|A\d+:)/g;
+    // Match **bold**, *italic*, and color tags — order matters: ** before *
+    const inlineRegex = /(\*\*[^*]+?\*\*|\*[^*\n]+?\*|<blue>[\s\S]*?<\/blue>|<green>[\s\S]*?<\/green>|<red>[\s\S]*?<\/red>|Q\d+:|A\d+:)/g;
     const parts = inlineText.split(inlineRegex);
 
     return parts.map((part, index) => {
       if (!part) return null;
       const key = `${keyPrefix}-inline-${index}`;
 
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return <Text key={key} style={{ fontWeight: 'bold', color: colors.text }}>{part.replace(/\*\*/g, '')}</Text>;
+      if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+        return <Text key={key} style={{ fontWeight: 'bold', color: colors.text }}>{part.slice(2, -2)}</Text>;
+      }
+      if (part.startsWith('*') && part.endsWith('*') && part.length > 2 && !part.startsWith('**')) {
+        return <Text key={key} style={{ fontStyle: 'italic', color: colors.text }}>{part.slice(1, -1)}</Text>;
       }
       if (part.startsWith('<blue>') && part.endsWith('</blue>')) {
         return <Text key={key} style={{ color: '#3B82F6', fontWeight: '500' }}>{part.replace(/<\/?blue>/g, '')}</Text>;
@@ -230,13 +234,75 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
 
+  const [inputHeight, setInputHeight] = useState(40);
+  const isHistoryLoaded = useRef(false);
+
+  // Spin Animation for thinking state AppLogo
+  const spinAnim = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
-    if (messages.length === 0 || (messages.length === 1 && messages[0].sender === 'ai')) {
-      setMessages([
-        { id: '1', text: t('welcome_ai'), sender: 'ai', status: 'complete' }
-      ]);
+    if (isAiTyping) {
+      spinAnim.setValue(0);
+      Animated.loop(
+        Animated.timing(spinAnim, {
+          toValue: 1,
+          duration: 1200,
+          easing: Easing.linear,
+          useNativeDriver: true
+        })
+      ).start();
+    } else {
+      spinAnim.setValue(0);
     }
+  }, [isAiTyping]);
+
+  const spin = spinAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg']
+  });
+
+  // Load chat history on mount (keeps 5 days max)
+  useEffect(() => {
+    const loadChatHistory = async () => {
+      try {
+        const cached = await AsyncStorage.getItem('education_chat_messages');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) {
+            const fiveDaysAgo = Date.now() - 5 * 24 * 60 * 60 * 1000;
+            const validMessages = parsed.filter(m => {
+              if (!m.timestamp) return true;
+              return new Date(m.timestamp).getTime() > fiveDaysAgo;
+            });
+            
+            if (validMessages.length > 0) {
+              setMessages(validMessages);
+              await AsyncStorage.setItem('education_chat_messages', JSON.stringify(validMessages));
+              isHistoryLoaded.current = true;
+              return;
+            }
+          }
+        }
+        
+        setMessages([
+          { id: '1', text: t('welcome_ai'), sender: 'ai', status: 'complete', timestamp: new Date().toISOString() }
+        ]);
+        isHistoryLoaded.current = true;
+      } catch (e) {
+        console.error("Error loading chat history:", e);
+        isHistoryLoaded.current = true;
+      }
+    };
+
+    loadChatHistory();
   }, [language]);
+
+  // Persist messages whenever list updates
+  useEffect(() => {
+    if (isHistoryLoaded.current && messages.length > 0) {
+      AsyncStorage.setItem('education_chat_messages', JSON.stringify(messages)).catch(err => console.error(err));
+    }
+  }, [messages]);
   const [inputText, setInputText] = useState('');
   const [isAiTyping, setIsAiTyping] = useState(false);
   const [showTooltip, setShowTooltip] = useState(true);
@@ -626,10 +692,11 @@ export default function ChatScreen() {
       text: userText,
       sender: 'user',
       image: imageUris[0],
-      images: imageUris.length > 0 ? imageUris : undefined
+      images: imageUris.length > 0 ? imageUris : undefined,
+      timestamp: new Date().toISOString()
     };
     const aiMsgId = (Date.now() + 1).toString();
-    const newAiMsg: Message = { id: aiMsgId, text: '', sender: 'ai', status: 'thinking' };
+    const newAiMsg: Message = { id: aiMsgId, text: '', sender: 'ai', status: 'thinking', timestamp: new Date().toISOString() };
 
     setMessages(prev => [...prev, newUserMsg, newAiMsg]);
 
@@ -801,8 +868,8 @@ export default function ChatScreen() {
         {/* CHAT AREA */}
         <KeyboardAvoidingView
           style={styles.chatArea}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         >
           {/* Pending Payment Notice Banner */}
           {paymentStatus === 'pending' && (
@@ -895,13 +962,10 @@ export default function ChatScreen() {
                       <View style={styles.aiContentContainer}>
                         <View style={styles.messageBubbleAi}>
                           {msg.status === 'thinking' ? (
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                              <View style={styles.thinkingContainer}>
-                                <Animated.View style={StyleSheet.flatten([styles.thinkingDot, { transform: [{ translateY: thinkingDot1 }] }])} />
-                                <Animated.View style={StyleSheet.flatten([styles.thinkingDot, { transform: [{ translateY: thinkingDot2 }] }])} />
-                                <Animated.View style={StyleSheet.flatten([styles.thinkingDot, { transform: [{ translateY: thinkingDot3 }] }])} />
-                              </View>
-                              {thinkingStatus ? <Text style={styles.thinkingText}>{thinkingStatus}</Text> : null}
+                            <View style={{ paddingVertical: 6, paddingHorizontal: 4 }}>
+                              <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                                <AppLogo size={30} />
+                              </Animated.View>
                             </View>
                           ) : (
                             <View style={styles.aiTextContainer}>
@@ -984,18 +1048,20 @@ export default function ChatScreen() {
                 <Ionicons name="add" size={22} color="#3B82F6" />
               </TouchableOpacity>
 
-              <View style={styles.textInputContainer}>
+              <View style={[styles.textInputContainer, { minHeight: Math.min(120, Math.max(48, inputHeight + 16)) }]}>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { height: Math.min(112, Math.max(40, inputHeight)) }]}
                   placeholder={isTranscribing ? t('transcribing') : t('ask_placeholder')}
                   placeholderTextColor="#9CA3AF"
                   value={inputText}
                   onChangeText={setInputText}
                   multiline
+                  scrollEnabled={false}
+                  onContentSizeChange={(e) => setInputHeight(e.nativeEvent.contentSize.height)}
                   maxLength={500}
                   onFocus={() => {
                     setShowScrollBottom(false);
-                    scrollViewRef.current?.scrollToEnd({ animated: true });
+                    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 300);
                   }}
                 />
               </View>
@@ -1351,15 +1417,10 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderBottomLeftRadius: 20,
   },
   messageBubbleAi: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.45)',
-    borderBottomLeftRadius: 4,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    borderBottomRightRadius: 16,
-    borderWidth: 1,
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.08)',
+    paddingHorizontal: 0,
+    paddingVertical: 4,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
   },
   smallCopyBtn: {
     flexDirection: 'row',
@@ -1450,8 +1511,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   // Solid Input Area
   inputContainer: {
     backgroundColor: colors.card,
-    borderTopWidth: 1,
-    borderTopColor: colors.border || '#222',
+    borderTopWidth: 0,
     paddingBottom: Platform.OS === 'ios' ? 24 : 16,
   },
   inputWrapper: {

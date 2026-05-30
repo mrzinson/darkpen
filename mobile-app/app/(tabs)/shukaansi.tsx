@@ -86,6 +86,7 @@ export default function ShukaansiScreen() {
   const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [inputText, setInputText] = useState('');
+  const [shukaansiInputHeight, setShukaansiInputHeight] = useState(40);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -651,14 +652,16 @@ export default function ShukaansiScreen() {
             </TouchableOpacity>
             
             {/* Text Input Container */}
-            <View style={styles.textInputContainer}>
+            <View style={[styles.textInputContainer, { minHeight: Math.min(120, Math.max(48, shukaansiInputHeight + 16)) }]}>
               <TextInput 
-                style={[styles.textInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
+                style={[styles.textInput, { height: Math.min(112, Math.max(40, shukaansiInputHeight)) }, Platform.OS === 'web' && { outlineStyle: 'none' } as any]}
                 placeholder={isTranscribing ? t('transcribing') : t('placeholder_love')}
                 placeholderTextColor="#9CA3AF"
                 value={inputText}
                 onChangeText={setInputText}
-                multiline={true} 
+                multiline={true}
+                scrollEnabled={false}
+                onContentSizeChange={(e) => setShukaansiInputHeight(e.nativeEvent.contentSize.height)}
                 maxLength={1000}
                 underlineColorAndroid="transparent"
                 editable={!isTranscribing}
@@ -1037,8 +1040,6 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     borderBottomRightRadius: 16,
-    borderWidth: 1,
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.08)',
   },
   messageText: {
     fontSize: 16,
@@ -1091,8 +1092,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   // Solid Input Area
   inputContainer: {
     backgroundColor: colors.card,
-    borderTopWidth: 1,
-    borderTopColor: colors.background,
+    borderTopWidth: 0,
     paddingBottom: Platform.OS === 'ios' ? 24 : 16,
   },
   inputWrapper: {

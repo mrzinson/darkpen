@@ -213,6 +213,7 @@ export default function GroupChatScreen() {
   const { id, name, icon } = useLocalSearchParams();
   const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState('');
+  const [groupInputHeight, setGroupInputHeight] = useState(40);
   const [loading, setLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -592,14 +593,16 @@ export default function GroupChatScreen() {
             </TouchableOpacity>
             
             {/* Text Input Container */}
-            <View style={styles.textInputContainer}>
+            <View style={[styles.textInputContainer, { minHeight: Math.min(120, Math.max(48, groupInputHeight + 16)) }]}>
               <TextInput 
-                style={StyleSheet.flatten([styles.textInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any])}
+                style={StyleSheet.flatten([styles.textInput, { height: Math.min(112, Math.max(40, groupInputHeight)) }, Platform.OS === 'web' && { outlineStyle: 'none' } as any])}
                 placeholder="Type a message..." 
                 placeholderTextColor={isDark ? 'rgba(255, 255, 255, 0.4)' : '#9CA3AF'}
                 value={inputText}
                 onChangeText={setInputText}
                 multiline
+                scrollEnabled={false}
+                onContentSizeChange={(e) => setGroupInputHeight(e.nativeEvent.contentSize.height)}
                 underlineColorAndroid="transparent"
               />
 
@@ -906,8 +909,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   inputContainer: {
     backgroundColor: colors.card,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopWidth: 0,
     paddingBottom: Platform.OS === 'ios' ? 24 : 16,
   },
   inputWrapper: {
