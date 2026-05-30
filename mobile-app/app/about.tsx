@@ -116,7 +116,7 @@ export default function AboutScreen() {
             <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.linkRow} onPress={() => router.push('/privacy')} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.linkRow} onPress={() => openLink('https://darkpen-privacy-policy.onrender.com/')} activeOpacity={0.7}>
             <View style={[styles.iconWrap, { backgroundColor: '#F0FDF4' }]}>
               <Ionicons name="shield-checkmark" size={20} color="#10B981" />
             </View>

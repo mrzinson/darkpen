@@ -24,4 +24,11 @@ router.post('/push-token', auth, authController.savePushToken);
 router.post('/forgot-password', authController.forgotPassword);
 router.post('/reset-password', authController.resetPassword);
 
+// Payment configuration (Public)
+router.get('/payment-config', (req, res) => {
+  res.json({
+    numbers: ['637930329', '659119779']
+  });
+});
+
 module.exports = router;

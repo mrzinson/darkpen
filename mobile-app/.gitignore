@@ -41,3 +41,11 @@ app-example
 # generated native folders
 /ios
 /android
+
+# local log and scratch files
+*.log
+*.txt
+fix*.js
+clean-garbage.js
+convert_logos.ps1
+refactor-theme.js

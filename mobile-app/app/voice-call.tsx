@@ -54,7 +54,7 @@ export default function VoiceCallScreen() {
         });
 
         const { sound } = await Audio.Sound.createAsync(
-          { uri: 'https://assets.mixkit.co/active_storage/sfx/1359/1359-84.wav' },
+          require('../assets/audio/ring.wav'),
           { shouldPlay: true, isLooping: true, volume: 1.0 }
         );
         ringSoundRef.current = sound;

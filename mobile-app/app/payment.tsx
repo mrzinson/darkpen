@@ -17,6 +17,27 @@ export default function PaymentScreen() {
   const params = useLocalSearchParams();
   const [senderNumber, setSenderNumber] = useState('');
   const [loading, setLoading] = useState(false);
+  const [paymentNumbers, setPaymentNumbers] = useState<string[]>(['637930329', '659119779']);
+
+  React.useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const res = await Promise.race([
+          fetch(`${Config.API_URL}/api/auth/payment-config`),
+          new Promise<Response>((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 8000))
+        ]);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.numbers)) {
+            setPaymentNumbers(data.numbers);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch payment config from backend:', err);
+      }
+    };
+    fetchConfig();
+  }, []);
 
   const planTitle = Array.isArray(params.title) ? params.title[0] : (params.title || 'Adeegga App-ka');
   const priceDisplay = Array.isArray(params.price) ? params.price[0] : (params.price || '$1.0');
@@ -40,20 +61,25 @@ export default function PaymentScreen() {
         return;
       }
 
-      const res = await fetch(`${Config.API_URL}/api/auth/submit-payment`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          reference_number: senderNumber,
-          planId: params.planId,
-          amount: params.price ? parseFloat((params.price as string).replace('$', '')) : 1.0,
-          groupData: params.groupData ? JSON.parse(params.groupData as string) : null,
-          service_type: params.service_type
-        })
-      });
+      const res = await Promise.race([
+        fetch(`${Config.API_URL}/api/auth/submit-payment`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            reference_number: senderNumber,
+            planId: params.planId,
+            amount: params.price ? parseFloat((params.price as string).replace('$', '')) : 1.0,
+            groupData: params.groupData ? JSON.parse(params.groupData as string) : null,
+            service_type: params.service_type
+          })
+        }),
+        new Promise<Response>((_, reject) =>
+          setTimeout(() => reject(new Error('TIMEOUT')), 12000)
+        )
+      ]);
 
       if (res.status === 401) {
         Alert.alert('Cilad', t('session_expired'));
@@ -70,8 +96,12 @@ export default function PaymentScreen() {
       } else {
         Alert.alert('Cilad', data.message);
       }
-    } catch (err) {
-      Alert.alert('Cilad', 'Fadlan hubi internet-kaaga');
+    } catch (err: any) {
+      if (err && err.message === 'TIMEOUT') {
+        Alert.alert('Cilad', 'Cilad dhinaca server-ka ah (Muu soo jawaabin wakhtigii loogu talagalay). Fadlan mar kale isku day.');
+      } else {
+        Alert.alert('Cilad', 'Fadlan hubi internet-kaaga');
+      }
     } finally {
       setLoading(false);
     }
@@ -120,27 +150,18 @@ export default function PaymentScreen() {
           <View style={styles.numbersCard}>
             <Text style={styles.cardSectionTitle}>Fadlan lacagta kusoo dir mid ka mid ah lambaradan hoose kadibna halka hoose kusoo qor numberka aad ka soo dirtey.</Text>
             
-            <View style={styles.numberItem}>
-              <View style={styles.numberTextContainer}>
-                <Ionicons name="phone-portrait-outline" size={18} color={colors.neutral} />
-                <Text style={styles.numberValue}>637930329</Text>
+            {paymentNumbers.map((num, idx) => (
+              <View key={idx} style={styles.numberItem}>
+                <View style={styles.numberTextContainer}>
+                  <Ionicons name="phone-portrait-outline" size={18} color={colors.neutral} />
+                  <Text style={styles.numberValue}>{num}</Text>
+                </View>
+                <TouchableOpacity style={styles.copyBtn} onPress={() => handleCopy(num)} activeOpacity={0.7}>
+                  <Feather name="copy" size={16} color={colors.primary} />
+                  <Text style={styles.copyBtnText}>Copy</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity style={styles.copyBtn} onPress={() => handleCopy('637930329')} activeOpacity={0.7}>
-                <Feather name="copy" size={16} color={colors.primary} />
-                <Text style={styles.copyBtnText}>Copy</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.numberItem}>
-              <View style={styles.numberTextContainer}>
-                <Ionicons name="phone-portrait-outline" size={18} color={colors.neutral} />
-                <Text style={styles.numberValue}>659119779</Text>
-              </View>
-              <TouchableOpacity style={styles.copyBtn} onPress={() => handleCopy('659119779')} activeOpacity={0.7}>
-                <Feather name="copy" size={16} color={colors.primary} />
-                <Text style={styles.copyBtnText}>Copy</Text>
-              </TouchableOpacity>
-            </View>
+            ))}
           </View>
 
           {/* Input field */}

@@ -223,18 +223,6 @@ export default function SignUpScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Divider */}
-            <View style={styles.dividerContainer}>
-              <View style={styles.divider} />
-              <Text style={styles.dividerText}>OR</Text>
-              <View style={styles.divider} />
-            </View>
-
-            {/* Google Button */}
-            <TouchableOpacity style={styles.googleButton} activeOpacity={0.7}>
-              <Ionicons name="logo-google" size={20} color="#ffffff" />
-              <Text style={styles.googleButtonText}>Continue with Google</Text>
-            </TouchableOpacity>
 
           </View>
         </ScrollView>

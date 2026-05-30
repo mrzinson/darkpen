@@ -5,6 +5,51 @@ import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect } from 'react';
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
 import { Text, TextInput, StyleSheet } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+
+// Monkey patch AsyncStorage to securely encrypt JWT token using expo-secure-store
+const originalGetItem = AsyncStorage.getItem;
+const originalSetItem = AsyncStorage.setItem;
+const originalRemoveItem = AsyncStorage.removeItem;
+
+AsyncStorage.getItem = async (key: string, ...args: any[]) => {
+  if (key === 'userToken') {
+    try {
+      return await SecureStore.getItemAsync(key);
+    } catch (err) {
+      console.warn('SecureStore.getItemAsync failed, falling back to AsyncStorage:', err);
+      return originalGetItem.call(AsyncStorage, key, ...args);
+    }
+  }
+  return originalGetItem.call(AsyncStorage, key, ...args);
+};
+
+AsyncStorage.setItem = async (key: string, value: string, ...args: any[]) => {
+  if (key === 'userToken') {
+    try {
+      await SecureStore.setItemAsync(key, value);
+      return;
+    } catch (err) {
+      console.warn('SecureStore.setItemAsync failed, falling back to AsyncStorage:', err);
+      return originalSetItem.call(AsyncStorage, key, value, ...args);
+    }
+  }
+  return originalSetItem.call(AsyncStorage, key, value, ...args);
+};
+
+AsyncStorage.removeItem = async (key: string, ...args: any[]) => {
+  if (key === 'userToken') {
+    try {
+      await SecureStore.deleteItemAsync(key);
+      return;
+    } catch (err) {
+      console.warn('SecureStore.deleteItemAsync failed, falling back to AsyncStorage:', err);
+      return originalRemoveItem.call(AsyncStorage, key, ...args);
+    }
+  }
+  return originalRemoveItem.call(AsyncStorage, key, ...args);
+};
 
 // Global Text and TextInput override for Poppins Font
 const oldTextRender = (Text as any).render;
