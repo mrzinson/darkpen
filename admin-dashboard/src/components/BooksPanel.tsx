@@ -40,7 +40,7 @@ export default function BooksPanel() {
     formData.append('category', form.category);
     formData.append('grade', form.grade);
     formData.append('country', form.country);
-    formData.append('region_state', form.country === 'Somalia' ? form.region_state : '');
+    formData.append('region_state', '');
     if (image) formData.append('image', image);
     if (pdf) formData.append('pdf', pdf);
 
