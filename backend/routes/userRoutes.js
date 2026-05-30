@@ -141,32 +141,36 @@ router.put('/profile', auth, userController.updateProfile);
 
 // Tirtirida Akoonka User-ka (Account Deletion for Play Store Compliance)
 router.delete('/account', auth, async (req, res) => {
-    const connection = await db.getConnection();
     try {
         const userId = req.user.id;
-        
-        await connection.beginTransaction();
 
-        // Tirtir xogta la xiriirta user-ka
-        await connection.execute('DELETE FROM chat_history_v2 WHERE user_id = ?', [userId]);
-        await connection.execute('DELETE FROM shukaansi_messages WHERE user_id = ?', [userId]);
-        await connection.execute('DELETE FROM user_wallet WHERE user_id = ?', [userId]);
-        await connection.execute('DELETE FROM user_subscriptions WHERE user_id = ?', [userId]);
-        await connection.execute('DELETE FROM group_members WHERE user_id = ?', [userId]);
-        await connection.execute('DELETE FROM user_claimed_promos WHERE user_id = ?', [userId]);
-        await connection.execute('DELETE FROM payments WHERE user_id = ?', [userId]);
-        
+        // Tirtir xogta la xiriirta user-ka (ignore errors for tables that may not exist)
+        const tables = [
+            'chat_history_v2',
+            'shukaansi_messages',
+            'user_wallet',
+            'user_subscriptions',
+            'group_members',
+            'user_claimed_promos',
+            'payments'
+        ];
+
+        for (const table of tables) {
+            try {
+                await db.execute(`DELETE FROM ${table} WHERE user_id = ?`, [userId]);
+            } catch (e) {
+                // Ignore if table doesn't exist or column name differs
+                console.warn(`[DeleteAccount] Skipped table ${table}:`, e.message);
+            }
+        }
+
         // Tirtir user-ka laftiisa
-        await connection.execute('DELETE FROM users WHERE id = ?', [userId]);
+        await db.execute('DELETE FROM users WHERE id = ?', [userId]);
 
-        await connection.commit();
         res.json({ message: 'Akoonkaaga si guul leh ayaa loo tirtiray.' });
     } catch (error) {
-        await connection.rollback();
         console.error('Error deleting account:', error);
         res.status(500).json({ message: 'Cilad ayaa dhacday, fadlan dib isku day.' });
-    } finally {
-        connection.release();
     }
 });
 
