@@ -237,6 +237,25 @@ export default function ChatScreen() {
   const [inputHeight, setInputHeight] = useState(40);
   const isHistoryLoaded = useRef(false);
 
+  // ALL STATE DECLARATIONS — must be before any useEffect that references them
+  const [inputText, setInputText] = useState('');
+  const [isAiTyping, setIsAiTyping] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(true);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [credits, setCredits] = useState<number | null>(null);
+  const [subscriptionType, setSubscriptionType] = useState<string | null>(null);
+  const [thinkingStatus, setThinkingStatus] = useState<string>('');
+  const [viewerImage, setViewerImage] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string>('');
+  const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
+  const [paymentReference, setPaymentReference] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isAttachOpen, setIsAttachOpen] = useState(false);
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+
   // Spin Animation for thinking state AppLogo
   const spinAnim = useRef(new Animated.Value(0)).current;
 
@@ -303,21 +322,9 @@ export default function ChatScreen() {
       AsyncStorage.setItem('education_chat_messages', JSON.stringify(messages)).catch(err => console.error(err));
     }
   }, [messages]);
-  const [inputText, setInputText] = useState('');
-  const [isAiTyping, setIsAiTyping] = useState(false);
-  const [showTooltip, setShowTooltip] = useState(true);
-  const [showScrollBottom, setShowScrollBottom] = useState(false);
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [credits, setCredits] = useState<number | null>(null);
-  const [subscriptionType, setSubscriptionType] = useState<string | null>(null);
-  const [thinkingStatus, setThinkingStatus] = useState<string>('');
-  const [viewerImage, setViewerImage] = useState<string | null>(null);
-  const [sessionId, setSessionId] = useState<string>('');
-  const [paymentStatus, setPaymentStatus] = useState<string | null>(null);
-  const [paymentReference, setPaymentReference] = useState<string | null>(null);
+  // (state already declared above)
 
-  // Sidebar State
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  // Sidebar Animated refs
   const sidebarAnim = useRef(new Animated.Value(SIDEBAR_WIDTH)).current;
   const overlayAnim = useRef(new Animated.Value(0)).current;
 
@@ -326,19 +333,13 @@ export default function ChatScreen() {
   const sendTranslateY = useRef(new Animated.Value(0)).current;
   const sendOpacity = useRef(new Animated.Value(1)).current;
 
-  // Attachment Menu State
-  const [isAttachOpen, setIsAttachOpen] = useState(false);
+  // Attachment Menu Animated ref
   const attachAnim = useRef(new Animated.Value(300)).current;
 
   // Thinking Animation
   const thinkingDot1 = useRef(new Animated.Value(0)).current;
   const thinkingDot2 = useRef(new Animated.Value(0)).current;
   const thinkingDot3 = useRef(new Animated.Value(0)).current;
-
-  // Voice Recording State
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
 
   const scrollViewRef = useRef<ScrollView>(null);
 
