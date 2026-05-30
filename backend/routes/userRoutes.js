@@ -139,6 +139,37 @@ router.get('/search', auth, userController.searchUsers);
 // Cusboonaysiinta Profile-ka
 router.put('/profile', auth, userController.updateProfile);
 
+// Tirtirida Akoonka User-ka (Account Deletion for Play Store Compliance)
+router.delete('/account', auth, async (req, res) => {
+    const connection = await db.getConnection();
+    try {
+        const userId = req.user.id;
+        
+        await connection.beginTransaction();
+
+        // Tirtir xogta la xiriirta user-ka
+        await connection.execute('DELETE FROM chat_history_v2 WHERE user_id = ?', [userId]);
+        await connection.execute('DELETE FROM shukaansi_messages WHERE user_id = ?', [userId]);
+        await connection.execute('DELETE FROM user_wallet WHERE user_id = ?', [userId]);
+        await connection.execute('DELETE FROM user_subscriptions WHERE user_id = ?', [userId]);
+        await connection.execute('DELETE FROM group_members WHERE user_id = ?', [userId]);
+        await connection.execute('DELETE FROM user_claimed_promos WHERE user_id = ?', [userId]);
+        await connection.execute('DELETE FROM payments WHERE user_id = ?', [userId]);
+        
+        // Tirtir user-ka laftiisa
+        await connection.execute('DELETE FROM users WHERE id = ?', [userId]);
+
+        await connection.commit();
+        res.json({ message: 'Akoonkaaga si guul leh ayaa loo tirtiray.' });
+    } catch (error) {
+        await connection.rollback();
+        console.error('Error deleting account:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday, fadlan dib isku day.' });
+    } finally {
+        connection.release();
+    }
+});
+
 // Soo akhrinta Promotional Cards with Claim Status
 router.get('/promo-cards', auth, async (req, res) => {
     try {

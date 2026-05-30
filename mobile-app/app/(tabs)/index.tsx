@@ -361,13 +361,6 @@ export default function HomeScreen() {
       items: [
         { id: 'billing', icon: 'card-outline', label: t('billing'), route: '/billing' },
         { id: 'settings', icon: 'settings-outline', label: t('settings'), route: '/settings' },
-      ]
-    },
-    {
-      title: 'Xog & Xeerarka',
-      items: [
-        { id: 'terms', icon: 'document-text-outline', label: t('terms'), route: '/terms-content' },
-        { id: 'privacy', icon: 'shield-checkmark-outline', label: t('privacy_policy'), route: '/privacy' },
         { id: 'about', icon: 'information-circle-outline', label: t('about_darkpen'), route: '/about' },
       ]
     }

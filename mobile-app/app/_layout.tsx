@@ -85,7 +85,6 @@ function RootStack() {
       <Stack.Screen name="voice-call" />
       <Stack.Screen name="profile" />
       <Stack.Screen name="settings" />
-      <Stack.Screen name="privacy" />
       <Stack.Screen name="about" />
       <Stack.Screen name="readerexam" />
     </Stack>

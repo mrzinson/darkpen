@@ -1,6 +1,6 @@
 import { useTheme } from '../context/ThemeContext';
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Image, Platform } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Image, Platform, Linking, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -23,6 +23,41 @@ export default function SettingsScreen() {
       });
     }, [])
   );
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      language === 'so' ? "Tirtirida Akoonka" : "Delete Account",
+      language === 'so' 
+        ? "Ma hubtaa inaad tirtirto akoonkaaga? Tani waxay tirtiri doontaa dhammaan xogtaada, fariimahaaga, iyo lacag bixintaadii oo dhan. Go'aankan lagama noqon karo." 
+        : "Are you sure you want to delete your account? This will permanently delete all your data, messages, and payments. This action cannot be undone.",
+      [
+        { text: language === 'so' ? "Jooji" : "Cancel", style: "cancel" },
+        { 
+          text: language === 'so' ? "Haa, Tirtir" : "Yes, Delete", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const token = await AsyncStorage.getItem('userToken');
+              const res = await fetch(`${Config.API_URL}/api/user/account`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              if (res.ok) {
+                await AsyncStorage.removeItem('userToken');
+                await AsyncStorage.removeItem('userData');
+                router.replace('/login');
+              } else {
+                const data = await res.json();
+                Alert.alert("Error", data.message || "Failed to delete account");
+              }
+            } catch (err) {
+              Alert.alert("Error", "Network error occurred.");
+            }
+          }
+        }
+      ]
+    );
+  };
 
   return (
     <AuthGuard>
@@ -157,6 +192,56 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* 6. Terms & Conditions */}
+          <TouchableOpacity 
+            style={styles.settingCard} 
+            onPress={() => router.push('/terms-content')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconBox, { backgroundColor: '#3B82F6' }]}>
+              <Ionicons name="document-text" size={22} color="white" />
+            </View>
+            <View style={styles.cardContent}>
+              <Text style={styles.cardTitle}>{t('terms')}</Text>
+              <Text style={styles.cardDesc}>Rules and Guidelines</Text>
+            </View>
+            <Feather name="chevron-right" size={20} color={colors.neutral} />
+          </TouchableOpacity>
+
+          {/* 7. Privacy Policy */}
+          <TouchableOpacity 
+            style={styles.settingCard} 
+            onPress={() => Linking.openURL('https://darkpen-privacy-policy.onrender.com/')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconBox, { backgroundColor: '#10B981' }]}>
+              <Ionicons name="shield-checkmark" size={22} color="white" />
+            </View>
+            <View style={styles.cardContent}>
+              <Text style={styles.cardTitle}>{t('privacy_policy')}</Text>
+              <Text style={styles.cardDesc}>External Link</Text>
+            </View>
+            <Feather name="external-link" size={20} color={colors.neutral} />
+          </TouchableOpacity>
+
+          {/* 8. Delete Account */}
+          <TouchableOpacity 
+            style={[styles.settingCard, { borderColor: '#EF4444' }]} 
+            onPress={handleDeleteAccount}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconBox, { backgroundColor: '#EF4444' }]}>
+              <Ionicons name="trash" size={22} color="white" />
+            </View>
+            <View style={styles.cardContent}>
+              <Text style={[styles.cardTitle, { color: '#EF4444' }]}>
+                {language === 'so' ? 'Tirtir Akoonkayga' : 'Delete My Account'}
+              </Text>
+              <Text style={styles.cardDesc}>Permanently delete all your data</Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#EF4444" />
+          </TouchableOpacity>
 
           <View style={{ height: 40 }} />
         </ScrollView>
