@@ -26,6 +26,7 @@ export default function ExamsScreen() {
   const insets = useSafeAreaInsets();
   const [activeCategory, setActiveCategory] = useState('All');
   const [activeYear, setActiveYear] = useState('All');
+  const [activeGrade, setActiveGrade] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [exams, setExams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,22 +88,33 @@ export default function ExamsScreen() {
   const filteredExams = Array.isArray(exams) ? exams.filter(exam => {
     const matchesCategory = activeCategory === 'All' || (exam.category && exam.category === activeCategory);
     const matchesYear = activeYear === 'All' || (exam.year && exam.year === activeYear);
+    const matchesGrade = activeGrade === 'All' || (exam.grade && (
+      exam.grade.toLowerCase() === activeGrade.toLowerCase() || 
+      (activeGrade === 'Class 8' && (exam.grade.toLowerCase().includes('8') || exam.grade.toLowerCase().includes('eight'))) ||
+      (activeGrade === 'Form 4' && (exam.grade.toLowerCase().includes('form 4') || exam.grade.toLowerCase().includes('form4') || exam.grade.toLowerCase().includes('four')))
+    ));
     const examTitle = exam.title || '';
     const matchesSearch = examTitle.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesYear && matchesSearch;
+    return matchesCategory && matchesYear && matchesGrade && matchesSearch;
   }) : [];
 
-  // Get available years for the current category
+  // Get available years for the current category and grade
   const availableYears = React.useMemo(() => {
     const years = new Set<string>();
     years.add('All');
     exams.forEach(exam => {
-      if (activeCategory === 'All' || exam.category === activeCategory) {
+      const matchesCategory = activeCategory === 'All' || exam.category === activeCategory;
+      const matchesGrade = activeGrade === 'All' || (exam.grade && (
+        exam.grade.toLowerCase() === activeGrade.toLowerCase() || 
+        (activeGrade === 'Class 8' && (exam.grade.toLowerCase().includes('8') || exam.grade.toLowerCase().includes('eight'))) ||
+        (activeGrade === 'Form 4' && (exam.grade.toLowerCase().includes('form 4') || exam.grade.toLowerCase().includes('form4') || exam.grade.toLowerCase().includes('four')))
+      ));
+      if (matchesCategory && matchesGrade) {
         if (exam.year) years.add(exam.year);
       }
     });
     return Array.from(years).sort((a, b) => b.localeCompare(a)); // Newest years first
-  }, [exams, activeCategory]);
+  }, [exams, activeCategory, activeGrade]);
 
   return (
     <View style={styles.container}>
@@ -152,6 +164,25 @@ export default function ExamsScreen() {
               </TouchableOpacity>
             )}
           </View>
+        </View>
+
+        {/* CLASS/GRADE FILTER TABS */}
+        <View style={styles.gradeFilterWrapper}>
+          {['All', 'Class 8', 'Form 4'].map((gradeOpt) => (
+            <TouchableOpacity
+              key={gradeOpt}
+              style={[styles.gradeTab, activeGrade === gradeOpt && styles.gradeTabActive]}
+              onPress={() => {
+                setActiveGrade(gradeOpt);
+                setActiveYear('All'); // Reset year when grade changes
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.gradeTabText, activeGrade === gradeOpt && styles.gradeTabTextActive]}>
+                {gradeOpt === 'All' ? 'All Classes' : gradeOpt}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         {/* FILTER TABS (Categories) */}
@@ -524,5 +555,36 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#3B82F6',
+  },
+  gradeFilterWrapper: {
+    flexDirection: 'row',
+    backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
+    padding: 4,
+    borderRadius: 14,
+    marginBottom: 16,
+    marginHorizontal: 24,
+  },
+  gradeTab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  gradeTabActive: {
+    backgroundColor: colors.card,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  gradeTabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  gradeTabTextActive: {
+    color: colors.primary,
+    fontWeight: '700',
   },
 });

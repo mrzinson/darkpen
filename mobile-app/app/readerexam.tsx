@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as IntentLauncher from 'expo-intent-launcher';
+import Config from '../constants/Config';
 
 export default function ReaderExamScreen() {
   const { colors, isDark } = useTheme();
@@ -37,12 +38,18 @@ export default function ReaderExamScreen() {
     true;
   `;
 
+  let formattedPdfUrl = pdfUrl as string;
+  if (formattedPdfUrl && !formattedPdfUrl.startsWith('http://') && !formattedPdfUrl.startsWith('https://')) {
+    const cleanPath = formattedPdfUrl.startsWith('/') ? formattedPdfUrl : '/' + formattedPdfUrl;
+    formattedPdfUrl = `${Config.API_URL}${cleanPath}`;
+  }
+
   useEffect(() => {
-    if (!pdfUrl) return;
+    if (!formattedPdfUrl) return;
 
     const checkAndDownload = async () => {
       try {
-        const urlStr = pdfUrl as string;
+        const urlStr = formattedPdfUrl;
         const filename = urlStr.split('/').pop() || 'document.pdf';
         const targetPath = `${FileSystem.documentDirectory}${filename}`;
         setLocalPath(targetPath);
@@ -66,7 +73,7 @@ export default function ReaderExamScreen() {
     };
 
     checkAndDownload();
-  }, [pdfUrl]);
+  }, [formattedPdfUrl]);
 
   const handleOpenOffline = async () => {
     if (!localPath) return;
@@ -87,7 +94,7 @@ export default function ReaderExamScreen() {
     }
   };
 
-  if (!pdfUrl) {
+  if (!formattedPdfUrl) {
     return (
       <View style={styles.errorContainer}>
         <Text style={{ color: colors.text }}>PDF lama helin</Text>
@@ -99,9 +106,9 @@ export default function ReaderExamScreen() {
   }
 
   // Define what source to load in the WebView
-  let webViewSourceUri = pdfUrl as string;
+  let webViewSourceUri = formattedPdfUrl;
   if (Platform.OS === 'android') {
-    webViewSourceUri = `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(pdfUrl as string)}`;
+    webViewSourceUri = `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(formattedPdfUrl)}`;
   } else if (Platform.OS === 'ios' && isCached && localPath) {
     webViewSourceUri = localPath; // Loads local file instantly on iOS!
   }
@@ -140,7 +147,7 @@ export default function ReaderExamScreen() {
       <View style={styles.content}>
         {Platform.OS === 'web' ? (
           <iframe 
-            src={`${pdfUrl}#toolbar=0`} 
+            src={`${formattedPdfUrl}#toolbar=0`} 
             style={{ width: '100%', height: '100%', border: 'none' }} 
             title={title as string}
           />
