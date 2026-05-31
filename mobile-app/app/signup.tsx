@@ -3,14 +3,15 @@ import { useTheme } from '../context/ThemeContext';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet, Text, View, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, ScrollView, Animated
+  KeyboardAvoidingView, Platform, ScrollView, Animated,
+  Modal, FlatList
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Config from '../constants/Config';
-import { normalizePhoneInput, normalizeUsernameInput, usernameError } from '../utils/authInput';
+import { normalizePhoneInput, normalizeUsernameInput, usernameError, combinePhoneAndCode } from '../utils/authInput';
 import { AppLogo } from '../components/AppLogo';
 
 export default function SignUpScreen() {
@@ -23,6 +24,27 @@ export default function SignUpScreen() {
   const [errorMsg, setErrorMsg] = useState('');
 
   const [focused, setFocused] = useState({ name: false, username: false, whatsappNumber: false, password: false, confirmPassword: false });
+
+  // Country Code Dropdown States
+  const [countryCode, setCountryCode] = useState('+252');
+  const [countryFlag, setCountryFlag] = useState('🇸🇴');
+  const [modalVisible, setModalVisible] = useState(false);
+
+  const COUNTRIES = [
+    { code: '+252', name: 'Somalia', flag: '🇸🇴' },
+    { code: '+254', name: 'Kenya', flag: '🇰🇪' },
+    { code: '+251', name: 'Ethiopia', flag: '🇪🇹' },
+    { code: '+253', name: 'Djibouti', flag: '🇩🇯' },
+    { code: '+256', name: 'Uganda', flag: '🇺🇬' },
+    { code: '+44', name: 'United Kingdom', flag: '🇬🇧' },
+    { code: '+1', name: 'United States/Canada', flag: '🇺🇸' },
+    { code: '+90', name: 'Turkey', flag: '🇹🇷' },
+    { code: '+966', name: 'Saudi Arabia', flag: '🇸🇦' },
+    { code: '+971', name: 'United Arab Emirates', flag: '🇦🇪' },
+    { code: '+46', name: 'Sweden', flag: '🇸🇪' },
+    { code: '+47', name: 'Norway', flag: '🇳🇴' },
+    { code: '+358', name: 'Finland', flag: '🇫🇮' }
+  ];
 
   const buttonScale = useRef(new Animated.Value(1)).current;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -49,7 +71,8 @@ export default function SignUpScreen() {
   const isActive = (field: keyof typeof form) => focused[field] || form[field].length > 0;
 
   const handleSignup = async () => {
-    const normalizedPhone = normalizePhoneInput(form.whatsappNumber);
+    const fullNumber = combinePhoneAndCode(countryCode, form.whatsappNumber);
+    const normalizedPhone = normalizePhoneInput(fullNumber);
     const cleanUsername = normalizeUsernameInput(form.username);
     const usernameValidation = usernameError(cleanUsername);
 
@@ -62,7 +85,7 @@ export default function SignUpScreen() {
       return;
     }
     if (!normalizedPhone) {
-      setErrorMsg('Fadlan geli number sax ah, tusaale +25261XXXXXXX');
+      setErrorMsg('Fadlan geli number sax ah, tusaale 61XXXXXXX');
       return;
     }
     if (form.password !== form.confirmPassword) {
@@ -156,18 +179,30 @@ export default function SignUpScreen() {
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={[styles.floatingLabel, isActive('whatsappNumber') && styles.floatingLabelActive]}>
+              <Text style={[styles.floatingLabel, (focused.whatsappNumber || form.whatsappNumber.length > 0) && styles.floatingLabelActive]}>
                 WhatsApp Number
               </Text>
-              <TextInput
-                style={styles.input}
-                keyboardType="phone-pad"
-                autoCapitalize="none"
-                value={form.whatsappNumber}
-                onChangeText={(t) => setForm({ ...form, whatsappNumber: t })}
-                onFocus={() => handleFocus('whatsappNumber', true)}
-                onBlur={() => handleFocus('whatsappNumber', false)}
-              />
+              <View style={styles.phoneInputWrapper}>
+                <TouchableOpacity
+                  style={styles.countryCodeSelector}
+                  onPress={() => setModalVisible(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.countryCodeText}>{countryFlag} {countryCode}</Text>
+                  <Ionicons name="chevron-down" size={12} color="#64748B" style={{ marginLeft: 2 }} />
+                </TouchableOpacity>
+                <TextInput
+                  style={styles.phoneInput}
+                  keyboardType="phone-pad"
+                  autoCapitalize="none"
+                  value={form.whatsappNumber}
+                  onChangeText={(t) => setForm({ ...form, whatsappNumber: t })}
+                  onFocus={() => handleFocus('whatsappNumber', true)}
+                  onBlur={() => handleFocus('whatsappNumber', false)}
+                  placeholder="61XXXXXXX"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
             </View>
 
             {/* Password */}
@@ -223,8 +258,45 @@ export default function SignUpScreen() {
               </TouchableOpacity>
             </View>
 
-
           </View>
+
+          {/* Country Code Modal */}
+          <Modal visible={modalVisible} transparent animationType="slide">
+            <TouchableOpacity
+              style={styles.modalOverlay}
+              activeOpacity={1}
+              onPress={() => setModalVisible(false)}
+            >
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Dooro Waddanka</Text>
+                  <TouchableOpacity onPress={() => setModalVisible(false)}>
+                    <Ionicons name="close" size={24} color="#1E293B" />
+                  </TouchableOpacity>
+                </View>
+                <FlatList
+                  data={COUNTRIES}
+                  keyExtractor={(item) => item.code}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.countryItem}
+                      onPress={() => {
+                        setCountryCode(item.code);
+                        setCountryFlag(item.flag);
+                        setModalVisible(false);
+                      }}
+                    >
+                      <Text style={styles.countryItemText}>{item.flag} {item.name} ({item.code})</Text>
+                      {countryCode === item.code && (
+                        <Ionicons name="checkmark" size={20} color="#3B82F6" />
+                      )}
+                    </TouchableOpacity>
+                  )}
+                />
+              </View>
+            </TouchableOpacity>
+          </Modal>
+
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -378,5 +450,73 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontWeight: '600',
     color: '#ffffff',
     marginLeft: 10,
+  },
+  phoneInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    backgroundColor: '#F9FAFB',
+    overflow: 'hidden',
+  },
+  countryCodeSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    borderRightWidth: 1.5,
+    borderRightColor: '#E5E7EB',
+    height: 56,
+    gap: 4,
+    backgroundColor: '#F1F5F9',
+  },
+  countryCodeText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  phoneInput: {
+    flex: 1,
+    height: 56,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    color: '#111827',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    maxHeight: '60%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  countryItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  countryItemText: {
+    fontSize: 16,
+    color: '#111827',
+    fontWeight: '500',
   },
 });
