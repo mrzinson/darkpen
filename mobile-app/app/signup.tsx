@@ -178,10 +178,8 @@ export default function SignUpScreen() {
               />
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={[styles.floatingLabel, (focused.whatsappNumber || form.whatsappNumber.length > 0) && styles.floatingLabelActive]}>
-                WhatsApp Number
-              </Text>
+            <View style={styles.phoneFieldContainer}>
+              <Text style={styles.phoneLabel}>WhatsApp Number</Text>
               <View style={styles.phoneInputWrapper}>
                 <TouchableOpacity
                   style={styles.countryCodeSelector}
@@ -450,6 +448,16 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontWeight: '600',
     color: '#ffffff',
     marginLeft: 10,
+  },
+  phoneFieldContainer: {
+    marginBottom: 20,
+  },
+  phoneLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#3B82F6',
+    marginBottom: 6,
+    marginLeft: 2,
   },
   phoneInputWrapper: {
     flexDirection: 'row',

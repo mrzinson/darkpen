@@ -3,14 +3,15 @@ import { useTheme } from '../context/ThemeContext';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   StyleSheet, Text, View, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, ScrollView, Animated
+  KeyboardAvoidingView, Platform, ScrollView, Animated,
+  Modal, FlatList
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Config from '../constants/Config';
-import { normalizePhoneInput } from '../utils/authInput';
+import { normalizePhoneInput, combinePhoneAndCode } from '../utils/authInput';
 import { AppLogo } from '../components/AppLogo';
 
 export default function LoginScreen() {
@@ -23,6 +24,27 @@ export default function LoginScreen() {
   const [errorMsg, setErrorMsg] = useState('Fadlan geli WhatsApp number-ka iyo password-ka');
   const [phoneFocused, setPhoneFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+
+  // Country Code Dropdown States
+  const [countryCode, setCountryCode] = useState('+252');
+  const [countryFlag, setCountryFlag] = useState('🇸🇴');
+  const [modalVisible, setModalVisible] = useState(false);
+
+  const COUNTRIES = [
+    { code: '+252', name: 'Somalia', flag: '🇸🇴' },
+    { code: '+254', name: 'Kenya', flag: '🇰🇪' },
+    { code: '+251', name: 'Ethiopia', flag: '🇪🇹' },
+    { code: '+253', name: 'Djibouti', flag: '🇩🇯' },
+    { code: '+256', name: 'Uganda', flag: '🇺🇬' },
+    { code: '+44', name: 'United Kingdom', flag: '🇬🇧' },
+    { code: '+1', name: 'United States/Canada', flag: '🇺🇸' },
+    { code: '+90', name: 'Turkey', flag: '🇹🇷' },
+    { code: '+966', name: 'Saudi Arabia', flag: '🇸🇦' },
+    { code: '+971', name: 'United Arab Emirates', flag: '🇦🇪' },
+    { code: '+46', name: 'Sweden', flag: '🇸🇪' },
+    { code: '+47', name: 'Norway', flag: '🇳🇴' },
+    { code: '+358', name: 'Finland', flag: '🇫🇮' }
+  ];
 
   const buttonScale = useRef(new Animated.Value(1)).current;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -49,7 +71,8 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     setErrorMsg('');
-    const normalizedPhone = normalizePhoneInput(form.whatsappNumber);
+    const fullNumber = combinePhoneAndCode(countryCode, form.whatsappNumber);
+    const normalizedPhone = normalizePhoneInput(fullNumber);
     if (!normalizedPhone || !form.password) {
       setErrorMsg('Fadlan geli number sax ah iyo password-ka');
       return;
@@ -117,20 +140,29 @@ export default function LoginScreen() {
 
             </View>
 
-            {/* Email Input */}
-            <View style={styles.inputContainer}>
-              <Text style={[styles.floatingLabel, (phoneFocused || form.whatsappNumber.length > 0) && styles.floatingLabelActive]}>
-                WhatsApp Number
-              </Text>
-              <TextInput
-                style={styles.input}
-                keyboardType="phone-pad"
-                autoCapitalize="none"
-                value={form.whatsappNumber}
-                onChangeText={(t) => setForm({ ...form, whatsappNumber: t })}
-                onFocus={() => handleFocus('phone', true)}
-                onBlur={() => handleFocus('phone', false)}
-              />
+            <View style={styles.phoneFieldContainer}>
+              <Text style={styles.phoneLabel}>WhatsApp Number</Text>
+              <View style={styles.phoneInputWrapper}>
+                <TouchableOpacity 
+                  style={styles.countryCodeSelector} 
+                  onPress={() => setModalVisible(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.countryCodeText}>{countryFlag} {countryCode}</Text>
+                  <Ionicons name="chevron-down" size={12} color="#64748B" style={{ marginLeft: 2 }} />
+                </TouchableOpacity>
+                <TextInput
+                  style={styles.phoneInput}
+                  keyboardType="phone-pad"
+                  autoCapitalize="none"
+                  value={form.whatsappNumber}
+                  onChangeText={(t) => setForm({ ...form, whatsappNumber: t })}
+                  onFocus={() => handleFocus('phone', true)}
+                  onBlur={() => handleFocus('phone', false)}
+                  placeholder="61XXXXXXX"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
             </View>
 
             {/* Password Input */}
@@ -178,6 +210,44 @@ export default function LoginScreen() {
             </View>
 
           </View>
+
+          {/* Country Code Modal */}
+          <Modal visible={modalVisible} transparent animationType="slide">
+            <TouchableOpacity 
+              style={styles.modalOverlay} 
+              activeOpacity={1} 
+              onPress={() => setModalVisible(false)}
+            >
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Dooro Waddanka</Text>
+                  <TouchableOpacity onPress={() => setModalVisible(false)}>
+                    <Ionicons name="close" size={24} color="#1E293B" />
+                  </TouchableOpacity>
+                </View>
+                <FlatList
+                  data={COUNTRIES}
+                  keyExtractor={(item) => item.code}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity 
+                      style={styles.countryItem} 
+                      onPress={() => {
+                        setCountryCode(item.code);
+                        setCountryFlag(item.flag);
+                        setModalVisible(false);
+                      }}
+                    >
+                      <Text style={styles.countryItemText}>{item.flag} {item.name} ({item.code})</Text>
+                      {countryCode === item.code && (
+                        <Ionicons name="checkmark" size={20} color="#3B82F6" />
+                      )}
+                    </TouchableOpacity>
+                  )}
+                />
+              </View>
+            </TouchableOpacity>
+          </Modal>
+
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -350,5 +420,83 @@ const getStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1.5,
     borderColor: '#BFDBFE',
+  },
+  phoneFieldContainer: {
+    marginBottom: 20,
+  },
+  phoneLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#3B82F6',
+    marginBottom: 6,
+    marginLeft: 2,
+  },
+  phoneInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#d4dce9ff',
+    borderRadius: 10,
+    backgroundColor: '#F9FAFB',
+    overflow: 'hidden',
+  },
+  countryCodeSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    borderRightWidth: 1.5,
+    borderRightColor: '#d4dce9ff',
+    height: 56,
+    gap: 4,
+    backgroundColor: '#F1F5F9',
+  },
+  countryCodeText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  phoneInput: {
+    flex: 1,
+    height: 56,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    color: '#111827',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    maxHeight: '60%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  countryItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  countryItemText: {
+    fontSize: 16,
+    color: '#111827',
+    fontWeight: '500',
   },
 });
