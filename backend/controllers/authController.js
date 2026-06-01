@@ -94,21 +94,36 @@ exports.getClasses = async (req, res) => {
     }
 };
 
+// Helper: auto-generate unique username from full name
+async function generateUniqueUsername(connection, name) {
+    const base = name
+        .toLowerCase()
+        .replace(/\s+/g, '_')
+        .replace(/[^a-z0-9_]/g, '')
+        .slice(0, 20) || 'user';
+
+    for (let i = 0; i < 10; i++) {
+        const suffix = Math.floor(1000 + Math.random() * 9000);
+        const candidate = `${base}_${suffix}`;
+        const [rows] = await connection.execute(
+            'SELECT id FROM users WHERE username = ?',
+            [candidate]
+        );
+        if (rows.length === 0) return candidate;
+    }
+    // Fallback: timestamp-based
+    return `${base}_${Date.now().toString().slice(-6)}`;
+}
+
 // 1. Diiwaangalinta (Sign Up)
 exports.signup = async (req, res) => {
     try {
         const name = String(req.body.name || '').trim();
-        const username = normalizeUsername(req.body.username);
         const whatsappNumber = normalizePhoneNumber(req.body.whatsapp_number || req.body.phone);
         const { password } = req.body;
 
         if (!name) {
             return res.status(400).json({ message: 'Magaca waa waajib.' });
-        }
-
-        const usernameError = validateUsername(username);
-        if (usernameError) {
-            return res.status(400).json({ message: usernameError });
         }
 
         if (!whatsappNumber) {
@@ -135,14 +150,8 @@ exports.signup = async (req, res) => {
                 return res.status(400).json({ message: 'Number-kan hore ayaa loo diiwaangeliyay.' });
             }
 
-            const [existingByUsername] = await connection.execute(
-                'SELECT id FROM users WHERE username = ?',
-                [username]
-            );
-            if (existingByUsername.length > 0) {
-                await connection.rollback();
-                return res.status(400).json({ message: 'Username-kan hore ayaa loo qaatay.' });
-            }
+            // Auto-generate unique username
+            const username = await generateUniqueUsername(connection, name);
 
             const hashedPassword = await bcrypt.hash(password, 12);
 

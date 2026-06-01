@@ -11,7 +11,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Config from '../constants/Config';
-import { normalizePhoneInput, normalizeUsernameInput, usernameError, combinePhoneAndCode } from '../utils/authInput';
+import { normalizePhoneInput, combinePhoneAndCode } from '../utils/authInput';
 import { AppLogo } from '../components/AppLogo';
 
 export default function SignUpScreen() {
@@ -19,11 +19,12 @@ export default function SignUpScreen() {
   const styles = getStyles(colors);
   const router = useRouter();
 
-  const [form, setForm] = useState({ name: '', username: '', whatsappNumber: '', password: '', confirmPassword: '' });
+  const [form, setForm] = useState({ name: '', whatsappNumber: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
-  const [focused, setFocused] = useState({ name: false, username: false, whatsappNumber: false, password: false, confirmPassword: false });
+  const [focused, setFocused] = useState({ name: false, whatsappNumber: false, password: false });
 
   // Country Code Dropdown States
   const [countryCode, setCountryCode] = useState('+252');
@@ -68,28 +69,18 @@ export default function SignUpScreen() {
     setFocused(prev => ({ ...prev, [field]: value }));
   };
 
-  const isActive = (field: keyof typeof form) => focused[field] || form[field].length > 0;
+  const isActive = (field: keyof typeof form) => focused[field as keyof typeof focused] || form[field].length > 0;
 
   const handleSignup = async () => {
     const fullNumber = combinePhoneAndCode(countryCode, form.whatsappNumber);
     const normalizedPhone = normalizePhoneInput(fullNumber);
-    const cleanUsername = normalizeUsernameInput(form.username);
-    const usernameValidation = usernameError(cleanUsername);
 
-    if (!form.name.trim() || !cleanUsername || !form.whatsappNumber.trim() || !form.password) {
-      setErrorMsg('Fadlan buuxi magaca, username-ka, number-ka iyo password-ka');
-      return;
-    }
-    if (usernameValidation) {
-      setErrorMsg(usernameValidation);
+    if (!form.name.trim() || !form.whatsappNumber.trim() || !form.password) {
+      setErrorMsg('Fadlan buuxi magaca, number-ka iyo password-ka');
       return;
     }
     if (!normalizedPhone) {
       setErrorMsg('Fadlan geli number sax ah, tusaale 61XXXXXXX');
-      return;
-    }
-    if (form.password !== form.confirmPassword) {
-      setErrorMsg('Passwords do not match');
       return;
     }
     if (form.password.length < 8) {
@@ -108,7 +99,6 @@ export default function SignUpScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: form.name.trim(),
-          username: cleanUsername,
           whatsapp_number: normalizedPhone,
           password: form.password,
         }),
@@ -139,17 +129,14 @@ export default function SignUpScreen() {
       >
         <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
 
-
-
           {/* Card */}
           <View style={styles.card}>
             <View style={styles.header}>
               <AppLogo size={68} variant="blue" style={styles.logo} />
               <Text style={styles.title}>signup</Text>
-
             </View>
 
-            {/* Name */}
+            {/* Full Name */}
             <View style={styles.inputContainer}>
               <Text style={[styles.floatingLabel, isActive('name') && styles.floatingLabelActive]}>
                 Full Name
@@ -163,21 +150,7 @@ export default function SignUpScreen() {
               />
             </View>
 
-            {/* Username */}
-            <View style={styles.inputContainer}>
-              <Text style={[styles.floatingLabel, isActive('username') && styles.floatingLabelActive]}>
-                Username
-              </Text>
-              <TextInput
-                style={styles.input}
-                autoCapitalize="none"
-                value={form.username}
-                onChangeText={(t) => setForm({ ...form, username: normalizeUsernameInput(t) })}
-                onFocus={() => handleFocus('username', true)}
-                onBlur={() => handleFocus('username', false)}
-              />
-            </View>
-
+            {/* WhatsApp Number with Country Code */}
             <View style={styles.phoneFieldContainer}>
               <Text style={styles.phoneLabel}>WhatsApp Number</Text>
               <View style={styles.phoneInputWrapper}>
@@ -203,34 +176,32 @@ export default function SignUpScreen() {
               </View>
             </View>
 
-            {/* Password */}
+            {/* Password with show/hide */}
             <View style={styles.inputContainer}>
               <Text style={[styles.floatingLabel, isActive('password') && styles.floatingLabelActive]}>
                 Password
               </Text>
-              <TextInput
-                style={styles.input}
-                secureTextEntry
-                value={form.password}
-                onChangeText={(t) => setForm({ ...form, password: t })}
-                onFocus={() => handleFocus('password', true)}
-                onBlur={() => handleFocus('password', false)}
-              />
-            </View>
-
-            {/* Confirm Password */}
-            <View style={styles.inputContainer}>
-              <Text style={[styles.floatingLabel, isActive('confirmPassword') && styles.floatingLabelActive]}>
-                Confirm Password
-              </Text>
-              <TextInput
-                style={styles.input}
-                secureTextEntry
-                value={form.confirmPassword}
-                onChangeText={(t) => setForm({ ...form, confirmPassword: t })}
-                onFocus={() => handleFocus('confirmPassword', true)}
-                onBlur={() => handleFocus('confirmPassword', false)}
-              />
+              <View style={styles.passwordWrapper}>
+                <TextInput
+                  style={styles.passwordInput}
+                  secureTextEntry={!showPassword}
+                  value={form.password}
+                  onChangeText={(t) => setForm({ ...form, password: t })}
+                  onFocus={() => handleFocus('password', true)}
+                  onBlur={() => handleFocus('password', false)}
+                />
+                <TouchableOpacity
+                  style={styles.eyeBtn}
+                  onPress={() => setShowPassword(v => !v)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={22}
+                    color="#64748B"
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Error */}
@@ -327,11 +298,6 @@ const getStyles = (colors: any) => StyleSheet.create({
     textTransform: 'uppercase',
     textAlign: 'center',
   },
-  subtitle: {
-    fontSize: 14,
-    color: colors.neutral,
-    lineHeight: 22,
-  },
   errorText: {
     color: '#EF4444',
     fontSize: 14,
@@ -383,72 +349,31 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 16,
     color: '#111827',
   },
-  button: {
-    backgroundColor: '#3B82F6',
-    width: '100%',
-    paddingVertical: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: AzureTheme.spacing.m,
-  },
-  buttonDisabled: {
-    backgroundColor: '#93C5FD',
-  },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  loginContainer: {
+  // Password with eye icon
+  passwordWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 12,
-  },
-  footerText: {
-    fontSize: 13,
-    color: colors.textLight,
-  },
-  loginText: {
-    fontSize: 13,
-    color: '#3B82F6',
-    fontWeight: '600',
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    marginVertical: AzureTheme.spacing.m,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#E5E7EB',
-  },
-  dividerText: {
-    paddingHorizontal: 10,
-    fontSize: 12,
-    color: '#9CA3AF',
-    fontWeight: '600',
-  },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    paddingVertical: 14,
+    backgroundColor: '#F9FAFB',
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: '#3B82F6',
-    backgroundColor: '#3B82F6',
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
   },
-  googleButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#ffffff',
-    marginLeft: 10,
+  passwordInput: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingTop: 20,
+    paddingBottom: 12,
+    fontSize: 16,
+    color: '#111827',
   },
+  eyeBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // Phone field
   phoneFieldContainer: {
     marginBottom: 20,
   },
@@ -490,6 +415,40 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontSize: 16,
     color: '#111827',
   },
+  // Buttons
+  button: {
+    backgroundColor: '#3B82F6',
+    width: '100%',
+    paddingVertical: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: AzureTheme.spacing.m,
+  },
+  buttonDisabled: {
+    backgroundColor: '#93C5FD',
+  },
+  buttonText: {
+    color: '#ffffff',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  loginContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 12,
+  },
+  footerText: {
+    fontSize: 13,
+    color: colors.textLight,
+  },
+  loginText: {
+    fontSize: 13,
+    color: '#3B82F6',
+    fontWeight: '600',
+  },
+  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

@@ -24,6 +24,7 @@ export default function LoginScreen() {
   const [errorMsg, setErrorMsg] = useState('Fadlan geli WhatsApp number-ka iyo password-ka');
   const [phoneFocused, setPhoneFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Country Code Dropdown States
   const [countryCode, setCountryCode] = useState('+252');
@@ -170,14 +171,27 @@ export default function LoginScreen() {
               <Text style={[styles.floatingLabel, (passwordFocused || form.password.length > 0) && styles.floatingLabelActive]}>
                 Password
               </Text>
-              <TextInput
-                style={styles.input}
-                secureTextEntry
-                value={form.password}
-                onChangeText={(t) => setForm({ ...form, password: t })}
-                onFocus={() => handleFocus('password', true)}
-                onBlur={() => handleFocus('password', false)}
-              />
+              <View style={styles.passwordWrapper}>
+                <TextInput
+                  style={styles.passwordInput}
+                  secureTextEntry={!showPassword}
+                  value={form.password}
+                  onChangeText={(t) => setForm({ ...form, password: t })}
+                  onFocus={() => handleFocus('password', true)}
+                  onBlur={() => handleFocus('password', false)}
+                />
+                <TouchableOpacity
+                  style={styles.eyeBtn}
+                  onPress={() => setShowPassword(v => !v)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={22}
+                    color="#64748B"
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Forgot Password */}
@@ -334,6 +348,29 @@ const getStyles = (colors: any) => StyleSheet.create({
     paddingBottom: 12,
     fontSize: 16,
     color: '#111827',
+  },
+  passwordWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#d4dce9ff',
+    overflow: 'hidden',
+  },
+  passwordInput: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingTop: 20,
+    paddingBottom: 12,
+    fontSize: 16,
+    color: '#111827',
+  },
+  eyeBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   forgotPasswordContainer: {
     alignItems: 'flex-end',
