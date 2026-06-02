@@ -88,24 +88,68 @@ export default function AboutScreen() {
             </Text>
           </View>
 
+          {/* FEATURES CARD */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Ionicons name="apps-outline" size={24} color={colors.primary} />
+              <Text style={styles.cardTitle}>Maxay tahay Darkpen?</Text>
+            </View>
+            <Text style={styles.cardText}>
+              Darkpen waa madal waxbarasho oo dhammaystiran oo loogu talagalay in lagu caawiyo ardayda heerar kasta. App-ku wuxuu bixiyaa adeegyo ay ka mid yihiin:
+            </Text>
+            <View style={{ marginTop: 12 }}>
+              <View style={styles.featureItem}>
+                <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.primary} style={styles.featureIcon} />
+                <Text style={styles.featureText}>
+                  <Text style={styles.featureBold}>Kaaliyaha AI:</Text> Su'aalo weydii AI si uu kaaga caawiyo casharradaada iyo laylisyadaada.
+                </Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Ionicons name="create-outline" size={20} color={colors.primary} style={styles.featureIcon} />
+                <Text style={styles.featureText}>
+                  <Text style={styles.featureBold}>Dhaliyaha Imtixaanka:</Text> Sameyso imtixaano muraajaco ah si aad u tijaabiso heerkaaga aqooneed.
+                </Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Ionicons name="people-outline" size={20} color={colors.primary} style={styles.featureIcon} />
+                <Text style={styles.featureText}>
+                  <Text style={styles.featureBold}>Wada-sheekeysiga Kooxaha:</Text> Ku biir kooxaha waxbarashada si aad ula wadaagto casharrada ardayda kale.
+                </Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Ionicons name="book-outline" size={20} color={colors.primary} style={styles.featureIcon} />
+                <Text style={styles.featureText}>
+                  <Text style={styles.featureBold}>Maktabad Buugaag:</Text> Akhriso oo kala soo bax buugaagta manhajka iyo kuwa kale ee waxtarka leh.
+                </Text>
+              </View>
+            </View>
+          </View>
+
           {/* FOUNDER CARD */}
           <View style={[styles.card, styles.founderCard]}>
             <View style={styles.founderHeader}>
-              <View style={styles.founderAvatar}>
-                <Ionicons name="person" size={32} color="#FFFFFF" />
-              </View>
-              <View>
+              <Image 
+                source={require('../assets/images/zinson.jpg')} 
+                style={styles.founderImage} 
+              />
+              <View style={{ flex: 1 }}>
                 <Text style={styles.founderName}>Hamze Mohamuud Ali (Zinson)</Text>
-                <Text style={styles.founderTitle}> - Founder & CEO</Text>
-              </View> <View>
-                <Text style={styles.founderName}>SHAAFICI CABDIRAXMAAN  MAXAMED  (ICONIC)</Text>
-                <Text style={styles.founderTitle}>  CEO </Text>
+                <Text style={styles.founderTitle}>Founder & CEO</Text>
               </View>
             </View>
             <View style={styles.divider} />
             <Text style={styles.cardText}>
-              Maskaxda ka dambaysa mashruucan iyo aasaasaha app-ka. " Ujeedkaygu waa inaan isbedel weyn ku sameeyo qaabka ay ardayda wax u bartaan, anigoo u fududaynaya muraajacada iyo helitaanka xog rasmi ah oo la isku halayn karo."
+              Maskaxda ka dambaysa mashruucan iyo aasaasaha app-ka. "Ujeedkaygu waa inaan isbedel weyn ku sameeyo qaabka ay ardayda wax u bartaan, anigoo u fududaynaya muraajacada iyo helitaanka xog rasmi ah oo la isku halayn karo."
             </Text>
+            <View style={styles.divider} />
+            <TouchableOpacity 
+              style={styles.contactBtn} 
+              onPress={() => openLink('https://wa.me/252637930329')} 
+              activeOpacity={0.8}
+            >
+              <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.contactBtnText}>La Xiriir CEO (WhatsApp)</Text>
+            </TouchableOpacity>
           </View>
 
           {/* QUICK LINKS */}
@@ -395,5 +439,52 @@ const getStyles = (colors: any) => StyleSheet.create({
   footerSubText: {
     fontSize: 12,
     color: '#CBD5E1',
+  },
+  founderImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginRight: 16,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  contactBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#25D366',
+    paddingVertical: 12,
+    borderRadius: 16,
+    marginTop: 12,
+    shadowColor: '#25D366',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  contactBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  featureIcon: {
+    marginRight: 12,
+    marginTop: 2,
+  },
+  featureText: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.textLight,
+    lineHeight: 20,
+  },
+  featureBold: {
+    fontWeight: '700',
+    color: colors.text,
   }
 });
