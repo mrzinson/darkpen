@@ -820,8 +820,8 @@ export default function ShukaansiScreen() {
           </ScrollView>
 
           <View style={styles.sidebarFooter}>
-            <TouchableOpacity style={styles.footerItem} onPress={() => { closeOverlays(); setTimeout(() => router.push('/downloaded'), 200); }}>
-              <Ionicons name="cloud-download-outline" size={24} color={colors.secondary} />
+            <TouchableOpacity style={styles.footerItem} onPress={() => { closeOverlays(); router.push('/downloaded'); }}>
+              <Ionicons name="cloud-download-outline" size={24} color={colors.secondary} style={{ marginRight: 12 }} />
               <Text style={styles.footerItemText}>Downloaded (Offline)</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.footerItem}>

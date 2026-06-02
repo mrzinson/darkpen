@@ -127,11 +127,57 @@ export default function AboutScreen() {
             <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.linkRow} onPress={() => openLink('https://twitter.com')} activeOpacity={0.7}>
-            <View style={[styles.iconWrap, { backgroundColor: '#F3E8FF' }]}>
-              <Ionicons name="logo-twitter" size={20} color="#A855F7" />
+          {/* Facebook */}
+          <TouchableOpacity style={styles.linkRow} onPress={() => openLink('https://www.facebook.com/share/1YXK1Nffvh/')} activeOpacity={0.7}>
+            <View style={[styles.iconWrap, { backgroundColor: '#E7F3FF' }]}>
+              <Ionicons name="logo-facebook" size={20} color="#1877F2" />
             </View>
-            <Text style={styles.linkText}>Follow us on Twitter</Text>
+            <Text style={styles.linkText}>Facebook</Text>
+            <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
+          </TouchableOpacity>
+
+          {/* Instagram */}
+          <TouchableOpacity style={styles.linkRow} onPress={() => openLink('https://www.instagram.com/darkpenapp?igsh=Znh5MnUwb2p5cmdj')} activeOpacity={0.7}>
+            <View style={[styles.iconWrap, { backgroundColor: '#FDF2F8' }]}>
+              <Ionicons name="logo-instagram" size={20} color="#E1306C" />
+            </View>
+            <Text style={styles.linkText}>Instagram</Text>
+            <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
+          </TouchableOpacity>
+
+          {/* TikTok */}
+          <TouchableOpacity style={styles.linkRow} onPress={() => openLink('https://www.tiktok.com/@darkpenapp?_r=1&_t=ZS-96s28GW9i6s')} activeOpacity={0.7}>
+            <View style={[styles.iconWrap, { backgroundColor: isDark ? '#1F2937' : '#F3F4F6' }]}>
+              <Ionicons name="logo-tiktok" size={20} color={isDark ? '#FFFFFF' : '#000000'} />
+            </View>
+            <Text style={styles.linkText}>TikTok</Text>
+            <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
+          </TouchableOpacity>
+
+          {/* Telegram */}
+          <TouchableOpacity style={styles.linkRow} onPress={() => openLink('https://t.me/darkpenapp')} activeOpacity={0.7}>
+            <View style={[styles.iconWrap, { backgroundColor: '#E0F2FE' }]}>
+              <Ionicons name="paper-plane" size={20} color="#229ED9" />
+            </View>
+            <Text style={styles.linkText}>Telegram</Text>
+            <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
+          </TouchableOpacity>
+
+          {/* X */}
+          <TouchableOpacity style={styles.linkRow} onPress={() => openLink('https://x.com/Darkpenapp')} activeOpacity={0.7}>
+            <View style={[styles.iconWrap, { backgroundColor: isDark ? '#1F2937' : '#F3F4F6' }]}>
+              <Ionicons name="logo-twitter" size={20} color={isDark ? '#FFFFFF' : '#000000'} />
+            </View>
+            <Text style={styles.linkText}>X (Twitter)</Text>
+            <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
+          </TouchableOpacity>
+
+          {/* WhatsApp */}
+          <TouchableOpacity style={styles.linkRow} onPress={() => openLink('https://wa.me/252659119779')} activeOpacity={0.7}>
+            <View style={[styles.iconWrap, { backgroundColor: '#DCFCE7' }]}>
+              <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
+            </View>
+            <Text style={styles.linkText}>WhatsApp</Text>
             <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
           </TouchableOpacity>
 
@@ -253,13 +299,13 @@ const getStyles = (colors: any) => StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1E293B',
+    color: colors.text,
     marginLeft: 10,
   },
   cardText: {
     fontSize: 15,
     lineHeight: 26,
-    color: '#475569',
+    color: colors.textLight,
   },
   founderCard: {
     borderWidth: 1,
@@ -334,7 +380,7 @@ const getStyles = (colors: any) => StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '600',
-    color: '#334155',
+    color: colors.text,
   },
   footer: {
     alignItems: 'center',

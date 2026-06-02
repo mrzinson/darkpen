@@ -225,6 +225,65 @@ export default function SettingsScreen() {
             <Feather name="external-link" size={20} color={colors.neutral} />
           </TouchableOpacity>
 
+          {/* 8. Social Media */}
+          <View style={styles.settingCard}>
+            <View style={[styles.iconBox, { backgroundColor: '#6366F1' }]}>
+              <Ionicons name="share-social" size={22} color="white" />
+            </View>
+            <View style={styles.cardContent}>
+              <Text style={styles.cardTitle}>{language === 'so' ? 'Baraha Bulshada' : 'Social Media'}</Text>
+              <View style={styles.socialRow}>
+                <TouchableOpacity 
+                  onPress={() => Linking.openURL('https://www.facebook.com/share/1YXK1Nffvh/')} 
+                  style={[styles.socialMiniIcon, { backgroundColor: '#E7F3FF' }]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="logo-facebook" size={18} color="#1877F2" />
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  onPress={() => Linking.openURL('https://www.instagram.com/darkpenapp?igsh=Znh5MnUwb2p5cmdj')} 
+                  style={[styles.socialMiniIcon, { backgroundColor: '#FDF2F8' }]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="logo-instagram" size={18} color="#E1306C" />
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  onPress={() => Linking.openURL('https://www.tiktok.com/@darkpenapp?_r=1&_t=ZS-96s28GW9i6s')} 
+                  style={[styles.socialMiniIcon, { backgroundColor: isDark ? '#1F2937' : '#F3F4F6' }]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="logo-tiktok" size={18} color={isDark ? '#FFFFFF' : '#000000'} />
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  onPress={() => Linking.openURL('https://t.me/darkpenapp')} 
+                  style={[styles.socialMiniIcon, { backgroundColor: '#E0F2FE' }]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="paper-plane" size={18} color="#229ED9" />
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  onPress={() => Linking.openURL('https://x.com/Darkpenapp')} 
+                  style={[styles.socialMiniIcon, { backgroundColor: isDark ? '#1F2937' : '#F3F4F6' }]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="logo-twitter" size={18} color={isDark ? '#FFFFFF' : '#000000'} />
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  onPress={() => Linking.openURL('https://wa.me/252659119779')} 
+                  style={[styles.socialMiniIcon, { backgroundColor: '#DCFCE7' }]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="logo-whatsapp" size={18} color="#25D366" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
           {/* 8. Delete Account */}
           <TouchableOpacity 
             style={[styles.settingCard, { borderColor: '#EF4444' }]} 
@@ -421,5 +480,17 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   langBtnTextActive: {
     color: '#FFFFFF',
+  },
+  socialRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  socialMiniIcon: {
+    padding: 8,
+    borderRadius: 10,
+    marginRight: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   }
 });

@@ -1038,7 +1038,7 @@ export default function ChatScreen() {
             </ScrollView>
 
             <View style={styles.sidebarFooter}>
-              <TouchableOpacity style={styles.footerItem} onPress={() => { setIsSidebarOpen(false); setTimeout(() => router.push('/downloaded'), 200); }}>
+              <TouchableOpacity style={styles.footerItem} onPress={() => { closeOverlays(); router.push('/downloaded'); }}>
                 <Ionicons name="cloud-download-outline" size={20} color={colors.primary} />
                 <Text style={StyleSheet.flatten([styles.footerItemText, { color: colors.primary }])}>Downloaded (Offline)</Text>
               </TouchableOpacity>
