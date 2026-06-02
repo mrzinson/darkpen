@@ -50,8 +50,10 @@ export default function DownloadedScreen() {
     router.push({
       pathname: '/readerexam',
       params: {
-        pdfUrl: item.localPath, // Pass the local file:// path directly!
-        title: item.title
+        pdfUrl: item.pdfUrl, // Pass the original online PDF URL!
+        localPath: item.localPath, // Pass the local file:// path!
+        title: item.title,
+        type: item.type // Pass the type (book or exam)
       }
     });
   };

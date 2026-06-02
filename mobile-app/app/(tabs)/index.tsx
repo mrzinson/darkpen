@@ -526,7 +526,8 @@ export default function HomeScreen() {
                       pathname: '/readerexam',
                       params: {
                         pdfUrl: `${Config.API_URL}${book.pdf_url}`,
-                        title: book.title
+                        title: book.title,
+                        type: 'book' // Explicitly pass 'book' type
                       }
                     });
                   } else {
@@ -593,7 +594,8 @@ export default function HomeScreen() {
                       pathname: '/readerexam',
                       params: {
                         pdfUrl: `${Config.API_URL}${exam.pdf_url}`,
-                        title: exam.title
+                        title: exam.title,
+                        type: 'exam' // Explicitly pass 'exam' type
                       }
                     });
                   } else {

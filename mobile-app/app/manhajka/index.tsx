@@ -127,7 +127,8 @@ export default function ManhajkaScreen() {
                       pathname: '/readerexam',
                       params: {
                         pdfUrl: `${Config.API_URL}${book.pdf_url}`,
-                        title: book.title
+                        title: book.title,
+                        type: 'book' // Explicitly pass 'book' type
                       }
                     });
                   } else {

@@ -15,7 +15,7 @@ export default function ReaderExamScreen() {
   const { colors, isDark } = useTheme();
   const styles = getStyles(colors, isDark);
 
-  const { pdfUrl, title } = useLocalSearchParams();
+  const { pdfUrl, title, localPath: passedLocalPath, type } = useLocalSearchParams();
   const router = useRouter();
 
   const [downloading, setDownloading] = useState(false);
@@ -53,9 +53,11 @@ export default function ReaderExamScreen() {
     // Check if it's already registered as downloaded
     isDocDownloaded(formattedPdfUrl).then(setIsSavedOffline);
 
-    if (formattedPdfUrl.startsWith('file://')) {
-      setLocalPath(formattedPdfUrl);
+    if (formattedPdfUrl.startsWith('file://') || passedLocalPath) {
+      const activeLocalPath = formattedPdfUrl.startsWith('file://') ? formattedPdfUrl : (passedLocalPath as string);
+      setLocalPath(activeLocalPath);
       setIsCached(true);
+      setIsSavedOffline(true);
       if (Platform.OS === 'android') {
         setUseNativeViewer(true);
       }
@@ -88,7 +90,7 @@ export default function ReaderExamScreen() {
     };
 
     checkAndDownload();
-  }, [formattedPdfUrl]);
+  }, [formattedPdfUrl, passedLocalPath]);
 
   const handleOpenOffline = async () => {
     if (!localPath) return;
@@ -120,11 +122,18 @@ export default function ReaderExamScreen() {
       setIsSavedOffline(false);
       Alert.alert('Waa la tirtiray', 'Buuggan/Imtixaankan waa laga saaray liiska downloads-kaaga.');
     } else {
-      const isExam = formattedPdfUrl.toLowerCase().includes('exam') || (title && (title as string).toLowerCase().includes('imtixaan'));
+      let finalType: 'book' | 'exam' = 'book';
+      if (type) {
+        finalType = type as 'book' | 'exam';
+      } else {
+        const isExam = formattedPdfUrl.toLowerCase().includes('exam') || (title && (title as string).toLowerCase().includes('imtixaan'));
+        finalType = isExam ? 'exam' : 'book';
+      }
+
       await registerDownload({
         pdfUrl: formattedPdfUrl,
         title: (title as string) || 'Document',
-        type: isExam ? 'exam' : 'book',
+        type: finalType,
         localPath: localPath,
         grade: 'Form 4',
       });
@@ -161,13 +170,15 @@ export default function ReaderExamScreen() {
         <Text style={styles.title} numberOfLines={1}>{title || 'Exam Reader'}</Text>
         
         {/* Toggle offline registry button */}
-        <TouchableOpacity onPress={handleToggleSaveOffline} style={styles.offlineBtn} activeOpacity={0.7}>
-          <Ionicons 
-            name={isSavedOffline ? "cloud-done" : "cloud-download-outline"} 
-            size={24} 
-            color={isSavedOffline ? "#10B981" : colors.secondary} 
-          />
-        </TouchableOpacity>
+        {!isSavedOffline && !formattedPdfUrl.startsWith('file://') && !passedLocalPath && (
+          <TouchableOpacity onPress={handleToggleSaveOffline} style={styles.offlineBtn} activeOpacity={0.7}>
+            <Ionicons 
+              name="cloud-download-outline" 
+              size={24} 
+              color={colors.secondary} 
+            />
+          </TouchableOpacity>
+        )}
 
         {isCached ? (
           <TouchableOpacity onPress={handleOpenOffline} style={styles.offlineBtn} activeOpacity={0.7}>
