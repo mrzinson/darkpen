@@ -132,6 +132,7 @@ function RootStack() {
       <Stack.Screen name="settings" />
       <Stack.Screen name="about" />
       <Stack.Screen name="readerexam" />
+      <Stack.Screen name="downloaded" />
     </Stack>
   );
 }

@@ -601,7 +601,7 @@ export default function ChatScreen() {
                     clearTimeout(statusTimeout);
                     setThinkingStatus('Thinking...');
                   } else if (parsed.error) {
-                    accumulatedText = "Cilad: " + parsed.error;
+                    accumulatedText = "Waan ka xunnahay, darkpen cilad ayaa ku timid. Fadlan isku day mar kale waxyar ka dib.";
                     setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: accumulatedText, status: 'complete' } : m));
                     break;
                   } else if (parsed.text) {
@@ -618,12 +618,8 @@ export default function ChatScreen() {
           if (xhr.readyState === 4) {
             clearTimeout(statusTimeout);
             if (xhr.status >= 400 && !accumulatedText) {
-              let errorMsg = "Cilad ayaa dhacday.";
-              try {
-                const data = JSON.parse(xhr.responseText);
-                errorMsg = data.message || errorMsg;
-              } catch (e) {}
-              setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: 'Cilad: ' + errorMsg, status: 'complete' } : m));
+              let errorMsg = "Waan ka xunnahay, darkpen cilad ayaa ku timid. Fadlan isku day mar kale waxyar ka dib.";
+              setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: errorMsg, status: 'complete' } : m));
             } else {
               setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: accumulatedText || "Waan ka xunnahay, jawaab ma jiro.", status: 'complete' } : m));
               fetchCredits();
@@ -708,7 +704,7 @@ export default function ChatScreen() {
         <KeyboardAvoidingView
           style={styles.chatArea}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 80}
         >
           {/* Pending Payment Notice Banner */}
           {paymentStatus === 'pending' && (
@@ -1042,6 +1038,10 @@ export default function ChatScreen() {
             </ScrollView>
 
             <View style={styles.sidebarFooter}>
+              <TouchableOpacity style={styles.footerItem} onPress={() => { setIsSidebarOpen(false); setTimeout(() => router.push('/downloaded'), 200); }}>
+                <Ionicons name="cloud-download-outline" size={20} color={colors.primary} />
+                <Text style={StyleSheet.flatten([styles.footerItemText, { color: colors.primary }])}>Downloaded (Offline)</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={styles.footerItem} onPress={() => router.push('/profile')}>
                 <Ionicons name="person-outline" size={20} color={colors.primary} />
                  <Text style={StyleSheet.flatten([styles.footerItemText, { color: colors.primary }])}>{t('profile_settings')}</Text>

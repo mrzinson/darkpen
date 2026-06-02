@@ -3,8 +3,50 @@ import { View, Text, StyleSheet, Platform, Alert, ScrollView, TouchableOpacity }
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 
+const makeSubscript = (numStr: string): string => {
+  const subs: Record<string, string> = {
+    '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄',
+    '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉'
+  };
+  return numStr.split('').map(c => subs[c] || c).join('');
+};
+
+const makeSuperscript = (numStr: string): string => {
+  const sups: Record<string, string> = {
+    '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+    '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹'
+  };
+  return numStr.split('').map(c => sups[c] || c).join('');
+};
+
+export const preprocessLaTeX = (text: string): string => {
+  if (!text) return text;
+  
+  // 1. Replace fractions \frac{a}{b} with a/b
+  text = text.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '$1/$2');
+  text = text.replace(/\$\\frac\{([^{}]+)\}\{([^{}]+)\}\$/g, '$1/$2');
+  
+  // 2. Replace subscript expressions _{123} or _1
+  text = text.replace(/_\{([0-9]+)\}/g, (match, p1) => makeSubscript(p1));
+  text = text.replace(/_([0-9])/g, (match, p1) => makeSubscript(p1));
+  
+  // 3. Replace superscript expressions ^{123} or ^1
+  text = text.replace(/\^\{([0-9]+)\}/g, (match, p1) => makeSuperscript(p1));
+  text = text.replace(/\^([0-9])/g, (match, p1) => makeSuperscript(p1));
+  
+  // 4. Replace LaTeX escaped braces \{ and \}
+  text = text.replace(/\\\{/g, '{').replace(/\\\}/g, '}');
+  
+  // 5. Strip any leftover inline math delimiters $ ... $
+  text = text.replace(/\$([^\$\s][^\$]*[^\$\s])\$/g, '$1');
+  text = text.replace(/\$([^\$\s])\$/g, '$1');
+  
+  return text;
+};
+
 export const renderFormattedText = (text: string, isDark: boolean, colors: any, defaultTextColor?: string) => {
   if (!text) return null;
+  text = preprocessLaTeX(text);
   const textColor = defaultTextColor || colors.text;
 
   // Split by block-level elements

@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "Darkpen",
-    "slug": "Darkpen",
+    "slug": "darkpen",
     "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobileapp",
+    "scheme": "darkpen",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -14,9 +14,8 @@
       "buildNumber": "1"
     },
     "android": {
-      "package": "com.zinsonai.darkpen",
-      "launchMode": "singleTask",
-      "versionCode": 2,
+      "package": "com.zinson.darkpen",
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -26,6 +25,10 @@
       "edgeToEdgeEnabled": false,
       "predictiveBackGestureEnabled": false,
       "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_MEDIA_IMAGES",
@@ -63,7 +66,8 @@
           "photosPermission": "Darkpen waxay u baahan tahay kaamirada iyo sawirada si aad u bedesho profile-kaaga."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -72,8 +76,15 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "2b01a929-0e43-45ae-ba84-8244f79e34b2"
+        "projectId": "1d840931-54c3-4575-b2e9-be8e2fd6b759"
       }
+    },
+    "owner": "mrzinson",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/1d840931-54c3-4575-b2e9-be8e2fd6b759"
     }
   }
 }

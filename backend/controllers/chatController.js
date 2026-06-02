@@ -303,17 +303,8 @@ exports.askAI = async (req, res) => {
                 res.flushHeaders();
             }
 
+            // RAG disabled for normal chats to maximize response speed as requested
             let bookContext = null;
-            if (message && isSubstantiveQuery(message)) {
-                // Step 1: Notify client we are searching books first
-                res.write(`data: ${JSON.stringify({ status: 'reading_books' })}\n\n`);
-                // RAG - search local books/curriculum chunks FIRST
-                bookContext = await aiService.findRelevantChunks(message);
-            }
-
-            if (bookContext) {
-                finalPrompt = `User question: "${message}"\n\nRelevant Curriculum/Book Context:\n${bookContext}\n\nPlease answer the user's question using the relevant context above. If the context doesn't contain the answer, use your general knowledge. Respond in the exact language the user used to ask the question (e.g., English for English, Somali for Somali).`;
-            }
 
             // Step 2: Notify client we are now generating the response
             res.write(`data: ${JSON.stringify({ status: 'thinking' })}\n\n`);
@@ -341,7 +332,7 @@ exports.askAI = async (req, res) => {
                 aiLogger.logAIUsage(userId, modelName, message || "[Attachment]", aiResponseText, chatType || 'education');
             } catch (err) {
                 console.error("Gemini stream generation error:", err);
-                res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+                res.write(`data: ${JSON.stringify({ error: "Waan ka xunnahay, darkpen cilad farsamo ayaa ku timid. Fadlan isku day mar kale waxyar ka dib." })}\n\n`);
                 res.end();
             }
             return;
@@ -402,12 +393,13 @@ exports.askAI = async (req, res) => {
 
     } catch (error) {
         console.error("AskAI Error:", error);
+        const friendlyMsg = "Waan ka xunnahay, darkpen cilad farsamo ayaa ku timid. Fadlan isku day mar kale waxyar ka dib.";
         if (req.body.stream === true && req.body.chatType !== 'shukaansi' && !res.headersSent) {
             res.setHeader('Content-Type', 'text/event-stream');
-            res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+            res.write(`data: ${JSON.stringify({ error: friendlyMsg })}\n\n`);
             res.end();
         } else if (!res.headersSent) {
-            res.status(500).json({ message: 'Cilad ayaa dhacday', error: error.message });
+            res.status(500).json({ message: friendlyMsg, error: friendlyMsg });
         }
     }
 };

@@ -71,8 +71,8 @@ export default function AboutScreen() {
           <View style={styles.logoContainer}>
             <AppLogo size={86} />
           </View>
-          <Text style={styles.appName}>Darkpen (Kuuk)</Text>
-          <Text style={styles.versionText}>Version 1.0.0 (BETA)</Text>
+          <Text style={styles.appName}>Darkpen </Text>
+          <Text style={styles.versionText}>Version 1.0.0 </Text>
         </Animated.View>
 
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
@@ -95,18 +95,21 @@ export default function AboutScreen() {
                 <Ionicons name="person" size={32} color="#FFFFFF" />
               </View>
               <View>
-                <Text style={styles.founderName}>Hamze Mohamuud Ali</Text>
-                <Text style={styles.founderTitle}>(Zinson) - Founder & CEO</Text>
+                <Text style={styles.founderName}>Hamze Mohamuud Ali (Zinson)</Text>
+                <Text style={styles.founderTitle}> - Founder & CEO</Text>
+              </View> <View>
+                <Text style={styles.founderName}>SHAAFICI CABDIRAXMAAN  MAXAMED  (ICONIC)</Text>
+                <Text style={styles.founderTitle}>  CEO </Text>
               </View>
             </View>
             <View style={styles.divider} />
             <Text style={styles.cardText}>
-              Maskaxda ka dambaysa mashruucan iyo aasaasaha app-ka. Ujeedkaygu waa inaan isbedel weyn ku sameeyo qaabka ay ardayda Soomaaliyeed wax u bartaan, anigoo u fududaynaya muraajacada iyo helitaanka xog rasmi ah oo la isku halayn karo.
+              Maskaxda ka dambaysa mashruucan iyo aasaasaha app-ka. " Ujeedkaygu waa inaan isbedel weyn ku sameeyo qaabka ay ardayda wax u bartaan, anigoo u fududaynaya muraajacada iyo helitaanka xog rasmi ah oo la isku halayn karo."
             </Text>
           </View>
 
           {/* QUICK LINKS */}
-          <Text style={styles.sectionHeader}>XIRIIR & SHARCIYO</Text>
+          <Text style={styles.sectionHeader}>XEERAR, SHARCIYO & SOCIAL MEDIA</Text>
           
           <TouchableOpacity style={styles.linkRow} onPress={() => router.push('/terms')} activeOpacity={0.7}>
             <View style={[styles.iconWrap, { backgroundColor: '#EFF6FF' }]}>
@@ -136,7 +139,7 @@ export default function AboutScreen() {
           <View style={styles.footer}>
             <Ionicons name="heart" size={24} color="#EF4444" style={{ marginBottom: 10 }} />
             <Text style={styles.footerText}>Crafted with passion for education.</Text>
-            <Text style={styles.footerSubText}>© 2026 Darkpen Inc. All rights reserved.</Text>
+            <Text style={styles.footerSubText}>© 2026 Darkpen Inc. All rights reserved. </Text>
           </View>
 
         </Animated.View>

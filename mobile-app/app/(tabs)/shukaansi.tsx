@@ -433,7 +433,7 @@ export default function ShukaansiScreen() {
         fetchHistory(); // sync reactions, replies and AI messages
         fetchCredits();
       } else {
-        const errAiMsg: Message = { id: String(Date.now() + 1), text: 'Cilad: ' + data.message, sender: 'ai' };
+        const errAiMsg: Message = { id: String(Date.now() + 1), text: 'Waan ka xunnahay, darkpen cilad ayaa ku timid. Fadlan isku day mar kale waxyar ka dib. ❤️', sender: 'ai' };
         setMessages(prev => [...prev, errAiMsg]);
       }
     } catch (error) {
@@ -820,6 +820,10 @@ export default function ShukaansiScreen() {
           </ScrollView>
 
           <View style={styles.sidebarFooter}>
+            <TouchableOpacity style={styles.footerItem} onPress={() => { closeOverlays(); setTimeout(() => router.push('/downloaded'), 200); }}>
+              <Ionicons name="cloud-download-outline" size={24} color={colors.secondary} />
+              <Text style={styles.footerItemText}>Downloaded (Offline)</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.footerItem}>
               <Ionicons name="settings-outline" size={24} color={colors.secondary} />
               <Text style={styles.footerItemText}>AI Settings</Text>

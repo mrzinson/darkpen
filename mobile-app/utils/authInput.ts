@@ -38,3 +38,12 @@ export function usernameError(username: string) {
   }
   return '';
 }
+
+export function combinePhoneAndCode(code: string, phone: string): string {
+  let cleanPhone = phone.replace(/[()\s.-]/g, '').replace(/\D/g, '');
+  if (cleanPhone.startsWith('0')) {
+    cleanPhone = cleanPhone.slice(1);
+  }
+  const cleanCode = code.replace(/\D/g, '');
+  return `+${cleanCode}${cleanPhone}`;
+}

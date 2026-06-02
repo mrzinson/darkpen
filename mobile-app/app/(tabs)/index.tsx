@@ -353,6 +353,7 @@ export default function HomeScreen() {
         { id: 'profile', icon: 'person-outline', label: t('profile'), route: '/profile' },
         { id: 'exam-generator', icon: 'sparkles-outline', label: 'AI Exam Generator', route: '/exam-generator', isNew: true },
         { id: 'books', icon: 'book-outline', label: t('books'), route: '/manhajka' },
+        { id: 'downloaded', icon: 'cloud-download-outline', label: 'Downloaded (Offline)', route: '/downloaded' },
         { id: 'groups', icon: 'people-outline', label: t('groups'), route: '/group' },
       ]
     },
@@ -387,6 +388,9 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.headerRight}>
+          <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/downloaded')}>
+            <Ionicons name="cloud-download-outline" size={24} color={colors.secondary} />
+          </TouchableOpacity>
           <TouchableOpacity style={styles.iconButton} onPress={() => setNotificationVisible(true)}>
             <Ionicons name="notifications-outline" size={24} color={colors.secondary} />
             {notifications.length > 0 && <View style={styles.notificationDot} />}
