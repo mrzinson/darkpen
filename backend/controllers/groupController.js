@@ -75,6 +75,7 @@ function shouldAIRespond(message) {
 async function handleAIGroupResponse(req, groupId, userId, senderName, userMessage, aiUserId, type = 'text', attachment = null) {
     try {
         // 1. Fetch recent messages for context (limit 15 for better context)
+        const startGroupDb = Date.now();
         const [recentMessages] = await db.query(
             `SELECT m.*, u.name as sender_name 
              FROM group_messages_v2 m
@@ -83,6 +84,7 @@ async function handleAIGroupResponse(req, groupId, userId, senderName, userMessa
              ORDER BY m.created_at DESC LIMIT 15`,
             [groupId]
         );
+        console.log(`[LATENCY] [GROUP] Message history retrieval query took ${Date.now() - startGroupDb} ms`);
 
         // Map recent messages to Gemini chat history format
         const history = recentMessages.reverse().map(msg => {
@@ -103,6 +105,7 @@ Waligaa ha dhihin Google ama OpenAI ayaa ku sameeyay. Adigu waxaad tahay Darkpen
             ? `${senderName} ayaa soo diray sawir. Fadlan sharax ama ka jawaab su'aasha ku jirta sawirkan.` 
             : `${senderName}: ${userMessage}`;
 
+        const startGroupGemini = Date.now();
         const aiReply = await aiService.askGemini(
             promptText,
             "gemini-flash-latest",
@@ -110,6 +113,7 @@ Waligaa ha dhihin Google ama OpenAI ayaa ku sameeyay. Adigu waxaad tahay Darkpen
             history,
             groupSystemInstruction
         );
+        console.log(`[LATENCY] [GROUP] Gemini askGemini call completed in ${Date.now() - startGroupGemini} ms`);
 
         if (!aiReply) return;
 
