@@ -44,6 +44,38 @@ exports.askOpenAI = async (prompt, history = [], model = "gpt-4o-mini", attachme
     }
 };
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function retryWithBackoff(fn, retries = 3, delay = 600) {
+    let lastError = null;
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await fn();
+        } catch (error) {
+            lastError = error;
+            const status = error.status || (error.statusText ? parseInt(error.statusText) : null);
+            const isTransient = 
+                status === 503 || 
+                status === 429 || 
+                (error.message && (
+                    error.message.includes('503') || 
+                    error.message.includes('429') || 
+                    error.message.includes('Service Unavailable') || 
+                    error.message.includes('Too Many Requests') || 
+                    error.message.includes('high demand')
+                ));
+            
+            if (isTransient && i < retries - 1) {
+                console.warn(`[GEMINI RETRY] Retrying due to transient error (attempt ${i + 1}/${retries}). Error: ${error.message}`);
+                await sleep(delay * Math.pow(2, i)); // 600ms, 1200ms, 2400ms...
+                continue;
+            }
+            throw error;
+        }
+    }
+    throw lastError;
+}
+
 /**
  * La hadal Gemini
  */
@@ -70,16 +102,20 @@ exports.askGemini = async (prompt, modelName = "gemini-flash-latest", attachment
             }
         }
 
-        const result = await model.generateContent({
-            contents: [
-                ...history,
-                { role: "user", parts: parts }
-            ]
+        const responseText = await retryWithBackoff(async () => {
+            const result = await model.generateContent({
+                contents: [
+                    ...history,
+                    { role: "user", parts: parts }
+                ]
+            });
+            const response = await result.response;
+            return response.text();
         });
-        const response = await result.response;
-        return response.text();
+        
+        return responseText;
     } catch (error) {
-        console.error("Gemini Error:", error);
+        console.error("Gemini Error after retries:", error);
         throw new Error("Waan ka xunnahay, darkpen cilad ayaa ku timid.");
     }
 };
@@ -110,15 +146,19 @@ exports.askGeminiStream = async (prompt, modelName = "gemini-flash-latest", atta
             }
         }
 
-        const result = await model.generateContentStream({
-            contents: [
-                ...history,
-                { role: "user", parts: parts }
-            ]
+        const stream = await retryWithBackoff(async () => {
+            const result = await model.generateContentStream({
+                contents: [
+                    ...history,
+                    { role: "user", parts: parts }
+                ]
+            });
+            return result.stream;
         });
-        return result.stream;
+        
+        return stream;
     } catch (error) {
-        console.error("Gemini Stream Error:", error);
+        console.error("Gemini Stream Error after retries:", error);
         throw new Error("Waan ka xunnahay, adeegga streaming-ka ee zinsonai ee loogu tala galay darkpen cilad ayaa ku timid.");
     }
 };
@@ -307,7 +347,7 @@ exports.generateAIImage = async (prompt) => {
             throw new Error("GEMINI_API_KEY is not defined in environment variables.");
         }
         
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
         
         const response = await fetch(url, {
             method: 'POST',
