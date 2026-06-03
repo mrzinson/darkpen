@@ -339,18 +339,57 @@ exports.sendGroupMessage = async (req, res) => {
     const userId = req.user.id;
 
     try {
-        const [memberCheck] = await db.query(
-            'SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?',
+        // Combined Query: Check membership and get sender name in a single database roundtrip
+        const [memberRows] = await db.query(
+            `SELECT gm.role, u.name 
+             FROM group_members gm 
+             JOIN users u ON gm.user_id = u.id 
+             WHERE gm.group_id = ? AND gm.user_id = ?`,
             [groupId, userId]
         );
-        if (!memberCheck.length) return res.status(403).json({ message: 'Not a member' });
+        if (!memberRows.length) return res.status(403).json({ message: 'Not a member' });
+        const senderName = memberRows[0].name || 'Student';
 
-        // Expire pay-as-you-go balance if inactive for 1 month
-        await checkAndExpireWallet(userId);
+        // Retrieve wallet details and check expiration in a single query
+        const [walletRows] = await db.query(
+            'SELECT balance, last_updated FROM user_wallet WHERE user_id = ?',
+            [userId]
+        );
+        
+        let senderBalance = walletRows.length > 0 ? walletRows[0].balance : 0;
+        
+        // Handle wallet expiration asynchronously if older than 30 days
+        if (walletRows.length > 0) {
+            const { balance, last_updated } = walletRows[0];
+            if (balance > 0 && last_updated) {
+                const lastUpdatedDate = new Date(last_updated);
+                const now = new Date();
+                const diffMs = now.getTime() - lastUpdatedDate.getTime();
+                const diffDays = diffMs / (1000 * 60 * 60 * 24);
 
-        // 1. Fetch user's current wallet balance
-        const [walletRows] = await db.query('SELECT balance FROM user_wallet WHERE user_id = ?', [userId]);
-        const senderBalance = walletRows.length > 0 ? walletRows[0].balance : 0;
+                if (diffDays >= 30) {
+                    console.log(`[WALLET EXPIRATION] Expiring wallet for user ${userId} in group chat.`);
+                    db.query(
+                        'UPDATE user_wallet SET balance = 0, last_updated = NOW() WHERE user_id = ?',
+                        [userId]
+                    ).catch(err => console.error('[WALLET EXPIRATION] DB error:', err));
+                    
+                    db.query(
+                        'INSERT INTO wallet_expirations (user_id, expired_balance) VALUES (?, ?)',
+                        [userId, balance]
+                    ).catch(err => console.error('[WALLET EXPIRATION] Insert error:', err));
+
+                    // Send push notification asynchronously
+                    pushService.sendPushNotification(
+                        userId,
+                        'Credits-kaagii waa uu dhacay',
+                        `Credits-kaagii (Pay as you go) oo ahaa ${balance} ayaa dhacay sababtoo ah ma aadan isticmaalin muddo 1 bil ah. Fadlan ku shubo credits cusub.`
+                    ).catch(err => console.error('[WALLET EXPIRATION] Push notification error:', err.message));
+
+                    senderBalance = 0;
+                }
+            }
+        }
 
         // Determine if it is a question and its cost
         const isTextQuestion = (type !== 'image' && shouldAIRespond(message));
@@ -383,13 +422,13 @@ exports.sendGroupMessage = async (req, res) => {
             };
         }
 
-        // 2. Save base64 image if type is image
+        // Save base64 image if type is image
         let finalMessage = message;
         if (type === 'image' && message && message.startsWith('data:image')) {
             finalMessage = saveBase64Image(message, 'chats');
         }
 
-        // 3. Deduct credit from sender's wallet
+        // Deduct credit from sender's wallet
         if (cost > 0 && !usedFreeAI) {
             await db.query('UPDATE user_wallet SET balance = GREATEST(0, balance - ?) WHERE user_id = ?', [cost, userId]);
         }
@@ -400,35 +439,33 @@ exports.sendGroupMessage = async (req, res) => {
         );
         const messageId = result.insertId;
 
-        // Update sender's last_read_id so they don't see their own message as unread
-        await db.query(
-            'UPDATE group_members SET last_read_id = ? WHERE group_id = ? AND user_id = ?',
-            [messageId, groupId, userId]
-        );
-
-        // Send Push Notifications to other group members
-        const [senderRows] = await db.query('SELECT name FROM users WHERE id = ?', [userId]);
-        const senderName = senderRows.length > 0 ? senderRows[0].name : 'Student';
-        sendGroupPushNotifications(groupId, userId, senderName, finalMessage, type || 'text').catch(err => {
-            console.error("Failed to send user message push notification to group members:", err);
-        });
-
-        // Check if AI should respond
-        try {
-            const aiUserId = await getOrCreateAIUser();
-            if (userId !== aiUserId && (isTextQuestion || isImageQuestion)) {
-                const [senderRows] = await db.query('SELECT name FROM users WHERE id = ?', [userId]);
-                const senderName = senderRows.length > 0 ? senderRows[0].name : 'Student';
-                
-                handleAIGroupResponse(req, groupId, userId, senderName, finalMessage, aiUserId, type || 'text', aiAttachment).catch(err => {
-                    console.error("Error in AI group response task:", err);
-                });
-            }
-        } catch (aiErr) {
-            console.error("Error determining if AI should respond to group message:", aiErr);
-        }
-
+        // Return status 201 immediately, run the rest in the background!
         res.status(201).json({ status: 'success', messageId, message: finalMessage });
+
+        (async () => {
+            try {
+                // Update sender's last_read_id so they don't see their own message as unread
+                await db.query(
+                    'UPDATE group_members SET last_read_id = ? WHERE group_id = ? AND user_id = ?',
+                    [messageId, groupId, userId]
+                );
+
+                // Send Push Notifications to other group members
+                sendGroupPushNotifications(groupId, userId, senderName, finalMessage, type || 'text').catch(err => {
+                    console.error("Failed to send user message push notification to group members:", err);
+                });
+
+                // Check if AI should respond
+                const aiUserId = await getOrCreateAIUser();
+                if (userId !== aiUserId && (isTextQuestion || isImageQuestion)) {
+                    handleAIGroupResponse(req, groupId, userId, senderName, finalMessage, aiUserId, type || 'text', aiAttachment).catch(err => {
+                        console.error("Error in AI group response task:", err);
+                    });
+                }
+            } catch (bgErr) {
+                console.error("[GROUP_MSG] Error running async background tasks:", bgErr);
+            }
+        })();
     } catch (err) {
         res.status(500).json({ status: 'error', message: err.message });
     }

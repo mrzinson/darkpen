@@ -180,19 +180,59 @@ exports.askAI = async (req, res) => {
             return res.status(400).json({ message: 'Fariintu waa madhan tahay' });
         }
 
-        // Expire pay-as-you-go balance if inactive for 1 month
-        if (chatType !== 'shukaansi') {
-            await checkAndExpireWallet(userId);
-        }
-
-        // Check Monetization
+        // Check Monetization and handle wallet expiration in a single parallel step!
         const startMonetization = Date.now();
         const walletTable = chatType === 'shukaansi' ? 'shukaansi_wallet' : 'user_wallet';
         const subTable = chatType === 'shukaansi' ? 'shukaansi_subscriptions' : 'user_subscriptions';
 
-        const [wallet] = await db.execute(`SELECT balance FROM ${walletTable} WHERE user_id = ?`, [userId]);
-        const [sub] = await db.execute(`SELECT * FROM ${subTable} WHERE user_id = ? AND expiry_date > NOW()`, [userId]);
-        console.log(`[LATENCY] Monetization query took ${Date.now() - startMonetization} ms`);
+        const walletQuery = chatType === 'shukaansi' 
+            ? `SELECT balance FROM ${walletTable} WHERE user_id = ?` 
+            : `SELECT balance, last_updated FROM ${walletTable} WHERE user_id = ?`;
+
+        const [walletRes, subRes] = await Promise.all([
+            db.execute(walletQuery, [userId]),
+            db.execute(`SELECT * FROM ${subTable} WHERE user_id = ? AND expiry_date > NOW()`, [userId])
+        ]);
+
+        let wallet = walletRes[0];
+        const sub = subRes[0];
+        console.log(`[LATENCY] Monetization & wallet check query took ${Date.now() - startMonetization} ms`);
+
+        // Check Wallet Expiration asynchronously in the background (no blocking)
+        if (chatType !== 'shukaansi' && wallet.length > 0) {
+            const { balance, last_updated } = wallet[0];
+            if (balance > 0 && last_updated) {
+                const lastUpdatedDate = new Date(last_updated);
+                const now = new Date();
+                const diffMs = now.getTime() - lastUpdatedDate.getTime();
+                const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+                if (diffDays >= 30) {
+                    console.log(`[WALLET EXPIRATION] Expiring wallet for user ${userId}. Old balance: ${balance}`);
+                    // Trigger DB updates asynchronously
+                    db.execute(
+                        'UPDATE user_wallet SET balance = 0, last_updated = NOW() WHERE user_id = ?',
+                        [userId]
+                    ).catch(err => console.error('[WALLET EXPIRATION] DB error:', err));
+                    
+                    db.execute(
+                        'INSERT INTO wallet_expirations (user_id, expired_balance) VALUES (?, ?)',
+                        [userId, balance]
+                    ).catch(err => console.error('[WALLET EXPIRATION] Insert error:', err));
+
+                    // Send push notification asynchronously
+                    const pushService = require('../services/pushNotificationService');
+                    pushService.sendPushNotification(
+                        userId,
+                        'Credits-kaagii waa uu dhacay',
+                        `Credits-kaagii (Pay as you go) oo ahaa ${balance} ayaa dhacay sababtoo ah ma aadan isticmaalin muddo 1 bil ah. Fadlan ku shubo credits cusub.`
+                    ).catch(err => console.error('[WALLET EXPIRATION] Push notification error:', err.message));
+
+                    // Locally update the balance to 0 for current monetization logic
+                    wallet[0].balance = 0;
+                }
+            }
+        }
 
         const hasBalance = wallet.length > 0 && wallet[0].balance > 0;
         const hasActiveSub = sub.length > 0;
@@ -219,11 +259,11 @@ exports.askAI = async (req, res) => {
                 return;
             }
 
-            // Save user message to messages_private
-            await db.execute(
+            // Save user message to messages_private asynchronously in background
+            db.execute(
                 'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "user", ?)',
                 [userId, sessionId || null, message]
-            );
+            ).catch(err => console.error("[IMAGE GEN] Error inserting user message:", err));
 
             if (stream === true) {
                 res.setHeader('Content-Type', 'text/event-stream');
@@ -234,6 +274,9 @@ exports.askAI = async (req, res) => {
                     res.flushHeaders();
                 }
                 res.write(`data: ${JSON.stringify({ status: 'generating_image' })}\n\n`);
+                if (typeof res.flush === 'function') {
+                    res.flush();
+                }
             }
 
             let isClientConnected = true;
@@ -265,6 +308,9 @@ exports.askAI = async (req, res) => {
                     if (isClientConnected && stream === true) {
                         res.write(`data: ${JSON.stringify({ text: responseText, image: relativeUrl, status: 'complete' })}\n\n`);
                         res.write('data: [DONE]\n\n');
+                        if (typeof res.flush === 'function') {
+                            res.flush();
+                        }
                         res.end();
                     } else if (isClientConnected) {
                         res.json({ sender: 'ai', message: responseText, image: relativeUrl });
@@ -339,41 +385,28 @@ exports.askAI = async (req, res) => {
             }
         }
 
-        // Kaydi fariinta qofka (Shukaansi)
-        let insertedUserMsgId = null;
-        if (chatType === 'shukaansi') {
-            const [insertResult] = await db.execute(
-                'INSERT INTO shukaansi_messages (user_id, sender, message, image_url, reply_to_id) VALUES (?, "user", ?, ?, ?)',
-                [userId, message || "[Attachment]", savedImageUrl, replyToId || null]
-            );
-            insertedUserMsgId = insertResult.insertId;
-        }
-
         // Prepare History
         const startHistory = Date.now();
         let history = [];
         let finalPrompt = message;
 
-        if (chatType === 'shukaansi') {
-            const [hist] = await db.execute(
-                'SELECT sender, message FROM shukaansi_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 6 OFFSET 1',
+        const historyPromise = chatType === 'shukaansi'
+            ? db.execute(
+                'SELECT sender, message FROM shukaansi_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 6',
                 [userId]
-            );
-            history = hist.reverse().map(msg => ({
-                role: msg.sender === 'user' ? 'user' : 'model',
-                parts: [{ text: msg.message }]
-            }));
-        } else {
-            const historyQuery = sessionId 
-                ? 'SELECT sender, message FROM messages_private WHERE user_id = ? AND session_id = ? ORDER BY created_at DESC LIMIT 5'
-                : 'SELECT sender, message FROM messages_private WHERE user_id = ? AND session_id IS NULL ORDER BY created_at DESC LIMIT 5';
-            const queryParams = sessionId ? [userId, sessionId] : [userId];
-            const [hist] = await db.execute(historyQuery, queryParams);
-            history = hist.reverse().map(msg => ({
-                role: msg.sender === 'user' ? 'user' : 'model',
-                parts: [{ text: msg.message }]
-            }));
-        }
+              )
+            : db.execute(
+                sessionId 
+                    ? 'SELECT sender, message FROM messages_private WHERE user_id = ? AND session_id = ? ORDER BY created_at DESC LIMIT 5'
+                    : 'SELECT sender, message FROM messages_private WHERE user_id = ? AND session_id IS NULL ORDER BY created_at DESC LIMIT 5',
+                sessionId ? [userId, sessionId] : [userId]
+              );
+
+        const [historyRes] = await historyPromise;
+        history = historyRes.reverse().map(msg => ({
+            role: msg.sender === 'user' ? 'user' : 'model',
+            parts: [{ text: msg.message }]
+        }));
         console.log(`[LATENCY] History retrieval query took ${Date.now() - startHistory} ms (Found ${history.length} items)`);
 
         let systemInstruction = chatType === 'shukaansi' ? shukaansiSystemInstruction : darkpenSystemInstruction;
@@ -384,11 +417,11 @@ exports.askAI = async (req, res) => {
 
         // Handle streaming response if requested and not shukaansi
         if (stream === true && chatType !== 'shukaansi') {
-            // Save User message to messages_private
-            await db.execute(
+            // Save User message asynchronously in background (do not block stream startup)
+            db.execute(
                 'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "user", ?)',
                 [userId, sessionId || null, message || "[Attachment]"]
-            );
+            ).catch(err => console.error("[STREAM] Async user message save error:", err));
 
             res.setHeader('Content-Type', 'text/event-stream');
             res.setHeader('Cache-Control', 'no-cache');
@@ -398,11 +431,11 @@ exports.askAI = async (req, res) => {
                 res.flushHeaders();
             }
 
-            // RAG disabled for normal chats to maximize response speed as requested
-            let bookContext = null;
-
             // Step 2: Notify client we are now generating the response
             res.write(`data: ${JSON.stringify({ status: 'thinking' })}\n\n`);
+            if (typeof res.flush === 'function') {
+                res.flush();
+            }
 
             try {
                 const startGeminiStream = Date.now();
@@ -415,23 +448,37 @@ exports.askAI = async (req, res) => {
                     const chunkText = chunk.text();
                     aiResponseText += chunkText;
                     res.write(`data: ${JSON.stringify({ text: chunkText })}\n\n`);
+                    if (typeof res.flush === 'function') {
+                        res.flush();
+                    }
                 }
                 console.log(`[LATENCY] Gemini stream iteration completed in ${Date.now() - streamIterStart} ms`);
                 res.write('data: [DONE]\n\n');
+                if (typeof res.flush === 'function') {
+                    res.flush();
+                }
                 res.end();
 
-                // Save AI response to messages_private
-                await db.execute(
-                    'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "ai", ?)',
-                    [userId, sessionId || null, aiResponseText]
-                );
-
-                // Log AI usage!
-                const aiLogger = require('../utils/aiLogger');
-                aiLogger.logAIUsage(userId, modelName, message || "[Attachment]", aiResponseText, chatType || 'education');
+                // Save AI response to messages_private asynchronously in background
+                (async () => {
+                    try {
+                        await db.execute(
+                            'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "ai", ?)',
+                            [userId, sessionId || null, aiResponseText]
+                        );
+                        // Log AI usage!
+                        const aiLogger = require('../utils/aiLogger');
+                        aiLogger.logAIUsage(userId, modelName, message || "[Attachment]", aiResponseText, chatType || 'education');
+                    } catch (dbErr) {
+                        console.error("[STREAM] Async AI response save/log error:", dbErr);
+                    }
+                })();
             } catch (err) {
                 console.error("Gemini stream generation error:", err);
                 res.write(`data: ${JSON.stringify({ error: "Waan ka xunnahay, darkpen cilad farsamo ayaa ku timid. Fadlan isku day mar kale waxyar ka dib." })}\n\n`);
+                if (typeof res.flush === 'function') {
+                    res.flush();
+                }
                 res.end();
             }
             return;
@@ -442,55 +489,70 @@ exports.askAI = async (req, res) => {
         const aiResponseText = await aiService.askGemini(finalPrompt, modelName, attachment, history, systemInstruction);
         console.log(`[LATENCY] Gemini askGemini call completed in ${Date.now() - startGemini} ms`);
 
-        if (chatType === 'shukaansi') {
-            await db.execute(
-                'INSERT INTO shukaansi_messages (user_id, sender, message, reply_to_id) VALUES (?, "ai", ?, ?)',
-                [userId, aiResponseText, insertedUserMsgId || null]
-            );
-
-            // AI reacts to user message sometimes (e.g. 40% of the time)
-            if (insertedUserMsgId && Math.random() < 0.4) {
-                const reactions = ['❤️', '😂', '👍', '😮', '😢'];
-                let chosenReaction = reactions[0];
-                const lowerMsg = (message || "").toLowerCase();
-                if (lowerMsg.includes('dhib') || lowerMsg.includes('xun') || lowerMsg.includes('buux') || lowerMsg.includes('tiiraanyo')) {
-                    chosenReaction = '😢';
-                } else if (lowerMsg.includes('ha') || lowerMsg.includes('qosol') || lowerMsg.includes('kaftan') || lowerMsg.includes('he')) {
-                    chosenReaction = '😂';
-                } else if (lowerMsg.includes('nax') || lowerMsg.includes('yaab') || lowerMsg.includes('mise')) {
-                    chosenReaction = '😮';
-                } else if (lowerMsg.includes('fiican') || lowerMsg.includes('haa') || lowerMsg.includes('haye')) {
-                    chosenReaction = '👍';
-                } else {
-                    chosenReaction = reactions[Math.floor(Math.random() * reactions.length)];
-                }
-                
-                await db.execute(
-                    'UPDATE shukaansi_messages SET ai_reaction = ? WHERE id = ?',
-                    [chosenReaction, insertedUserMsgId]
-                );
-            }
-
-            // Log AI usage!
-            const aiLogger = require('../utils/aiLogger');
-            aiLogger.logAIUsage(userId, modelName, message || "[Attachment]", aiResponseText, 'shukaansi');
-        } else {
-            // Save User and AI messages for private chat
-            await db.execute(
-                'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "user", ?)',
-                [userId, sessionId || null, message || "[Attachment]"]
-            );
-            await db.execute(
-                'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "ai", ?)',
-                [userId, sessionId || null, aiResponseText]
-            );
-
-            // Log AI usage!
-            const aiLogger = require('../utils/aiLogger');
-            aiLogger.logAIUsage(userId, modelName, message || "[Attachment]", aiResponseText, 'education');
-        }
-
+        // Send response immediately to user, let DB updates and logging run asynchronously in background!
         res.json({ sender: 'ai', message: aiResponseText });
+
+        (async () => {
+            try {
+                if (chatType === 'shukaansi') {
+                    const [insertResult] = await db.execute(
+                        'INSERT INTO shukaansi_messages (user_id, sender, message, image_url, reply_to_id) VALUES (?, "user", ?, ?, ?)',
+                        [userId, message || "[Attachment]", savedImageUrl, replyToId || null]
+                    );
+                    const insertedUserMsgId = insertResult.insertId;
+
+                    await db.execute(
+                        'INSERT INTO shukaansi_messages (user_id, sender, message, reply_to_id) VALUES (?, "ai", ?, ?)',
+                        [userId, aiResponseText, insertedUserMsgId || null]
+                    );
+
+                    // AI reacts to user message sometimes (e.g. 40% of the time)
+                    if (insertedUserMsgId && Math.random() < 0.4) {
+                        const reactions = ['❤️', '😂', '👍', '😮', '😢'];
+                        let chosenReaction = reactions[0];
+                        const lowerMsg = (message || "").toLowerCase();
+                        if (lowerMsg.includes('dhib') || lowerMsg.includes('xun') || lowerMsg.includes('buux') || lowerMsg.includes('tiiraanyo')) {
+                            chosenReaction = '😢';
+                        } else if (lowerMsg.includes('ha') || lowerMsg.includes('qosol') || lowerMsg.includes('kaftan') || lowerMsg.includes('he')) {
+                            chosenReaction = '😂';
+                        } else if (lowerMsg.includes('nax') || lowerMsg.includes('yaab') || lowerMsg.includes('mise')) {
+                            chosenReaction = '😮';
+                        } else if (lowerMsg.includes('fiican') || lowerMsg.includes('haa') || lowerMsg.includes('haye')) {
+                            chosenReaction = '👍';
+                        } else {
+                            chosenReaction = reactions[Math.floor(Math.random() * reactions.length)];
+                        }
+                        
+                        await db.execute(
+                            'UPDATE shukaansi_messages SET ai_reaction = ? WHERE id = ?',
+                            [chosenReaction, insertedUserMsgId]
+                        );
+                    }
+
+                    // Log AI usage!
+                    const aiLogger = require('../utils/aiLogger');
+                    aiLogger.logAIUsage(userId, modelName, message || "[Attachment]", aiResponseText, 'shukaansi');
+                } else {
+                    // Save User and AI messages for private chat in parallel
+                    await Promise.all([
+                        db.execute(
+                            'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "user", ?)',
+                            [userId, sessionId || null, message || "[Attachment]"]
+                        ),
+                        db.execute(
+                            'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "ai", ?)',
+                            [userId, sessionId || null, aiResponseText]
+                        )
+                    ]);
+
+                    // Log AI usage!
+                    const aiLogger = require('../utils/aiLogger');
+                    aiLogger.logAIUsage(userId, modelName, message || "[Attachment]", aiResponseText, 'education');
+                }
+            } catch (dbErr) {
+                console.error("[ASK_AI] Async DB save/log error in non-stream:", dbErr);
+            }
+        })();
 
     } catch (error) {
         console.error("AskAI Error:", error);

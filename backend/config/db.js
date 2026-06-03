@@ -16,6 +16,15 @@ const pool = mysql.createPool({
 
 const promisePool = pool.promise();
 
+// Keep pool connections warm to eliminate cold startup database latency
+setInterval(async () => {
+    try {
+        await promisePool.query('SELECT 1');
+    } catch (err) {
+        console.error('[DB Keep-Alive Error]:', err.message);
+    }
+}, 15000);
+
 const RETRYABLE_ERRORS = new Set([
     'ECONNRESET',
     'ETIMEDOUT',
