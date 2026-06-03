@@ -6,6 +6,7 @@ const auth = require('../middleware/auth');
 // Waddooyinkan waxay u baahan yihiin in qofku Login sameeyay
 router.post('/ask', auth, chatController.askAI);
 router.get('/history/:sessionId', auth, chatController.getChatHistory);
+router.delete('/history/clear', auth, chatController.clearChatHistory);
 
 const multer = require('multer');
 const path = require('path');

@@ -70,6 +70,7 @@ export default function ChatScreen() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isClearModalVisible, setIsClearModalVisible] = useState(false);
 
   // Spin Animation for thinking state AppLogo
   const spinAnim = useRef(new Animated.Value(0)).current;
@@ -126,8 +127,19 @@ export default function ChatScreen() {
 
     const loadChatHistory = async () => {
       let localMsgs: Message[] = [];
+      let uId = 'guest';
       try {
-        const cached = await AsyncStorage.getItem('education_chat_messages');
+        const userDataRaw = await AsyncStorage.getItem('userData');
+        const user = userDataRaw ? JSON.parse(userDataRaw) : null;
+        if (user && user.id) {
+          uId = user.id.toString();
+        }
+      } catch (e) {
+        console.error("Error reading userData in chat history setup:", e);
+      }
+
+      try {
+        const cached = await AsyncStorage.getItem(`education_chat_messages_${uId}`);
         if (cached) {
           const parsed = JSON.parse(cached);
           if (Array.isArray(parsed)) {
@@ -154,10 +166,10 @@ export default function ChatScreen() {
       // Sync with server history
       try {
         const token = await AsyncStorage.getItem('userToken');
-        let activeSession = await AsyncStorage.getItem('active_session_id');
+        let activeSession = await AsyncStorage.getItem(`active_session_id_${uId}`);
         if (!activeSession) {
           activeSession = `chat_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-          await AsyncStorage.setItem('active_session_id', activeSession);
+          await AsyncStorage.setItem(`active_session_id_${uId}`, activeSession);
         }
         setSessionId(activeSession);
 
@@ -170,7 +182,7 @@ export default function ChatScreen() {
             if (data.messages && Array.isArray(data.messages)) {
               setMessages(prev => {
                 const merged = mergeChatHistory(prev, data.messages);
-                AsyncStorage.setItem('education_chat_messages', JSON.stringify(merged)).catch(err => console.error(err));
+                AsyncStorage.setItem(`education_chat_messages_${uId}`, JSON.stringify(merged)).catch(err => console.error(err));
                 return merged;
               });
             }
@@ -186,10 +198,22 @@ export default function ChatScreen() {
 
   // Persist messages whenever list updates
   useEffect(() => {
-    if (isHistoryLoaded.current && messages.length > 0) {
-      const limitedMessages = messages.slice(-100);
-      AsyncStorage.setItem('education_chat_messages', JSON.stringify(limitedMessages)).catch(err => console.error(err));
-    }
+    const saveMessages = async () => {
+      if (isHistoryLoaded.current && messages.length > 0) {
+        let uId = 'guest';
+        try {
+          const userDataRaw = await AsyncStorage.getItem('userData');
+          const user = userDataRaw ? JSON.parse(userDataRaw) : null;
+          if (user && user.id) {
+            uId = user.id.toString();
+          }
+        } catch (e) {}
+
+        const limitedMessages = messages.slice(-100);
+        AsyncStorage.setItem(`education_chat_messages_${uId}`, JSON.stringify(limitedMessages)).catch(err => console.error(err));
+      }
+    };
+    saveMessages();
   }, [messages]);
   // (state already declared above)
 
@@ -241,10 +265,18 @@ export default function ChatScreen() {
 
   useEffect(() => {
     const checkSession = async () => {
-      let activeSession = await AsyncStorage.getItem('active_session_id');
+      let uId = 'guest';
+      try {
+        const userDataRaw = await AsyncStorage.getItem('userData');
+        const user = userDataRaw ? JSON.parse(userDataRaw) : null;
+        if (user && user.id) {
+          uId = user.id.toString();
+        }
+      } catch (e) {}
+      let activeSession = await AsyncStorage.getItem(`active_session_id_${uId}`);
       if (!activeSession) {
         activeSession = `chat_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-        await AsyncStorage.setItem('active_session_id', activeSession);
+        await AsyncStorage.setItem(`active_session_id_${uId}`, activeSession);
       }
       setSessionId(activeSession);
     };
@@ -789,6 +821,43 @@ export default function ChatScreen() {
     }
   };
 
+  const confirmClearHistory = async () => {
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const res = await fetch(`${Config.API_URL}/api/chat/history/clear`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        let uId = 'guest';
+        try {
+          const userDataRaw = await AsyncStorage.getItem('userData');
+          const user = userDataRaw ? JSON.parse(userDataRaw) : null;
+          if (user && user.id) {
+            uId = user.id.toString();
+          }
+        } catch (e) {}
+
+        setMessages([]);
+        await AsyncStorage.removeItem(`education_chat_messages_${uId}`);
+        
+        const newSession = `chat_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        await AsyncStorage.setItem(`active_session_id_${uId}`, newSession);
+        setSessionId(newSession);
+        
+        setIsClearModalVisible(false);
+      } else {
+        const errorData = await res.json();
+        Alert.alert('Cilad', errorData.message || 'Cilad ayaa dhacday.');
+      }
+    } catch (error) {
+      console.error('Error clearing chat history:', error);
+      Alert.alert('Cilad', 'Fadlan hubi internet-kaaga.');
+    }
+  };
+
   return (
     <AuthGuard>
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -799,12 +868,23 @@ export default function ChatScreen() {
             <TouchableOpacity style={styles.headerIconSolidBox} onPress={() => router.navigate('/(tabs)')} activeOpacity={0.7}>
               <Ionicons name="chevron-back" size={22} color={colors.primary} />
             </TouchableOpacity>
+            <BlurView intensity={60} tint={isDark ? "dark" : "light"} style={styles.nameBadgeBlur}>
+              <Text style={styles.aiName}>Darkpen AI</Text>
+            </BlurView>
           </View>
 
           <View style={styles.headerRight}>
+            <TouchableOpacity onPress={() => setIsClearModalVisible(true)} activeOpacity={0.7}>
+              <BlurView intensity={60} tint={isDark ? "dark" : "light"} style={styles.headerIconBlurBox}>
+                <Feather name="trash-2" size={20} color="#EF4444" />
+              </BlurView>
+            </TouchableOpacity>
+
+            <View style={{ width: 8 }} />
+
             <View style={{ position: 'relative' }}>
               <TouchableOpacity onPress={() => router.navigate('/group')} activeOpacity={0.7}>
-                <BlurView intensity={60} tint="light" style={styles.headerIconBlurBox}>
+                <BlurView intensity={60} tint={isDark ? "dark" : "light"} style={styles.headerIconBlurBox}>
                   <Ionicons name="people-outline" size={20} color={colors.primary} />
                 </BlurView>
               </TouchableOpacity>
@@ -820,7 +900,7 @@ export default function ChatScreen() {
             <View style={{ width: 8 }} />
 
             <TouchableOpacity onPress={toggleSidebar} activeOpacity={0.7}>
-              <BlurView intensity={60} tint="light" style={styles.headerIconBlurBox}>
+              <BlurView intensity={60} tint={isDark ? "dark" : "light"} style={styles.headerIconBlurBox}>
                 <Ionicons name="menu-outline" size={22} color={colors.primary} />
               </BlurView>
             </TouchableOpacity>
@@ -1236,6 +1316,47 @@ export default function ChatScreen() {
             {viewerImage && (
               <Image source={{ uri: viewerImage }} style={{ width: '100%', height: '80%' }} contentFit="contain" />
             )}
+          </View>
+        </Modal>
+
+        {/* Clear Chat History Custom Confirmation Modal */}
+        <Modal
+          visible={isClearModalVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setIsClearModalVisible(false)}
+        >
+          <View style={styles.clearModalOverlay}>
+            <BlurView intensity={30} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFillObject} />
+            <View style={styles.clearModalContent}>
+              <View style={styles.clearModalIconBg}>
+                <Ionicons name="trash-outline" size={32} color="#EF4444" />
+              </View>
+              
+              <Text style={styles.clearModalTitle}>Clear Chat History</Text>
+              
+              <Text style={styles.clearModalMessage}>
+                Ma ogoshahay in aad tirtirto chat history-ga? Wax undo ahna awood uma lihid.
+              </Text>
+              
+              <View style={styles.clearModalButtons}>
+                <TouchableOpacity 
+                  style={styles.clearModalCancelBtn} 
+                  onPress={() => setIsClearModalVisible(false)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.clearModalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.clearModalDeleteBtn} 
+                  onPress={confirmClearHistory}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.clearModalDeleteText}>Clear</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </Modal>
       </SafeAreaView>
@@ -2023,5 +2144,83 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: colors.secondary,
+  },
+  clearModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  clearModalContent: {
+    backgroundColor: colors.card,
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    maxWidth: 320,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border || 'rgba(255,255,255,0.05)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 15,
+    elevation: 10,
+  },
+  clearModalIconBg: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  clearModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.secondary,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  clearModalMessage: {
+    fontSize: 14,
+    color: colors.textLight || '#6B7280',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  clearModalButtons: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 12,
+  },
+  clearModalCancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border || '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+  },
+  clearModalCancelText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.secondary,
+  },
+  clearModalDeleteBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  clearModalDeleteText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'white',
   }
 });

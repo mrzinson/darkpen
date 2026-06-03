@@ -591,6 +591,21 @@ exports.getChatHistory = async (req, res) => {
     }
 };
 
+// Clear all private chat history for a user
+exports.clearChatHistory = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        // Delete all private messages for this user
+        await db.execute('DELETE FROM messages_private WHERE user_id = ?', [userId]);
+        // Also delete any custom chat sessions if they exist
+        await db.execute('DELETE FROM chat_sessions WHERE user_id = ?', [userId]);
+        res.json({ status: 'success', message: 'Dhamaan chat history-gii waa la tirtiray.' });
+    } catch (error) {
+        console.error('Error clearing chat history:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday tirtirista taariikhda farriimaha.' });
+    }
+};
+
 const fs = require('fs');
 
 // Process Voice Note
