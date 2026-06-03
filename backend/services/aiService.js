@@ -192,7 +192,7 @@ exports.findRelevantChunks = async (queryText) => {
             return "";
         }
 
-        const model = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
+        const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
         const result = await model.embedContent(queryText);
         const queryEmbedding = result.embedding.values;
 
