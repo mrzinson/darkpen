@@ -140,7 +140,7 @@ export const renderFormattedText = (text: string, isDark: boolean, colors: any, 
       return (
         <View key={blockKey} style={{ backgroundColor: isDark ? '#2a2b2f' : '#f3f4f6', borderLeftWidth: 4, borderLeftColor: colors.primary, padding: 12, marginVertical: 8, borderRadius: 4, width: '100%' }}>
           <Text style={{ color: textColor, fontSize: 14, fontStyle: 'italic', lineHeight: 22 }}>
-            {innerText}
+            {renderInlineText(innerText, `${blockKey}-callout`)}
           </Text>
         </View>
       );
@@ -159,7 +159,9 @@ export const renderFormattedText = (text: string, isDark: boolean, colors: any, 
               <View key={rIndex} style={{ flexDirection: 'row', backgroundColor: rIndex === 0 ? (isDark ? '#27282c' : '#f3f4f6') : (isDark ? '#1e1f22' : '#ffffff'), borderBottomWidth: rIndex < rows.length - 1 ? 1 : 0, borderBottomColor: colors.border || '#e5e7eb' }}>
                 {cols.map((col, cIndex) => (
                   <View key={cIndex} style={{ flex: 1, padding: 8, borderRightWidth: cIndex < cols.length - 1 ? 1 : 0, borderRightColor: colors.border || '#e5e7eb' }}>
-                    <Text style={{ fontWeight: rIndex === 0 ? 'bold' : 'normal', color: textColor, fontSize: 13 }}>{col.trim()}</Text>
+                    <Text style={{ fontWeight: rIndex === 0 ? 'bold' : 'normal', color: textColor, fontSize: 13 }}>
+                      {renderInlineText(col.trim(), `${blockKey}-row-${rIndex}-col-${cIndex}`)}
+                    </Text>
                   </View>
                 ))}
               </View>
@@ -177,7 +179,7 @@ export const renderFormattedText = (text: string, isDark: boolean, colors: any, 
       const marginTop = level === 1 ? 16 : 12;
       return (
         <Text key={blockKey} style={{ fontSize, fontWeight: 'bold', color: textColor, marginTop, marginBottom: 8, lineHeight: fontSize * 1.3 }}>
-          {innerText}
+          {renderInlineText(innerText, `${blockKey}-header`)}
         </Text>
       );
     }
