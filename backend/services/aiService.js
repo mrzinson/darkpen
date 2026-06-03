@@ -295,21 +295,72 @@ exports.transcribeAudio = async (filePath) => {
     }
 };
 
+const Jimp = require('jimp');
+
 /**
- * Generate image using OpenAI DALL-E 3
+ * Generate image using Gemini Imagen 3 with Watermark
  */
 exports.generateAIImage = async (prompt) => {
     try {
-        const response = await openai.images.generate({
-            model: "dall-e-3",
-            prompt: prompt,
-            n: 1,
-            size: "1024x1024",
-            response_format: "b64_json"
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            throw new Error("GEMINI_API_KEY is not defined in environment variables.");
+        }
+        
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
+        
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                instances: [
+                    {
+                        prompt: prompt
+                    }
+                ],
+                parameters: {
+                    sampleCount: 1,
+                    aspectRatio: "1:1",
+                    outputMimeType: "image/jpeg"
+                }
+            })
         });
-        return response.data[0].b64_json;
+
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`Imagen API error: ${response.status} - ${errText}`);
+        }
+
+        const data = await response.json();
+        if (!data.predictions || data.predictions.length === 0 || !data.predictions[0].bytesBase64Encoded) {
+            throw new Error("No image data returned in predictions");
+        }
+
+        const rawBase64 = data.predictions[0].bytesBase64Encoded;
+
+        // Apply "Darkpen AI" Watermark in bottom-right corner using Jimp
+        try {
+            const buffer = Buffer.from(rawBase64, 'base64');
+            const image = await Jimp.read(buffer);
+            
+            const font = await Jimp.loadFont(Jimp.FONT_SANS_32_WHITE);
+            
+            const text = "Darkpen AI";
+            const x = image.bitmap.width - 200;
+            const y = image.bitmap.height - 60;
+            
+            image.print(font, x, y, text);
+            
+            const watermarkedBuffer = await image.getBufferAsync(Jimp.MIME_JPEG);
+            return watermarkedBuffer.toString('base64');
+        } catch (jimpErr) {
+            console.error("Jimp Watermark Error (falling back to original image):", jimpErr);
+            return rawBase64;
+        }
     } catch (error) {
-        console.error("DALL-E Image Generation Error:", error);
+        console.error("Gemini Imagen Generation Error:", error);
         throw new Error("Waan ka xunnahay, image generation is busy right now.");
     }
 };

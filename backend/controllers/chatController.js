@@ -3,6 +3,19 @@ const aiService = require('../services/aiService');
 const { saveBase64Image } = require('../utils/fileHelper');
 const { checkAndExpireWallet } = require('../utils/walletHelper');
 const { tryUseFreeAI } = require('../utils/freeUsageHelper');
+const path = require('path');
+
+// Ensure database is updated with image_url column on startup
+(async () => {
+    try {
+        await db.query('ALTER TABLE messages_private ADD COLUMN image_url VARCHAR(255) DEFAULT NULL');
+        console.log('[DB] Added column image_url to messages_private successfully or already exists.');
+    } catch (err) {
+        if (err.errno !== 1060 && !err.message.includes('Multiple columns') && !err.message.includes('duplicate column')) {
+            console.error('[DB] Error adding image_url to messages_private:', err.message);
+        }
+    }
+})();
 
 // 1. Create a new chat session
 exports.createSession = async (req, res) => {
@@ -132,6 +145,31 @@ function isSubstantiveQuery(text) {
     return true;
 }
 
+function isImageGenerationRequest(text) {
+    if (!text) return false;
+    const clean = text.toLowerCase().trim();
+    
+    const isSomaliImageReq = clean.includes('sawir') && (
+        clean.includes('samee') || clean.includes('keen') || clean.includes('soo') || 
+        clean.includes('naqshad') || clean.includes('dhig') || clean.includes('qor') || 
+        clean.includes('iiga') || clean.includes('iga') || clean.includes('ii') || 
+        clean.includes('muuji') || clean.includes('tus')
+    );
+    const isEnglishImageReq = (
+        clean.includes('image') || clean.includes('picture') || clean.includes('photo') || 
+        clean.includes('draw') || clean.includes('paint') || clean.includes('illustration')
+    ) && (
+        clean.includes('create') || clean.includes('generate') || clean.includes('make') || 
+        clean.includes('draw') || clean.includes('paint') || clean.includes('show') || 
+        clean.includes('render')
+    );
+    
+    const directSomali = clean.startsWith('sawir ') || clean.includes(' sawir ') || clean.includes(' sawiro ') || clean.includes(' sawirada ');
+    const directEnglish = clean.startsWith('draw ') || clean.startsWith('paint ') || clean.startsWith('generate image') || clean.startsWith('create image') || clean.startsWith('make an image');
+
+    return isSomaliImageReq || isEnglishImageReq || directSomali || directEnglish;
+}
+
 // La sheekaysiga AI-da (Private Chat)
 exports.askAI = async (req, res) => {
     try {
@@ -158,6 +196,102 @@ exports.askAI = async (req, res) => {
 
         const hasBalance = wallet.length > 0 && wallet[0].balance > 0;
         const hasActiveSub = sub.length > 0;
+        const userPlan = sub.length > 0 ? sub[0].type : 'credits';
+
+        // Check if user is requesting an AI image generation
+        const isImageReq = chatType !== 'shukaansi' && isImageGenerationRequest(message);
+
+        if (isImageReq) {
+            // Restriction: Block pay-as-you-go / credits-only users
+            if (userPlan === 'credits') {
+                const warnMsg = "Qorshahan sawir laguma generate gareyn karo ee isticmaal ama iibso qorshayaasha kale.";
+                if (stream === true && !res.headersSent) {
+                    res.setHeader('Content-Type', 'text/event-stream');
+                    res.write(`data: ${JSON.stringify({ error: "pay_as_you_go_unsupported", text: warnMsg, showBillingButton: true })}\n\n`);
+                    res.end();
+                } else if (!res.headersSent) {
+                    res.status(403).json({ 
+                        message: warnMsg, 
+                        showBillingButton: true,
+                        error: "pay_as_you_go_unsupported" 
+                    });
+                }
+                return;
+            }
+
+            // Save user message to messages_private
+            await db.execute(
+                'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "user", ?)',
+                [userId, sessionId || null, message]
+            );
+
+            if (stream === true) {
+                res.setHeader('Content-Type', 'text/event-stream');
+                res.setHeader('Cache-Control', 'no-cache');
+                res.setHeader('Connection', 'keep-alive');
+                res.setHeader('X-Accel-Buffering', 'no');
+                if (typeof res.flushHeaders === 'function') {
+                    res.flushHeaders();
+                }
+                res.write(`data: ${JSON.stringify({ status: 'generating_image' })}\n\n`);
+            }
+
+            let isClientConnected = true;
+            req.on('close', () => {
+                isClientConnected = false;
+            });
+
+            // Start generation in background
+            (async () => {
+                try {
+                    console.log(`[IMAGE GEN] Starting Gemini Imagen generation for user ${userId}...`);
+                    const base64Image = await aiService.generateAIImage(message.trim());
+                    
+                    const savedImageUrl = saveBase64Image(`data:image/jpeg;base64,${base64Image}`, 'chats');
+                    const relativeUrl = `/uploads/chats/${path.basename(savedImageUrl)}`;
+                    
+                    const responseText = "Waa kan sawirkaagii qaaliga ahaa!";
+                    
+                    // Save to database
+                    await db.execute(
+                        'INSERT INTO messages_private (user_id, session_id, sender, message, image_url) VALUES (?, ?, "ai", ?, ?)',
+                        [userId, sessionId || null, responseText, relativeUrl]
+                    );
+
+                    // Log AI usage!
+                    const aiLogger = require('../utils/aiLogger');
+                    aiLogger.logAIUsage(userId, 'imagen-3.0-generate-002', message, responseText, 'image');
+
+                    if (isClientConnected && stream === true) {
+                        res.write(`data: ${JSON.stringify({ text: responseText, image: relativeUrl, status: 'complete' })}\n\n`);
+                        res.write('data: [DONE]\n\n');
+                        res.end();
+                    } else if (isClientConnected) {
+                        res.json({ sender: 'ai', message: responseText, image: relativeUrl });
+                    }
+
+                    if (!isClientConnected) {
+                        const pushService = require('../services/pushNotificationService');
+                        await pushService.sendPushNotification(
+                            userId, 
+                            "Sawirkaaga waa diyaar! 🎨", 
+                            "Ku soo laabo app-ka si aad u daawato sawirkaaga qaaliga ah."
+                        );
+                    }
+                } catch (err) {
+                    console.error("[IMAGE GEN ERROR]:", err);
+                    const errMsg = "Waan ka xunnahay, sawir sameynta darkpen cilad ayaa ku timid. Fadlan mar kale isku day.";
+                    if (isClientConnected && stream === true) {
+                        res.write(`data: ${JSON.stringify({ error: errMsg })}\n\n`);
+                        res.end();
+                    } else if (isClientConnected) {
+                        res.status(500).json({ message: errMsg, error: errMsg });
+                    }
+                }
+            })();
+
+            return;
+        }
 
         if (!hasActiveSub) {
             let cost = 1;
@@ -214,9 +348,6 @@ exports.askAI = async (req, res) => {
             );
             insertedUserMsgId = insertResult.insertId;
         }
-
-        const [sub_plan] = await db.execute(`SELECT type FROM ${subTable} WHERE user_id = ? AND expiry_date > NOW()`, [userId]);
-        const userPlan = sub_plan.length > 0 ? sub_plan[0].type : 'credits';
 
         // Prepare History
         const startHistory = Date.now();
@@ -385,7 +516,7 @@ exports.getChatHistory = async (req, res) => {
 
         const [messages] = await db.execute(
             `SELECT * FROM (
-                SELECT * FROM messages_private 
+                SELECT id, user_id, sender, message, created_at, session_id, image_url AS image FROM messages_private 
                 WHERE user_id = ? AND session_id = ? 
                 ORDER BY created_at DESC 
                 LIMIT ? OFFSET ?

@@ -1,6 +1,6 @@
 import { useTheme } from '../context/ThemeContext';
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Image, Platform, Linking, Alert } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Image, Platform, Linking, Alert, Modal, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -15,6 +15,10 @@ export default function SettingsScreen() {
 
   const router = useRouter();
   const [userData, setUserData] = useState<any>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
 
   useFocusEffect(
     React.useCallback(() => {
@@ -24,43 +28,119 @@ export default function SettingsScreen() {
     }, [])
   );
 
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      language === 'so' ? "Tirtirida Akoonka" : "Delete Account",
-      language === 'so' 
-        ? "Ma hubtaa inaad tirtirto akoonkaaga? Tani waxay tirtiri doontaa dhammaan xogtaada, fariimahaaga, iyo lacag bixintaadii oo dhan. Go'aankan lagama noqon karo." 
-        : "Are you sure you want to delete your account? This will permanently delete all your data, messages, and payments. This action cannot be undone.",
-      [
-        { text: language === 'so' ? "Jooji" : "Cancel", style: "cancel" },
-        { 
-          text: language === 'so' ? "Haa, Tirtir" : "Yes, Delete", 
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const token = await AsyncStorage.getItem('userToken');
-              const res = await fetch(`${Config.API_URL}/api/user/account`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-              });
-              if (res.ok) {
-                await AsyncStorage.removeItem('userToken');
-                await AsyncStorage.removeItem('userData');
-                router.replace('/login');
-              } else {
-                const data = await res.json();
-                Alert.alert("Error", data.message || "Failed to delete account");
-              }
-            } catch (err) {
-              Alert.alert("Error", "Network error occurred.");
-            }
-          }
-        }
-      ]
-    );
+  const openDeleteModal = () => {
+    setShowDeleteModal(true);
+    Animated.parallel([
+      Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, damping: 14, stiffness: 200 }),
+      Animated.timing(opacityAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+    ]).start();
   };
+
+  const closeDeleteModal = () => {
+    Animated.parallel([
+      Animated.spring(scaleAnim, { toValue: 0.8, useNativeDriver: true, damping: 14, stiffness: 200 }),
+      Animated.timing(opacityAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
+    ]).start(() => setShowDeleteModal(false));
+  };
+
+  const handleDeleteAccount = openDeleteModal;
+
+  const performDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const res = await fetch(`${Config.API_URL}/api/user/account`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        await AsyncStorage.removeItem('userToken');
+        await AsyncStorage.removeItem('userData');
+        setShowDeleteModal(false);
+        router.replace('/login');
+      } else {
+        const data = await res.json();
+        setIsDeleting(false);
+        closeDeleteModal();
+        setTimeout(() => Alert.alert("Error", data.message || "Failed to delete account"), 400);
+      }
+    } catch (err) {
+      setIsDeleting(false);
+      closeDeleteModal();
+      setTimeout(() => Alert.alert("Error", "Network error occurred."), 400);
+    }
+  };
+
+  const DeleteModal = () => (
+    <Modal transparent visible={showDeleteModal} animationType="none" onRequestClose={closeDeleteModal}>
+      <Animated.View style={[styles.modalOverlay, { opacity: opacityAnim }]}>
+        <Animated.View style={[styles.modalCard, { transform: [{ scale: scaleAnim }] }]}>
+          {/* Icon */}
+          <View style={styles.modalIconWrapper}>
+            <View style={styles.modalIconCircle}>
+              <Ionicons name="trash" size={32} color="#EF4444" />
+            </View>
+          </View>
+
+          {/* Title */}
+          <Text style={styles.modalTitle}>
+            {language === 'so' ? 'Tirtirida Akoonka' : 'Delete Account'}
+          </Text>
+
+          {/* Message */}
+          <Text style={styles.modalMessage}>
+            {language === 'so'
+              ? "Ma hubtaa? Dhammaan xogtaada, fariimahaaga, iyo lacag bixintaadii ayaa si joogto ah loo tirtirayaa. Go'aankan lagama noqon karo."
+              : "Are you sure? All your data, messages, and payment history will be permanently deleted. This action cannot be undone."}
+          </Text>
+
+          {/* Divider */}
+          <View style={styles.modalDivider} />
+
+          {/* Buttons */}
+          <View style={styles.modalButtons}>
+            <TouchableOpacity
+              style={styles.modalCancelBtn}
+              onPress={closeDeleteModal}
+              activeOpacity={0.8}
+              disabled={isDeleting}
+            >
+              <Text style={styles.modalCancelText}>
+                {language === 'so' ? 'Jooji' : 'Cancel'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.modalDeleteBtn, isDeleting && { opacity: 0.7 }]}
+              onPress={performDelete}
+              activeOpacity={0.8}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="hourglass" size={16} color="#fff" />
+                  <Text style={styles.modalDeleteText}>
+                    {language === 'so' ? 'Tirtirayaa...' : 'Deleting...'}
+                  </Text>
+                </View>
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="trash" size={16} color="#fff" />
+                  <Text style={styles.modalDeleteText}>
+                    {language === 'so' ? 'Haa, Tirtir' : 'Yes, Delete'}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      </Animated.View>
+    </Modal>
+  );
 
   return (
     <AuthGuard>
+      <DeleteModal />
       <SafeAreaView style={styles.container}>
         {/* Top Header */}
         <View style={styles.header}>
@@ -492,5 +572,104 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     marginRight: 8,
     justifyContent: 'center',
     alignItems: 'center',
-  }
+  },
+
+  // ── Delete Modal ──────────────────────────────
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: isDark ? '#1E2130' : '#FFFFFF',
+    borderRadius: 28,
+    paddingHorizontal: 28,
+    paddingTop: 32,
+    paddingBottom: 28,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.35,
+    shadowRadius: 40,
+    elevation: 20,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.1)',
+  },
+  modalIconWrapper: {
+    marginBottom: 20,
+  },
+  modalIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: isDark ? 'rgba(239,68,68,0.15)' : '#FEF2F2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: isDark ? 'rgba(239,68,68,0.3)' : '#FECACA',
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: isDark ? '#F9FAFB' : '#111827',
+    marginBottom: 12,
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  modalMessage: {
+    fontSize: 14,
+    color: isDark ? '#9CA3AF' : '#6B7280',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+    fontWeight: '500',
+  },
+  modalDivider: {
+    width: '100%',
+    height: 1,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : '#F3F4F6',
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  modalCancelBtn: {
+    flex: 1,
+    backgroundColor: isDark ? 'rgba(59,130,246,0.15)' : '#EFF6FF',
+    borderRadius: 16,
+    paddingVertical: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: isDark ? 'rgba(59,130,246,0.3)' : '#BFDBFE',
+  },
+  modalCancelText: {
+    color: '#3B82F6',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  modalDeleteBtn: {
+    flex: 1,
+    backgroundColor: '#EF4444',
+    borderRadius: 16,
+    paddingVertical: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalDeleteText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 15,
+  },
 });

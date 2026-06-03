@@ -24,7 +24,7 @@ import { AppLogo } from '../components/AppLogo';
 const { width } = Dimensions.get('window');
 const SIDEBAR_WIDTH = width * 0.75;
 
-type MessageStatus = 'thinking' | 'streaming' | 'complete';
+type MessageStatus = 'thinking' | 'streaming' | 'complete' | 'generating_image';
 type Attachment = { uri: string; base64: string; mimeType: string; name: string };
 type Message = {
   id: string;
@@ -34,6 +34,7 @@ type Message = {
   image?: string;
   images?: string[];
   timestamp?: string;
+  showBillingButton?: boolean;
 };
 
 const INITIAL_MESSAGES: Message[] = [];
@@ -96,34 +97,87 @@ export default function ChatScreen() {
 
   // Load chat history on mount (keeps 5 days max)
   useEffect(() => {
+    const mergeChatHistory = (localMsgs: Message[], serverMsgs: any[]) => {
+      if (!serverMsgs || serverMsgs.length === 0) return localMsgs;
+      const merged = [...localMsgs];
+      serverMsgs.forEach(sMsg => {
+        const mapped: Message = {
+          id: sMsg.id.toString(),
+          text: sMsg.message || sMsg.text || '',
+          sender: sMsg.sender,
+          image: sMsg.image ? (sMsg.image.startsWith('http') ? sMsg.image : `${Config.API_URL}${sMsg.image}`) : undefined,
+          status: 'complete',
+          timestamp: sMsg.created_at || new Date().toISOString()
+        };
+        const exists = merged.some(lMsg => {
+          if (lMsg.id === mapped.id) return true;
+          const senderMatch = lMsg.sender === mapped.sender;
+          const textMatch = lMsg.text === mapped.text;
+          const imageMatch = lMsg.image === mapped.image || (!lMsg.image && !mapped.image);
+          return senderMatch && textMatch && imageMatch;
+        });
+        if (!exists) {
+          if (mapped.text === t('welcome_ai') && mapped.sender === 'ai') return;
+          merged.push(mapped);
+        }
+      });
+      return merged.sort((a, b) => new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime());
+    };
+
     const loadChatHistory = async () => {
+      let localMsgs: Message[] = [];
       try {
         const cached = await AsyncStorage.getItem('education_chat_messages');
         if (cached) {
           const parsed = JSON.parse(cached);
           if (Array.isArray(parsed)) {
             const fiveDaysAgo = Date.now() - 5 * 24 * 60 * 60 * 1000;
-            const validMessages = parsed.filter(m => {
+            localMsgs = parsed.filter(m => {
               if (!m.timestamp) return true;
               return new Date(m.timestamp).getTime() > fiveDaysAgo;
             });
-            
-            if (validMessages.length > 0) {
-              setMessages(validMessages);
-              await AsyncStorage.setItem('education_chat_messages', JSON.stringify(validMessages));
-              isHistoryLoaded.current = true;
-              return;
+          }
+        }
+      } catch (e) {
+        console.error("Error loading cached chat history:", e);
+      }
+
+      if (localMsgs.length === 0) {
+        localMsgs = [
+          { id: '1', text: t('welcome_ai'), sender: 'ai', status: 'complete', timestamp: new Date().toISOString() }
+        ];
+      }
+
+      setMessages(localMsgs);
+      isHistoryLoaded.current = true;
+
+      // Sync with server history
+      try {
+        const token = await AsyncStorage.getItem('userToken');
+        let activeSession = await AsyncStorage.getItem('active_session_id');
+        if (!activeSession) {
+          activeSession = `chat_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+          await AsyncStorage.setItem('active_session_id', activeSession);
+        }
+        setSessionId(activeSession);
+
+        if (token && activeSession) {
+          const res = await fetch(`${Config.API_URL}/api/chat/history/${activeSession}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.messages && Array.isArray(data.messages)) {
+              setMessages(prev => {
+                const merged = mergeChatHistory(prev, data.messages);
+                AsyncStorage.setItem('education_chat_messages', JSON.stringify(merged)).catch(err => console.error(err));
+                return merged;
+              });
             }
           }
         }
-        
-        setMessages([
-          { id: '1', text: t('welcome_ai'), sender: 'ai', status: 'complete', timestamp: new Date().toISOString() }
-        ]);
-        isHistoryLoaded.current = true;
-      } catch (e) {
-        console.error("Error loading chat history:", e);
-        isHistoryLoaded.current = true;
+      } catch (err) {
+        console.error("Failed to sync chat history with server:", err);
       }
     };
 
@@ -155,12 +209,46 @@ export default function ChatScreen() {
   const thinkingDot1 = useRef(new Animated.Value(0)).current;
   const thinkingDot2 = useRef(new Animated.Value(0)).current;
   const thinkingDot3 = useRef(new Animated.Value(0)).current;
+  const skeletonAnim = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    let animation: Animated.CompositeAnimation | null = null;
+    if (messages.some(m => m.status === 'generating_image')) {
+      animation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(skeletonAnim, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true
+          }),
+          Animated.timing(skeletonAnim, {
+            toValue: 0.3,
+            duration: 1000,
+            useNativeDriver: true
+          })
+        ])
+      );
+      animation.start();
+    } else {
+      skeletonAnim.setValue(0.3);
+    }
+    return () => {
+      if (animation) animation.stop();
+    };
+  }, [messages]);
 
   const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    // Generate unique session ID for this chat instance
-    setSessionId(`chat_${Date.now()}_${Math.random().toString(36).substring(7)}`);
+    const checkSession = async () => {
+      let activeSession = await AsyncStorage.getItem('active_session_id');
+      if (!activeSession) {
+        activeSession = `chat_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        await AsyncStorage.setItem('active_session_id', activeSession);
+      }
+      setSessionId(activeSession);
+    };
+    checkSession();
   }, []);
 
   // Gesture for Attach Menu
@@ -600,13 +688,28 @@ export default function ChatScreen() {
                   } else if (parsed.status === 'thinking') {
                     clearTimeout(statusTimeout);
                     setThinkingStatus('Thinking...');
+                  } else if (parsed.status === 'generating_image') {
+                    clearTimeout(statusTimeout);
+                    setThinkingStatus('Generating image...');
+                    setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, status: 'generating_image' } : m));
                   } else if (parsed.error) {
-                    accumulatedText = "Waan ka xunnahay, darkpen cilad ayaa ku timid. Fadlan isku day mar kale waxyar ka dib.";
-                    setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: accumulatedText, status: 'complete' } : m));
+                    let errMsg = "Waan ka xunnahay, darkpen cilad ayaa ku timid. Fadlan isku day mar kale waxyar ka dib.";
+                    let showBilling = false;
+                    if (parsed.error === 'pay_as_you_go_unsupported' || parsed.showBillingButton) {
+                      errMsg = parsed.text || "Qorshahan sawir laguma generate gareyn karo ee isticmaal ama iibso qorshayaasha kale.";
+                      showBilling = true;
+                    }
+                    setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: errMsg, status: 'complete', showBillingButton: showBilling } : m));
                     break;
-                  } else if (parsed.text) {
-                    accumulatedText += parsed.text;
-                    setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: accumulatedText, status: 'streaming' } : m));
+                  } else if (parsed.text || parsed.image) {
+                    if (parsed.text) accumulatedText += parsed.text;
+                    const imageUrl = parsed.image ? (parsed.image.startsWith('http') ? parsed.image : `${Config.API_URL}${parsed.image}`) : undefined;
+                    setMessages(prev => prev.map(m => m.id === aiMsgId ? { 
+                      ...m, 
+                      text: accumulatedText, 
+                      image: imageUrl || m.image,
+                      status: parsed.status === 'complete' ? 'complete' : 'streaming' 
+                    } : m));
                   }
                 } catch (err) {
                   // Partial JSON chunk, wait for next buffer
@@ -619,9 +722,33 @@ export default function ChatScreen() {
             clearTimeout(statusTimeout);
             if (xhr.status >= 400 && !accumulatedText) {
               let errorMsg = "Waan ka xunnahay, darkpen cilad ayaa ku timid. Fadlan isku day mar kale waxyar ka dib.";
-              setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: errorMsg, status: 'complete' } : m));
+              let showBilling = false;
+              try {
+                const errObj = JSON.parse(responseText);
+                if (errObj.message) errorMsg = errObj.message;
+                if (errObj.showBillingButton || errObj.error === 'pay_as_you_go_unsupported') {
+                  showBilling = true;
+                }
+              } catch(e) {}
+              setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: errorMsg, status: 'complete', showBillingButton: showBilling } : m));
             } else {
-              setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: accumulatedText || "Waan ka xunnahay, jawaab ma jiro.", status: 'complete' } : m));
+              let finalImage = undefined;
+              try {
+                // If it's a JSON response containing an image URL
+                if (responseText.trim().startsWith('{')) {
+                  const respObj = JSON.parse(responseText);
+                  if (respObj.image) {
+                    finalImage = respObj.image.startsWith('http') ? respObj.image : `${Config.API_URL}${respObj.image}`;
+                  }
+                }
+              } catch(e) {}
+
+              setMessages(prev => prev.map(m => m.id === aiMsgId ? { 
+                ...m, 
+                text: accumulatedText || m.text || "Waan ka xunnahay, jawaab ma jiro.", 
+                image: finalImage || m.image,
+                status: 'complete' 
+              } : m));
               fetchCredits();
             }
             setIsAiTyping(false);
@@ -777,6 +904,25 @@ export default function ChatScreen() {
                           </TouchableOpacity>
                         ))}
                       </ScrollView>
+                    ) : msg.status === 'generating_image' ? (
+                      <Animated.View style={[
+                        styles.chatImageContainer,
+                        {
+                          width: width * 0.7,
+                          height: 200,
+                          opacity: skeletonAnim,
+                          backgroundColor: isDark ? '#374151' : '#E5E7EB',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          gap: 10,
+                          borderRadius: 20
+                        }
+                      ]}>
+                        <Ionicons name="image-outline" size={36} color={colors.primary} />
+                        <Text style={{ fontSize: 13, color: colors.text, fontWeight: '600' }}>
+                          Darkpen ayaa sawiraya...
+                        </Text>
+                      </Animated.View>
                     ) : msg.image ? (
                       <TouchableOpacity activeOpacity={0.8} onPress={() => setViewerImage(msg.image || null)} style={styles.chatImageContainer}>
                         <Image
@@ -795,27 +941,29 @@ export default function ChatScreen() {
                       ) : null
                     ) : (
                       <View style={styles.aiContentContainer}>
-                        <View style={styles.messageBubbleAi}>
-                          {msg.status === 'thinking' ? (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, gap: 6 }}>
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                <Animated.View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.primary, transform: [{ translateY: thinkingDot1 }] }} />
-                                <Animated.View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.primary, transform: [{ translateY: thinkingDot2 }] }} />
-                                <Animated.View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.primary, transform: [{ translateY: thinkingDot3 }] }} />
+                        {msg.status === 'generating_image' ? null : (
+                          <View style={styles.messageBubbleAi}>
+                            {msg.status === 'thinking' ? (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, gap: 6 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                  <Animated.View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.primary, transform: [{ translateY: thinkingDot1 }] }} />
+                                  <Animated.View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.primary, transform: [{ translateY: thinkingDot2 }] }} />
+                                  <Animated.View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.primary, transform: [{ translateY: thinkingDot3 }] }} />
+                                </View>
+                                <Text style={{ fontSize: 13, color: colors.textLight || '#9CA3AF', fontStyle: 'italic' }}>Thinking...</Text>
                               </View>
-                              <Text style={{ fontSize: 13, color: colors.textLight || '#9CA3AF', fontStyle: 'italic' }}>Thinking...</Text>
-                            </View>
-                          ) : (
-                            <View style={styles.aiTextContainer}>
-                              <View style={{ flex: 1 }}>
-                                {renderFormattedText(msg.text, isDark, colors)}
+                            ) : (
+                              <View style={styles.aiTextContainer}>
+                                <View style={{ flex: 1 }}>
+                                  {renderFormattedText(msg.text, isDark, colors)}
+                                </View>
+                                {msg.status === 'streaming' && <View style={styles.typingCursor} />}
                               </View>
-                              {msg.status === 'streaming' && <View style={styles.typingCursor} />}
-                            </View>
-                          )}
-                        </View>
+                            )}
+                          </View>
+                        )}
 
-                        {msg.status === 'complete' && (
+                        {msg.status === 'complete' && msg.text && (
                           <TouchableOpacity 
                             style={styles.smallCopyBtn} 
                             onPress={() => {
@@ -826,6 +974,36 @@ export default function ChatScreen() {
                           >
                             <Ionicons name="copy-outline" size={12} color="#3B82F6" />
                             <Text style={styles.smallCopyText}>Copy</Text>
+                          </TouchableOpacity>
+                        )}
+
+                        {msg.showBillingButton && (
+                          <TouchableOpacity 
+                            style={{
+                              marginTop: 10,
+                              backgroundColor: colors.primary,
+                              paddingVertical: 10,
+                              paddingHorizontal: 16,
+                              borderRadius: 12,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexDirection: 'row',
+                              gap: 8,
+                              shadowColor: colors.primary,
+                              shadowOffset: { width: 0, height: 4 },
+                              shadowOpacity: 0.2,
+                              shadowRadius: 6,
+                              elevation: 4
+                            }} 
+                            onPress={() => {
+                              router.push('/billing');
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Ionicons name="card-outline" size={16} color="#FFF" />
+                            <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '700' }}>
+                              Iibso Qorshe (Buy Plan)
+                            </Text>
                           </TouchableOpacity>
                         )}
                       </View>
