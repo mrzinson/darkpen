@@ -653,6 +653,7 @@ router.post('/tournament/settings', async (req, res) => {
     try {
         const { 
             is_active, 
+            reveal_leaderboard,
             reward_description,
             gen_ad_title,
             gen_ad_desc,
@@ -667,6 +668,7 @@ router.post('/tournament/settings', async (req, res) => {
         await db.execute(
             `UPDATE tournament_settings SET 
                 is_active = ?, 
+                reveal_leaderboard = ?,
                 reward_description = ?,
                 gen_ad_title = ?,
                 gen_ad_desc = ?,
@@ -679,6 +681,7 @@ router.post('/tournament/settings', async (req, res) => {
              WHERE id = 1`,
             [
                 is_active !== undefined ? is_active : 1, 
+                reveal_leaderboard !== undefined ? reveal_leaderboard : 0,
                 reward_description || '',
                 gen_ad_title || '',
                 gen_ad_desc || '',

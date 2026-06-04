@@ -87,6 +87,105 @@ export default function QuizScreen() {
 
   const appState = useRef(AppState.currentState);
 
+  const renderPodiumCard = (player: any, rank: number) => {
+    const isBlurred = player.is_blurred;
+    
+    // Choose styles based on rank
+    let cardStyle = styles.podiumCard2;
+    let iconName = 'star';
+    let iconColor = '#E2E8F0';
+    let glowStyle = {};
+
+    if (rank === 1) {
+      cardStyle = styles.podiumCard1;
+      iconName = 'flame';
+      iconColor = '#FFD700'; // Gold
+      glowStyle = {
+        shadowColor: '#FF3700',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.45,
+        shadowRadius: 15,
+        elevation: 10,
+        borderColor: '#FFD700',
+        borderWidth: 2,
+        backgroundColor: '#FF3700', // Crimson/Red olol
+      };
+    } else if (rank === 2) {
+      cardStyle = styles.podiumCard2;
+      iconName = 'snow';
+      iconColor = '#E2E8F0';
+      glowStyle = {
+        shadowColor: '#3B82F6',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.35,
+        shadowRadius: 12,
+        elevation: 8,
+        borderColor: '#E2E8F0',
+        borderWidth: 1.5,
+        backgroundColor: '#3B82F6', // Blue ice
+      };
+    } else if (rank === 3) {
+      cardStyle = styles.podiumCard3;
+      iconName = 'medal';
+      iconColor = '#F59E0B';
+      glowStyle = {
+        shadowColor: '#059669',
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 6,
+        borderColor: '#34D399',
+        borderWidth: 1.5,
+        backgroundColor: '#059669', // Emerald green
+      };
+    }
+
+    return (
+      <View style={[styles.podiumCard, cardStyle, glowStyle]}>
+        {/* Crown/Icon at top */}
+        <View style={styles.podiumIconContainer}>
+          <Ionicons name={iconName as any} size={rank === 1 ? 26 : 20} color={iconColor} />
+        </View>
+
+        {/* Avatar */}
+        <View style={[styles.podiumAvatarContainer, rank === 1 && { width: 64, height: 64, borderRadius: 32 }]}>
+          {player.profile_picture && !isBlurred ? (
+            <Image source={{ uri: player.profile_picture }} style={styles.podiumAvatar} />
+          ) : (
+            <View style={styles.podiumPlaceholderAvatar}>
+              <Ionicons name={isBlurred ? "lock-closed" : "person"} size={rank === 1 ? 24 : 18} color="white" />
+            </View>
+          )}
+        </View>
+
+        {/* Name / Handle */}
+        <View style={styles.podiumTextContainer}>
+          <Text style={styles.podiumName} numberOfLines={1}>
+            {player.name}
+          </Text>
+          <Text style={styles.podiumUsername} numberOfLines={1}>
+            {isBlurred ? '@hidden' : `@${player.username}`}
+          </Text>
+        </View>
+
+        {/* XP Points */}
+        <View style={[styles.podiumXpBadge, rank === 1 && { backgroundColor: 'rgba(255,255,255,0.25)' }]}>
+          <Ionicons name="flash" size={12} color="#FFD700" />
+          <Text style={styles.podiumXpText}>
+            {isBlurred ? '••••' : player.xp} XP
+          </Text>
+        </View>
+
+        {/* Rank Badge */}
+        <View style={[styles.podiumRankBadge, rank === 1 && { backgroundColor: '#FFD700' }]}>
+          <Text style={[styles.podiumRankText, rank === 1 && { color: '#000', fontWeight: '900' }]}>
+            {rank}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   // 1. Fetch user enrollment & wallet stats
   const fetchStatus = async () => {
     try {
@@ -477,18 +576,26 @@ export default function QuizScreen() {
               </View>
             ) : (
               <ScrollView style={styles.leaderboardScroll} showsVerticalScrollIndicator={false}>
-                {leaderboard.map((player, idx) => {
-                  const isTop3 = idx < 3;
-                  const trophyColor = idx === 0 ? "#F59E0B" : idx === 1 ? "#94A3B8" : "#B45309";
-                  
+                {leaderboard.length > 0 && (
+                  <View style={styles.podiumContainer}>
+                    {/* 2nd Place */}
+                    {leaderboard[1] ? renderPodiumCard(leaderboard[1], 2) : <View style={styles.podiumCardEmpty} />}
+                    
+                    {/* 1st Place */}
+                    {leaderboard[0] ? renderPodiumCard(leaderboard[0], 1) : <View style={styles.podiumCardEmpty} />}
+                    
+                    {/* 3rd Place */}
+                    {leaderboard[2] ? renderPodiumCard(leaderboard[2], 3) : <View style={styles.podiumCardEmpty} />}
+                  </View>
+                )}
+
+                {/* Remaining Contestants */}
+                {leaderboard.slice(3).map((player, idx) => {
+                  const actualRank = idx + 4;
                   return (
                     <View key={player.id || idx} style={styles.leaderboardItem}>
                       <View style={styles.leaderLeft}>
-                        {isTop3 ? (
-                          <Ionicons name="trophy" size={24} color={trophyColor} style={styles.rankTrophy} />
-                        ) : (
-                          <Text style={styles.rankNumber}>{idx + 1}</Text>
-                        )}
+                        <Text style={styles.rankNumber}>{actualRank}</Text>
                         
                         <View style={styles.avatarContainer}>
                           {player.profile_picture && !player.is_blurred ? (
@@ -502,10 +609,10 @@ export default function QuizScreen() {
 
                         <View style={styles.playerInfo}>
                           {player.is_blurred ? (
-                            <BlurView intensity={10} style={{ paddingVertical: 2, borderRadius: 4 }}>
-                              <Text style={[styles.playerName, { color: '#6B7280' }]}>Contestant</Text>
+                            <View style={{ paddingVertical: 2, borderRadius: 4 }}>
+                              <Text style={[styles.playerName, { color: colors.neutral }]}>Contestant {actualRank}</Text>
                               <Text style={styles.playerUsername}>@hidden</Text>
-                            </BlurView>
+                            </View>
                           ) : (
                             <>
                               <Text style={styles.playerName}>{player.name}</Text>
@@ -517,7 +624,9 @@ export default function QuizScreen() {
 
                       <View style={styles.leaderRight}>
                         <Ionicons name="flash" size={16} color="#F59E0B" style={{ marginRight: 2 }} />
-                        <Text style={styles.playerXp}>{player.xp} XP</Text>
+                        <Text style={styles.playerXp}>
+                          {player.is_blurred ? '••••' : player.xp} XP
+                        </Text>
                       </View>
                     </View>
                   );
@@ -636,19 +745,35 @@ export default function QuizScreen() {
 
             {/* --- CASE 3: TOURNAMENT ACTIVE & USER OPTED IN (PLAY SCREEN) --- */}
             {tournamentActive && optedIn && quizState === 'idle' && (
-              <ScrollView contentContainerStyle={styles.welcomeScroll}>
+              <ScrollView contentContainerStyle={styles.welcomeScroll} showsVerticalScrollIndicator={false}>
                 <View style={styles.centerBoxWelcome}>
-                  <Ionicons name="trophy" size={60} color="#F59E0B" style={{ marginBottom: 15 }} />
-                  <Text style={styles.idleTitle}>Curriculum Quiz Tournament</Text>
-                  <Text style={styles.walletBalanceText}>Your Balance: {userCredits} Credits</Text>
+                  
+                  {/* Premium Hero Card */}
+                  <View style={[styles.tournamentHeroCard, { backgroundColor: isDark ? '#1E293B' : '#3B82F6' }]}>
+                    <View style={styles.tournamentHeroHeader}>
+                      <Text style={styles.tournamentHeroTitle}>TARTANKA QARAN</Text>
+                      <View style={styles.tournamentHeroBadge}>
+                        <Text style={styles.tournamentHeroBadgeText}>LIVE 🏆</Text>
+                      </View>
+                    </View>
+                    
+                    <Text style={styles.tournamentHeroDesc}>
+                      U tartan maadooyinka manhajka dugsiga sare maalin kasta si aad u kasbato dhibcaha (XP) oo aad u gasho kaalmaha hore ee dalka!
+                    </Text>
 
-                  {/* 24h Lockout Warning */}
+                    <View style={styles.tournamentBalanceRow}>
+                      <Ionicons name="card" size={16} color="#FFD700" />
+                      <Text style={styles.tournamentBalanceText}>Wallet: {userCredits} Credits</Text>
+                    </View>
+                  </View>
+
+                  {/* 24h Lockout Warning or Start Button */}
                   {lockoutSeconds > 0 ? (
                     <View style={styles.lockoutCard}>
                       <Ionicons name="lock-closed" size={32} color="#EF4444" style={{ marginBottom: 10 }} />
                       <Text style={styles.lockoutTitle}>Waa laguu xiray maanta!</Text>
                       <Text style={styles.lockoutSubtitle}>
-                        Waxaad geli kartaa maalinkii hal mar kaliya si loo ilaaliyo cadaaladda. Waxaa kuu dhiman saacadaha hoos ku qoran:
+                        Si loo ilaaliyo caddaaladda tartanka, waxaa kuu bannaan hal isku-day oo keliya 24-kii saacba mar. Waxaa kuu dhiman:
                       </Text>
                       <Text style={styles.lockoutCountdown}>{formatLockoutTime(lockoutSeconds)}</Text>
                     </View>
@@ -696,7 +821,7 @@ export default function QuizScreen() {
                       <Ionicons name="card-outline" size={20} color="#F59E0B" style={styles.ruleIcon} />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.ruleTitle}>Tijaabo (5 Days Free Trial)</Text>
-                        <Text style={styles.ruleDesc}>Shanta casho ee hore waa free, laakiin maalmaha ka dambeeya waxaa lagaa jarayaa 30 credits halkii isku-day.</Text>
+                        <Text style={styles.ruleDesc}>Shanta isku-day ee hore waa free, laakiin maalmaha ka dambeeya waxaa lagaa jarayaa 30 credits halkii isku-day.</Text>
                       </View>
                     </View>
                   </View>
@@ -1667,5 +1792,174 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: '#D97706',
+  },
+  // Podium styles for Top 3
+  podiumContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    paddingHorizontal: 8,
+    paddingVertical: 20,
+    marginBottom: 25,
+  },
+  podiumCard: {
+    flex: 1,
+    borderRadius: 20,
+    padding: 12,
+    alignItems: 'center',
+    position: 'relative',
+    marginHorizontal: 4,
+  },
+  podiumCard1: {
+    height: 200,
+    zIndex: 5,
+  },
+  podiumCard2: {
+    height: 175,
+  },
+  podiumCard3: {
+    height: 160,
+  },
+  podiumCardEmpty: {
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  podiumIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  podiumAvatarContainer: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'white',
+    backgroundColor: '#9CA3AF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  podiumAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+  podiumPlaceholderAvatar: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  podiumTextContainer: {
+    alignItems: 'center',
+    marginBottom: 6,
+    width: '100%',
+  },
+  podiumName: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: 'white',
+    textAlign: 'center',
+  },
+  podiumUsername: {
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.7)',
+    textAlign: 'center',
+    marginTop: 1,
+  },
+  podiumXpBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 3,
+  },
+  podiumXpText: {
+    color: 'white',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  podiumRankBadge: {
+    position: 'absolute',
+    bottom: -10,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'white',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  podiumRankText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  // Redesigned Hero card
+  tournamentHeroCard: {
+    width: '100%',
+    padding: 20,
+    borderRadius: 24,
+    marginBottom: 20,
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 15,
+    elevation: 6,
+  },
+  tournamentHeroHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  tournamentHeroTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: 'white',
+    letterSpacing: 0.5,
+  },
+  tournamentHeroBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  tournamentHeroBadgeText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  tournamentHeroDesc: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.85)',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  tournamentBalanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  tournamentBalanceText: {
+    color: 'white',
+    fontSize: 13,
+    fontWeight: '800',
   }
 });

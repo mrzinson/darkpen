@@ -5,6 +5,7 @@ import { API_URL } from '../config';
 export default function TournamentPanel() {
   const [settings, setSettings] = useState<any>({
     is_active: 1,
+    reveal_leaderboard: 0,
     reward_description: '',
     gen_ad_title: '',
     gen_ad_desc: '',
@@ -127,17 +128,32 @@ export default function TournamentPanel() {
         <div className="card" style={{ gridColumn: 'span 2' }}>
           <h3>Tournament Settings</h3>
           <form onSubmit={handleSaveSettings} style={{ marginTop: '15px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
-              <input
-                type="checkbox"
-                id="is_active"
-                checked={settings.is_active === 1}
-                onChange={e => setSettings({ ...settings, is_active: e.target.checked ? 1 : 0 })}
-                style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-              />
-              <label htmlFor="is_active" style={{ fontSize: '15px', fontWeight: 'bold', cursor: 'pointer' }}>
-                Tournament Active (Enable Quiz Reward Mode)
-              </label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '30px', marginBottom: '15px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <input
+                  type="checkbox"
+                  id="is_active"
+                  checked={settings.is_active === 1}
+                  onChange={e => setSettings({ ...settings, is_active: e.target.checked ? 1 : 0 })}
+                  style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                />
+                <label htmlFor="is_active" style={{ fontSize: '15px', fontWeight: 'bold', cursor: 'pointer' }}>
+                  Tournament Active (Enable Quiz Reward Mode)
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <input
+                  type="checkbox"
+                  id="reveal_leaderboard"
+                  checked={settings.reveal_leaderboard === 1}
+                  onChange={e => setSettings({ ...settings, reveal_leaderboard: e.target.checked ? 1 : 0 })}
+                  style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                />
+                <label htmlFor="reveal_leaderboard" style={{ fontSize: '15px', fontWeight: 'bold', cursor: 'pointer', color: 'var(--primary)' }}>
+                  Reveal Leaderboard to Contestants (Remove Blur on Mobile App)
+                </label>
+              </div>
             </div>
 
             <div style={{ marginBottom: '15px' }}>

@@ -202,35 +202,45 @@ exports.getLeaderboard = async (req, res) => {
     try {
         const userId = req.user.id;
 
-        // Fetch top 3 fully visible users
-        const [top3] = await db.execute(`
+        // Fetch tournament settings
+        const [settingsRow] = await db.execute('SELECT reveal_leaderboard FROM tournament_settings WHERE id = 1');
+        const revealLeaderboard = settingsRow.length > 0 ? settingsRow[0].reveal_leaderboard : 0;
+
+        // Fetch all top 20 contestants
+        const [contestants] = await db.execute(`
             SELECT id, name, username, profile_picture, xp 
             FROM users 
             WHERE tournament_opt_in = 1 AND is_suspended_from_tournament = 0
             ORDER BY xp DESC, id ASC 
-            LIMIT 3
+            LIMIT 20
         `);
 
-        // Fetch ranks 4-20
-        const [others] = await db.execute(`
-            SELECT id, name, username, profile_picture, xp 
-            FROM users 
-            WHERE tournament_opt_in = 1 AND is_suspended_from_tournament = 0
-            ORDER BY xp DESC, id ASC 
-            LIMIT 17 OFFSET 3
-        `);
-
-        // Map others with blurred/masked values to preserve privacy
-        const maskedOthers = others.map(u => ({
-            id: u.id,
-            name: 'Contestant',
-            username: 'hidden',
-            profile_picture: null,
-            xp: u.xp,
-            is_blurred: true
-        }));
-
-        const leaderboard = [...top3, ...maskedOthers];
+        // Map contestants based on reveal settings and owner
+        const leaderboard = contestants.map((u, idx) => {
+            const isSelf = u.id === userId;
+            
+            // If revealed, or if it is the user themselves, show details clearly
+            if (revealLeaderboard || isSelf) {
+                return {
+                    id: u.id,
+                    name: u.name,
+                    username: u.username,
+                    profile_picture: u.profile_picture,
+                    xp: u.xp,
+                    is_blurred: false
+                };
+            } else {
+                // Otherwise, mask details to preserve privacy
+                return {
+                    id: u.id,
+                    name: `Contestant ${idx + 1}`,
+                    username: 'hidden',
+                    profile_picture: null,
+                    xp: u.xp,
+                    is_blurred: true
+                };
+            }
+        });
 
         // Get calling user's rank
         const [userRankRow] = await db.execute(`
@@ -249,6 +259,7 @@ exports.getLeaderboard = async (req, res) => {
 
         res.json({
             status: 'success',
+            reveal_leaderboard: !!revealLeaderboard,
             leaderboard: leaderboard,
             user: {
                 id: userId,
@@ -316,6 +327,7 @@ exports.getQuizStatus = async (req, res) => {
             lockout_seconds: lockoutSeconds,
             is_suspended: !!user.is_suspended_from_tournament,
             tournament_active: !!settings.is_active,
+            reveal_leaderboard: !!settings.reveal_leaderboard,
             tournament_start_date: settings.start_date,
             reward_description: settings.reward_description || '',
             gen_ad_title: settings.gen_ad_title || '',
