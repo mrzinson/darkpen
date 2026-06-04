@@ -86,9 +86,8 @@ const getHtmlContent = (pdfFilename: string, isDark: boolean) => {
 
       <script>
         try {
-          // Disable worker to run inline (prevents loading hangs/CORS/Blob errors)
           if (window.pdfjsLib) {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+            pdfjsLib.GlobalWorkerOptions.workerSrc = './pdf.worker.min.js';
           }
 
           const loadingTask = pdfjsLib.getDocument('./${pdfFilename}');
@@ -182,8 +181,9 @@ export default function ReaderExamScreen() {
   const ensurePdfJsEngine = async () => {
     try {
       const pdfJsPath = `${FileSystem.documentDirectory}pdf.min.js`;
-      const jsInfo = await FileSystem.getInfoAsync(pdfJsPath);
+      const pdfWorkerPath = `${FileSystem.documentDirectory}pdf.worker.min.js`;
 
+      const jsInfo = await FileSystem.getInfoAsync(pdfJsPath);
       if (!jsInfo.exists) {
         console.log("Downloading pdf.min.js to local cache...");
         await FileSystem.downloadAsync(
@@ -192,7 +192,16 @@ export default function ReaderExamScreen() {
         );
       }
 
-      return { pdfJsPath };
+      const workerInfo = await FileSystem.getInfoAsync(pdfWorkerPath);
+      if (!workerInfo.exists) {
+        console.log("Downloading pdf.worker.min.js to local cache...");
+        await FileSystem.downloadAsync(
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js',
+          pdfWorkerPath
+        );
+      }
+
+      return { pdfJsPath, pdfWorkerPath };
     } catch (err) {
       console.error("Error ensuring PDF.js engine:", err);
       throw err;
