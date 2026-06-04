@@ -4,9 +4,12 @@ import { Ionicons, Feather, FontAwesome, MaterialIcons, MaterialCommunityIcons }
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect } from 'react';
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
-import { Text, TextInput, StyleSheet } from 'react-native';
+import { Text, TextInput, StyleSheet, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
+import { showCustomAlert } from '../utils/customAlert';
+import { CustomAlert } from '../components/CustomAlert';
+
 
 // Monkey patch AsyncStorage to securely encrypt JWT token using expo-secure-store
 const originalGetItem = AsyncStorage.getItem;
@@ -50,6 +53,24 @@ AsyncStorage.removeItem = async (key: string, ...args: any[]) => {
   }
   return originalRemoveItem.call(AsyncStorage, key, ...args);
 };
+
+// Monkey patch Alert.alert globally to use CustomAlert popup design
+Alert.alert = (title, message, buttons, options) => {
+  showCustomAlert(title, message || '', buttons, options);
+};
+
+// Also monkey patch global/window alert to intercept direct alert() calls
+const customGlobalAlert = (message: any) => {
+  showCustomAlert('Darkpen', String(message));
+};
+
+if (typeof global !== 'undefined') {
+  (global as any).alert = customGlobalAlert;
+}
+if (typeof window !== 'undefined') {
+  (window as any).alert = customGlobalAlert;
+}
+
 
 // Global Text and TextInput override for Poppins Font
 const oldTextRender = (Text as any).render;
@@ -164,6 +185,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <RootStack />
+      <CustomAlert />
     </ThemeProvider>
   );
 }

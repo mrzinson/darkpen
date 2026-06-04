@@ -12,11 +12,10 @@ import Config from '../constants/Config';
 import { isDocDownloaded, registerDownload, removeDownload } from '../utils/downloadManager';
 
 // Helper function to generate PDF.js viewer HTML with inline engine code to run 100% offline
-const getHtmlContent = (pdfBase64: string, jsCode: string, workerCodeBase64: string, isDark: boolean, colors: any) => {
+const getHtmlContent = (pdfFilename: string, isDark: boolean) => {
   const bgColor = isDark ? '#0F172A' : '#F1F5F9';
   const paperColor = isDark ? '#1E293B' : '#FFFFFF';
   const textColor = isDark ? '#F1F5F9' : '#1E293B';
-  const primaryColor = colors.primary || '#0284c7';
 
   return `
     <!DOCTYPE html>
@@ -79,62 +78,20 @@ const getHtmlContent = (pdfBase64: string, jsCode: string, workerCodeBase64: str
           -webkit-backdrop-filter: blur(8px);
           border: 1px solid rgba(255, 255, 255, 0.15);
         }
-        #loading-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background-color: ${bgColor};
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          align-items: center;
-          z-index: 1000;
-          transition: opacity 0.4s ease;
-        }
-        .spinner {
-          width: 48px;
-          height: 48px;
-          border: 4px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'};
-          border-top: 4px solid ${primaryColor};
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        .loading-text {
-          margin-top: 20px;
-          font-weight: 700;
-          font-size: 15px;
-          color: ${textColor};
-          letter-spacing: 0.5px;
-        }
       </style>
-      <script>
-        ${jsCode}
-      </script>
+      <script src="./pdf.min.js"></script>
     </head>
     <body>
-      <div id="loading-overlay">
-        <div class="spinner"></div>
-        <div class="loading-text">Boggaga waa la diyaarinayaa...</div>
-      </div>
-
       <div id="viewer"></div>
 
       <script>
         try {
-          // Decode worker code base64 and create blob URL
-          const workerCode = atob("${workerCodeBase64}");
-          const workerCodeBlob = new Blob([workerCode], { type: 'application/javascript' });
-          const workerUrl = URL.createObjectURL(workerCodeBlob);
-          pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+          // Disable worker to run inline (prevents loading hangs/CORS/Blob errors)
+          if (window.pdfjsLib) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+          }
 
-          const pdfData = atob("${pdfBase64}");
-          const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+          const loadingTask = pdfjsLib.getDocument('./${pdfFilename}');
           
           loadingTask.promise.then(function(pdf) {
             const viewer = document.getElementById('viewer');
@@ -145,17 +102,8 @@ const getHtmlContent = (pdfBase64: string, jsCode: string, workerCodeBase64: str
               totalPages: numPages
             }));
 
-            let renderedPages = 0;
-
             for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-              renderPage(pdf, pageNum, viewer, function() {
-                renderedPages++;
-                if (renderedPages === numPages) {
-                  const overlay = document.getElementById('loading-overlay');
-                  overlay.style.opacity = '0';
-                  setTimeout(() => overlay.remove(), 400);
-                }
-              });
+              renderPage(pdf, pageNum, viewer);
             }
           }).catch(function(error) {
             window.ReactNativeWebView.postMessage(JSON.stringify({
@@ -170,7 +118,7 @@ const getHtmlContent = (pdfBase64: string, jsCode: string, workerCodeBase64: str
           }));
         }
 
-        function renderPage(pdf, pageNum, container, onRenderComplete) {
+        function renderPage(pdf, pageNum, container) {
           pdf.getPage(pageNum).then(function(page) {
             const scale = 1.5;
             const viewport = page.getViewport({ scale: scale });
@@ -198,9 +146,7 @@ const getHtmlContent = (pdfBase64: string, jsCode: string, workerCodeBase64: str
               viewport: viewport
             };
             
-            page.render(renderContext).promise.then(function() {
-              onRenderComplete();
-            });
+            page.render(renderContext);
           });
         }
       </script>
@@ -208,6 +154,7 @@ const getHtmlContent = (pdfBase64: string, jsCode: string, workerCodeBase64: str
     </html>
   `;
 };
+
 
 export default function ReaderExamScreen() {
   const { colors, isDark } = useTheme();
@@ -221,8 +168,9 @@ export default function ReaderExamScreen() {
   const [isCached, setIsCached] = useState(false);
   const [localPath, setLocalPath] = useState<string | null>(null);
   const [isSavedOffline, setIsSavedOffline] = useState(false);
-  const [htmlContent, setHtmlContent] = useState<string | null>(null);
+  const [htmlUri, setHtmlUri] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [webViewLoaded, setWebViewLoaded] = useState(false);
 
   let formattedPdfUrl = pdfUrl as string;
   if (formattedPdfUrl && !formattedPdfUrl.startsWith('http://') && !formattedPdfUrl.startsWith('https://') && !formattedPdfUrl.startsWith('file://')) {
@@ -234,10 +182,7 @@ export default function ReaderExamScreen() {
   const ensurePdfJsEngine = async () => {
     try {
       const pdfJsPath = `${FileSystem.documentDirectory}pdf.min.js`;
-      const pdfWorkerPath = `${FileSystem.documentDirectory}pdf.worker.min.js`;
-
       const jsInfo = await FileSystem.getInfoAsync(pdfJsPath);
-      const workerInfo = await FileSystem.getInfoAsync(pdfWorkerPath);
 
       if (!jsInfo.exists) {
         console.log("Downloading pdf.min.js to local cache...");
@@ -247,15 +192,7 @@ export default function ReaderExamScreen() {
         );
       }
 
-      if (!workerInfo.exists) {
-        console.log("Downloading pdf.worker.min.js to local cache...");
-        await FileSystem.downloadAsync(
-          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js',
-          pdfWorkerPath
-        );
-      }
-
-      return { pdfJsPath, pdfWorkerPath };
+      return { pdfJsPath };
     } catch (err) {
       console.error("Error ensuring PDF.js engine:", err);
       throw err;
@@ -342,18 +279,18 @@ export default function ReaderExamScreen() {
     const loadLocalPdf = async () => {
       try {
         // Ensure engine is ready
-        const { pdfJsPath, pdfWorkerPath } = await ensurePdfJsEngine();
+        await ensurePdfJsEngine();
 
-        // Read JS files as strings
-        const jsCode = await FileSystem.readAsStringAsync(pdfJsPath);
-        const workerCodeBase64 = await FileSystem.readAsStringAsync(pdfWorkerPath, { encoding: 'base64' });
+        // Get filename from localPath
+        const filename = localPath.split('/').pop() || 'document.pdf';
 
-        // Read PDF file as Base64
-        const pdfBase64 = await FileSystem.readAsStringAsync(localPath, { encoding: 'base64' });
+        // Generate static html content and write it to viewer.html
+        const generatedHtml = getHtmlContent(filename, isDark);
+        const viewerHtmlPath = `${FileSystem.documentDirectory}viewer.html`;
+        await FileSystem.writeAsStringAsync(viewerHtmlPath, generatedHtml);
 
-        // Generate and set html content
-        const generatedHtml = getHtmlContent(pdfBase64, jsCode, workerCodeBase64, isDark, colors);
-        setHtmlContent(generatedHtml);
+        // Set the HTML URI to state
+        setHtmlUri(viewerHtmlPath);
       } catch (err: any) {
         console.error("Error loading PDF into Webview:", err);
         setErrorMessage(err.message || "Faylka waa la furi waayey.");
@@ -487,20 +424,40 @@ export default function ReaderExamScreen() {
       </View>
 
       <View style={styles.content}>
-        {htmlContent ? (
-          <WebView 
-            source={{ html: htmlContent }}
-            style={styles.webview}
-            startInLoadingState={false}
-            javaScriptEnabled={true}
-            originWhitelist={['*']}
-            allowFileAccess={true}
-            allowUniversalAccessFromFileURLs={true}
-          />
+        {htmlUri ? (
+          <View style={{ flex: 1 }}>
+            <WebView 
+              source={{ uri: htmlUri! }}
+              style={[styles.webview, { opacity: webViewLoaded ? 1 : 0 }]}
+              startInLoadingState={false}
+              javaScriptEnabled={true}
+              originWhitelist={['*']}
+              allowFileAccess={true}
+              allowUniversalAccessFromFileURLs={true}
+              allowingReadAccessToURL={FileSystem.documentDirectory || undefined}
+              onMessage={(event) => {
+                try {
+                  const data = JSON.parse(event.nativeEvent.data);
+                  if (data.type === 'LOADED') {
+                    setWebViewLoaded(true);
+                  } else if (data.type === 'ERROR') {
+                    console.error("WebView error:", data.message);
+                    setErrorMessage(data.message);
+                  }
+                } catch (e) {}
+              }}
+            />
+            {!webViewLoaded && (
+              <View style={styles.loadingAbsolute}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={{ marginTop: 12, color: colors.text, fontWeight: '600' }}>Boggaga waa la diyaarinayaa...</Text>
+              </View>
+            )}
+          </View>
         ) : (
-          <View style={styles.loading}>
+          <View style={styles.loadingAbsolute}>
             <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={{ marginTop: 12, color: colors.text }}>Faylka waa la raryaa...</Text>
+            <Text style={{ marginTop: 12, color: colors.text, fontWeight: '600' }}>Boggaga waa la diyaarinayaa...</Text>
           </View>
         )}
       </View>
@@ -558,6 +515,13 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: colors.card,
+  },
+  loadingAbsolute: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    zIndex: 10,
   },
   errorContainer: {
     flex: 1,
