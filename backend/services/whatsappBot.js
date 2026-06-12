@@ -193,7 +193,9 @@ exports.initialize = async () => {
                 '--blink-settings=imagesEnabled=false',
                 '--js-flags=--max-old-space-size=120',
                 '--disable-features=IsolateOrigins,site-per-process',
-                '--renderer-process-limit=1'
+                '--renderer-process-limit=1',
+                '--password-store=basic',
+                '--use-mock-keychain'
             ]
         };
 
