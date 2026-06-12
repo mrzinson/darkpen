@@ -6,7 +6,7 @@
   "scripts": {
     "build": "node install-chrome.js",
     "postinstall": "node install-chrome.js",
-    "start": "node server.js",
+    "start": "node --max-old-space-size=200 server.js",
     "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

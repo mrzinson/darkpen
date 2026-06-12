@@ -65,10 +65,11 @@ exports.initialize = async () => {
                 '--no-default-browser-check',
                 '--disable-default-apps',
                 '--no-zygote',
+                '--single-process',
                 '--disable-extensions',
                 '--disable-accelerated-2d-canvas',
                 '--blink-settings=imagesEnabled=false',
-                '--js-flags="--max-old-space-size=150 --expose-gc"',
+                '--js-flags=--max-old-space-size=120',
                 '--disable-features=IsolateOrigins,site-per-process',
                 '--renderer-process-limit=1'
             ]
