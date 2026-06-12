@@ -48,6 +48,11 @@ exports.initialize = async () => {
         const isHeadless = isServer ? true : (process.env.WHATSAPP_HEADLESS === 'true');
         console.log(`[WHATSAPP BOT] Headless mode: ${isHeadless} (server: ${!!isServer})`);
 
+        if (isServer) {
+            process.env.PUPPETEER_CACHE_DIR = process.env.PUPPETEER_CACHE_DIR || path.join(__dirname, '../.cache/puppeteer');
+            console.log(`[WHATSAPP BOT] Setting PUPPETEER_CACHE_DIR to: ${process.env.PUPPETEER_CACHE_DIR}`);
+        }
+
         // 2. Setup whatsapp client options with stability flags
         const puppeteerOptions = {
             headless: isHeadless,
@@ -67,7 +72,7 @@ exports.initialize = async () => {
         // 1. Explicit env variable (highest priority)
         // 2. Render Puppeteer cache path (auto-installed via npm run build)
         // 3. Common local paths (Windows / Linux)
-        const puppeteerCacheDir = process.env.PUPPETEER_CACHE_DIR || '/opt/render/.cache/puppeteer';
+        const puppeteerCacheDir = process.env.PUPPETEER_CACHE_DIR;
         
         // Dynamically find Chrome in the Render cache directory in case the version changed
         let renderChromePath = null;
