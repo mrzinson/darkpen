@@ -295,12 +295,39 @@ exports.initialize = async () => {
             // Backup session to database after 10 seconds to ensure all initial files are written
             setTimeout(async () => {
                 try {
-                    console.log('[WHATSAPP BOT] Starting database session backup...');
+                    console.log('[WHATSAPP BOT] Starting initial database session backup...');
                     await backupSessionToDatabase();
                 } catch (backupErr) {
                     console.error('[WHATSAPP BOT] Session backup failed:', backupErr.message);
                 }
             }, 10000);
+
+            // Periodically backup session every 30 minutes to keep token fresh and prevent expiration
+            if (global.whatsappSessionBackupInterval) {
+                clearInterval(global.whatsappSessionBackupInterval);
+            }
+            global.whatsappSessionBackupInterval = setInterval(async () => {
+                try {
+                    if (botStatus === 'connected') {
+                        console.log('[WHATSAPP BOT] Running periodic session backup...');
+                        await backupSessionToDatabase();
+                    }
+                } catch (err) {
+                    console.error('[WHATSAPP BOT] Periodic session backup failed:', err.message);
+                }
+            }, 30 * 60 * 1000); // 30 minutes
+        });
+
+        // Event: Auth failure
+        client.on('auth_failure', async (message) => {
+            botStatus = 'error';
+            console.error('[WHATSAPP BOT] Authentication failure:', message);
+            try {
+                await db.execute('DELETE FROM whatsapp_sessions WHERE session_key = "default"');
+                console.log('[WHATSAPP BOT] Deleted invalid session from database due to auth failure.');
+            } catch (delErr) {
+                console.error('[WHATSAPP BOT] Failed to delete session from DB:', delErr.message);
+            }
         });
 
         // Event: Disconnected
@@ -309,12 +336,20 @@ exports.initialize = async () => {
             currentQRDataURL = null;
             console.log(`[WHATSAPP BOT] Disconnected: ${reason}`);
             
-            // Delete session from database on logout
-            try {
-                await db.execute('DELETE FROM whatsapp_sessions WHERE session_key = "default"');
-                console.log('[WHATSAPP BOT] Deleted session from database due to logout.');
-            } catch (delErr) {
-                console.error('[WHATSAPP BOT] Failed to delete session from DB:', delErr.message);
+            // Clear interval if disconnected
+            if (global.whatsappSessionBackupInterval) {
+                clearInterval(global.whatsappSessionBackupInterval);
+                global.whatsappSessionBackupInterval = null;
+            }
+
+            // Only delete session from database if it was an explicit LOGOUT
+            if (reason === 'LOGOUT') {
+                try {
+                    await db.execute('DELETE FROM whatsapp_sessions WHERE session_key = "default"');
+                    console.log('[WHATSAPP BOT] Deleted session from database due to explicit logout.');
+                } catch (delErr) {
+                    console.error('[WHATSAPP BOT] Failed to delete session from DB:', delErr.message);
+                }
             }
         });
 
