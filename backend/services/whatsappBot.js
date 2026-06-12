@@ -49,7 +49,7 @@ exports.initialize = async () => {
         console.log(`[WHATSAPP BOT] Headless mode: ${isHeadless} (server: ${!!isServer})`);
 
         if (isServer) {
-            process.env.PUPPETEER_CACHE_DIR = process.env.PUPPETEER_CACHE_DIR || path.join(__dirname, '../.cache/puppeteer');
+            process.env.PUPPETEER_CACHE_DIR = path.join(__dirname, '../.cache/puppeteer');
             console.log(`[WHATSAPP BOT] Setting PUPPETEER_CACHE_DIR to: ${process.env.PUPPETEER_CACHE_DIR}`);
         }
 
