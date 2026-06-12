@@ -22,6 +22,9 @@ app.use(helmet({
     frameguard: false,
 }));
 
+// Trust Render's proxy (needed for express-rate-limit behind load balancer)
+app.set('trust proxy', 1);
+
 // Rate Limiting (Ka hortagga DDOS)
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 daqiiqo
