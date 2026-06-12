@@ -34,10 +34,13 @@ exports.initialize = async () => {
         `);
         console.log('[WHATSAPP BOT] Table whatsapp_cooldowns checked/created.');
 
-        const isHeadless = process.env.WHATSAPP_HEADLESS === 'true';
-        console.log(`[WHATSAPP BOT] Headless mode: ${isHeadless}`);
+        // On Render (and other cloud servers), always run headless
+        // On local Windows, respect the WHATSAPP_HEADLESS env var (default false for QR visibility)
+        const isServer = process.env.RENDER || process.env.NODE_ENV === 'production';
+        const isHeadless = isServer ? true : (process.env.WHATSAPP_HEADLESS === 'true');
+        console.log(`[WHATSAPP BOT] Headless mode: ${isHeadless} (server: ${!!isServer})`);
 
-        // 2. Setup whatsapp client options with Windows stability flags
+        // 2. Setup whatsapp client options with stability flags
         const puppeteerOptions = {
             headless: isHeadless,
             args: [
@@ -47,17 +50,25 @@ exports.initialize = async () => {
                 '--disable-dev-shm-usage',
                 '--no-first-run',
                 '--no-default-browser-check',
-                '--disable-default-apps'
+                '--disable-default-apps',
+                '--single-process'
             ]
         };
 
-        // Look for local Google Chrome / Chromium executable
+        // Look for Chrome/Chromium executable in order of priority:
+        // 1. Explicit env variable (highest priority)
+        // 2. Render Puppeteer cache path (auto-installed via npm run build)
+        // 3. Common local paths (Windows / Linux)
+        const puppeteerCacheDir = process.env.PUPPETEER_CACHE_DIR || '/opt/render/.cache/puppeteer';
+        const renderChromePath = `${puppeteerCacheDir}/chrome/linux-146.0.7680.31/chrome-linux64/chrome`;
+
         const possibleChromePaths = [
-            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+            renderChromePath,                                                         // Render cloud
+            '/usr/bin/google-chrome',                                                 // Linux system
+            '/usr/bin/chromium-browser',                                              // Linux Chromium
+            '/usr/bin/chromium',
+            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',             // Windows
             'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-            '/usr/bin/google-chrome',
-            '/usr/bin/chromium-browser',
-            '/usr/bin/chromium'
         ];
 
         let foundChrome = null;
@@ -73,7 +84,9 @@ exports.initialize = async () => {
             console.log(`[WHATSAPP BOT] Using executable path from env: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
         } else if (foundChrome) {
             puppeteerOptions.executablePath = foundChrome;
-            console.log(`[WHATSAPP BOT] Using local Chrome/Chromium: ${foundChrome}`);
+            console.log(`[WHATSAPP BOT] Using Chrome/Chromium: ${foundChrome}`);
+        } else {
+            console.warn('[WHATSAPP BOT] No Chrome found! Bot may fail. Run: npx puppeteer browsers install chrome');
         }
 
         client = new Client({
