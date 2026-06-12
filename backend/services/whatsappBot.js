@@ -168,9 +168,11 @@ exports.initialize = async () => {
 
         // Boot client
         client.initialize().catch(error => {
+            botStatus = 'error';
             console.error('[WHATSAPP BOT] Initialization failed during client.initialize():', error);
         });
     } catch (error) {
+        botStatus = 'error';
         console.error('[WHATSAPP BOT] Initialization failed:', error);
     }
 };
