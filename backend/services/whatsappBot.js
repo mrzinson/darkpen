@@ -92,24 +92,36 @@ async function backupSessionToDatabase() {
         console.log('[WHATSAPP BOT] Zipping session files...');
         const zip = new AdmZip();
 
-        // Helper to recursively add files, skipping cache folders
+        // Helper to recursively add files, skipping cache folders and locked files
         function addFolderRecursively(localDir, zipPath) {
             if (!fs.existsSync(localDir)) return;
-            const items = fs.readdirSync(localDir);
-            for (const item of items) {
-                const fullLocalPath = path.join(localDir, item);
-                const fullZipPath = zipPath ? `${zipPath}/${item}` : item;
-                const stat = fs.statSync(fullLocalPath);
+            try {
+                const items = fs.readdirSync(localDir);
+                for (const item of items) {
+                    try {
+                        const fullLocalPath = path.join(localDir, item);
+                        const fullZipPath = zipPath ? `${zipPath}/${item}` : item;
+                        const stat = fs.statSync(fullLocalPath);
 
-                if (stat.isDirectory()) {
-                    // Skip bulky cache directories to keep blob small and fast
-                    if (['Cache', 'Code Cache', 'GPUCache', 'CacheStorage', 'ScriptCache', 'Service Worker'].includes(item)) {
-                        continue;
+                        if (stat.isDirectory()) {
+                            // Skip bulky cache directories to keep blob small and fast
+                            if (['Cache', 'Code Cache', 'GPUCache', 'CacheStorage', 'ScriptCache', 'Service Worker', 'Crashpad'].includes(item)) {
+                                continue;
+                            }
+                            addFolderRecursively(fullLocalPath, fullZipPath);
+                        } else {
+                            // Skip lock files to prevent file-busy errors and boot issues on restore
+                            if (item === 'LOCK' || item.toLowerCase().includes('lock')) {
+                                continue;
+                            }
+                            zip.addLocalFile(fullLocalPath, zipPath);
+                        }
+                    } catch (itemErr) {
+                        console.warn(`[WHATSAPP BOT] Skipping file/folder due to error: ${item}. Error: ${itemErr.message}`);
                     }
-                    addFolderRecursively(fullLocalPath, fullZipPath);
-                } else {
-                    zip.addLocalFile(fullLocalPath, zipPath);
                 }
+            } catch (dirErr) {
+                console.error(`[WHATSAPP BOT] Failed to read directory: ${localDir}. Error: ${dirErr.message}`);
             }
         }
 
