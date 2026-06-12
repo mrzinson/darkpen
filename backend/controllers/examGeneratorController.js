@@ -529,8 +529,16 @@ exports.generateExamPdf = async (req, res) => {
         fs.writeFileSync(docxPath, docxBuffer);
 
         // --- DEDUCT CREDITS IN WALLET ---
-        if (!hasActiveSub) {
-            await db.execute('UPDATE user_wallet SET balance = balance - ? WHERE user_id = ?', [cost, userId]);
+        await db.execute('UPDATE user_wallet SET balance = balance - ? WHERE user_id = ?', [cost, userId]);
+
+        // Log exam generation to ai_usage_logs
+        try {
+            await db.execute(
+                'INSERT INTO ai_usage_logs (user_id, model_name, prompt_tokens, completion_tokens, cost, chat_type) VALUES (?, "exam-generator", 0, 0, ?, "exam")',
+                [userId, cost / 200]
+            );
+        } catch (logErr) {
+            console.error('[AI Logger Error] Exam generation log failed:', logErr.message);
         }
 
         // --- SAVE TO DATABASE ---

@@ -47,6 +47,9 @@ router.get('/quiz/my-exams', auth, examGeneratorController.getMyExams);
 // Shukaansi Call
 router.post('/shukaansi-call/deduct', auth, chatController.deductShukaansiCallCredit);
 
+// Exams & Books Assistant
+router.post('/exam-assist', auth, chatController.askExamAI);
+
 module.exports = router;
 
 

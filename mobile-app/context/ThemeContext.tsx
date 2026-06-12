@@ -32,7 +32,7 @@ const lightColors: ThemeColors = {
 };
 
 const darkColors: ThemeColors = {
-  primary: '#FFFFFF',
+  primary: '#3B82F6',
   secondary: '#FFFFFF',
   tertiary: '#1A2332',
   neutral: '#A0AEC0',

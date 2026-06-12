@@ -47,3 +47,12 @@ yarn-debug.log*
 backend/.env
 mobile-app/node_modules
 backend/node_modules
+
+# WhatsApp Bot Session & Uploads
+.wwebjs_auth/
+backend/.wwebjs_auth/
+backend/uploads/
+
+# Scratch files
+backend/check_users.js
+backend/test_gemini.js

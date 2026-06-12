@@ -259,6 +259,26 @@ exports.askAI = async (req, res) => {
                 return;
             }
 
+            const imageCost = 40;
+            if (!hasBalance || wallet[0].balance < imageCost) {
+                const errorMsg = `Waxaad gaadhay xadkii isticmaalka qorshahaaga (Subscription limit reached). Sawir sameyntu waxay u baahan yahay ${imageCost} Credits. Fadlan iibso qorshe cusub ama ku shub credits.`;
+                if (stream === true && !res.headersSent) {
+                    res.setHeader('Content-Type', 'text/event-stream');
+                    res.write(`data: ${JSON.stringify({ error: "subscription_limit_reached", text: errorMsg, showBillingButton: true })}\n\n`);
+                    res.end();
+                } else if (!res.headersSent) {
+                    res.status(402).json({ 
+                        message: errorMsg, 
+                        showBillingButton: true,
+                        error: "subscription_limit_reached" 
+                    });
+                }
+                return;
+            }
+
+            // Deduct the credits
+            await db.execute(`UPDATE ${walletTable} SET balance = balance - ? WHERE user_id = ?`, [imageCost, userId]);
+
             // Save user message to messages_private asynchronously in background
             db.execute(
                 'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "user", ?)',
@@ -339,40 +359,45 @@ exports.askAI = async (req, res) => {
             return;
         }
 
-        if (!hasActiveSub) {
-            let cost = 1;
-            const hasImage = attachment && (
-                Array.isArray(attachment) 
-                    ? attachment.some(a => a.mimeType && a.mimeType.startsWith('image/'))
-                    : (attachment.mimeType && attachment.mimeType.startsWith('image/'))
-            );
-            if (hasImage) {
-                cost = 10;
-            } else if (message) {
-                const len = message.length;
-                if (len < 150) {
-                    cost = 1;
-                } else if (len < 500) {
-                    cost = 3;
-                } else if (len < 1500) {
-                    cost = 7;
-                } else {
-                    cost = 12;
-                }
+        let cost = 1;
+        const hasImage = attachment && (
+            Array.isArray(attachment) 
+                ? attachment.some(a => a.mimeType && a.mimeType.startsWith('image/'))
+                : (attachment.mimeType && attachment.mimeType.startsWith('image/'))
+        );
+        if (hasImage) {
+            cost = 10;
+        } else if (message) {
+            const len = message.length;
+            if (len < 150) {
+                cost = 1;
+            } else if (len < 500) {
+                cost = 3;
+            } else if (len < 1500) {
+                cost = 7;
+            } else {
+                cost = 12;
             }
+        }
 
-            const usedFreeAI = await tryUseFreeAI(userId, hasImage ? 'image' : 'text');
+        // Try free trial if they do NOT have subscription
+        let usedFreeAI = false;
+        if (!hasActiveSub) {
+            usedFreeAI = await tryUseFreeAI(userId, hasImage ? 'image' : 'text');
+        }
 
-            if (!usedFreeAI && (!hasBalance || wallet[0].balance < cost)) {
+        if (!usedFreeAI) {
+            if (!hasBalance || wallet[0].balance < cost) {
+                const errorMsg = hasActiveSub
+                    ? `Waxaad gaadhay xadkii isticmaalka qorshahaaga (Subscription limit reached). Chat-ka ${chatType === 'shukaansi' ? 'Shukaansiga' : 'Caadiga ah'} wuxuu u baahan yahay ${cost} Credits. Fadlan iibso qorshe cusub ama ku shub credits.`
+                    : `Free-kaagii wuu dhammaaday. Chat-ka ${chatType === 'shukaansi' ? 'Shukaansiga' : 'Caadiga ah'} wuxuu u baahan yahay ${cost} Credits. Fadlan ku shubo credits ama iibso qorshe si aad u sii wadato.`;
                 return res.status(402).json({ 
-                    message: `Free-kaagii wuu dhammaaday. Chat-ka ${chatType === 'shukaansi' ? 'Shukaansiga' : 'Caadiga ah'} wuxuu u baahan yahay ${cost} Credits. Fadlan lacag bixi si aad u sii wadato.`, 
+                    message: errorMsg, 
                     needsPayment: true 
                 });
             }
 
-            if (!usedFreeAI) {
-                await db.execute(`UPDATE ${walletTable} SET balance = balance - ? WHERE user_id = ?`, [cost, userId]);
-            }
+            await db.execute(`UPDATE ${walletTable} SET balance = balance - ? WHERE user_id = ?`, [cost, userId]);
         }
 
         // Handle Image saving if any
@@ -616,7 +641,7 @@ exports.processVoice = async (req, res) => {
         const filePath = req.file.path;
         const chatType = req.body.chatType || 'general';
         
-        // Use OpenAI Whisper to transcribe
+        // Use Gemini 1.5 Flash to transcribe
         const transcribedText = await aiService.transcribeAudio(filePath, req.file.mimetype);
         
         // Remove file after transcription to save space
@@ -627,16 +652,24 @@ exports.processVoice = async (req, res) => {
         const [sub] = await db.execute('SELECT * FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW()', [userId]);
         const hasActiveSub = sub.length > 0;
 
-        if (!hasActiveSub) {
-            const walletTable = chatType === 'shukaansi' ? 'shukaansi_wallet' : 'user_wallet';
-            const [wallet] = await db.execute(`SELECT balance FROM ${walletTable} WHERE user_id = ?`, [userId]);
-            const hasBalance = wallet.length > 0 && wallet[0].balance >= 20;
+        const walletTable = chatType === 'shukaansi' ? 'shukaansi_wallet' : 'user_wallet';
+        const [wallet] = await db.execute(`SELECT balance FROM ${walletTable} WHERE user_id = ?`, [userId]);
+        const hasBalance = wallet.length > 0 && wallet[0].balance >= 20;
 
-            if (!hasBalance) {
-                return res.status(402).json({ message: 'Dhibcahaagu kuma filna duubista codka (20 Credits).', needsPayment: true });
-            }
+        if (!hasBalance) {
+            return res.status(402).json({ message: 'Dhibcahaagu kuma filna duubista codka (20 Credits).', needsPayment: true });
+        }
 
-            await db.execute(`UPDATE ${walletTable} SET balance = balance - 20 WHERE user_id = ?`, [userId]);
+        await db.execute(`UPDATE ${walletTable} SET balance = balance - 20 WHERE user_id = ?`, [userId]);
+        
+        // Log voice note transcription to ai_usage_logs
+        try {
+            await db.execute(
+                'INSERT INTO ai_usage_logs (user_id, model_name, prompt_tokens, completion_tokens, cost, chat_type) VALUES (?, "gemini-1.5-flash", 0, 0, ?, "voice")',
+                [userId, 20 / 200]
+            );
+        } catch (logErr) {
+            console.error('[AI Logger Error] Voice note log failed:', logErr.message);
         }
         res.json({ text: transcribedText });
     } catch (error) {
@@ -707,16 +740,6 @@ exports.deductShukaansiCallCredit = async (req, res) => {
     try {
         const userId = req.user.id;
         
-        // 1. Check if user has an active subscription in shukaansi_subscriptions
-        const [sub] = await db.execute(
-            'SELECT * FROM shukaansi_subscriptions WHERE user_id = ? AND expiry_date > NOW()',
-            [userId]
-        );
-        
-        if (sub.length > 0) {
-            return res.json({ status: 'success', balance: 'unlimited', isSubscribed: true });
-        }
-        
         // 2. Fetch current wallet balance
         const [wallet] = await db.execute('SELECT balance FROM shukaansi_wallet WHERE user_id = ?', [userId]);
         const currentBalance = wallet.length > 0 ? wallet[0].balance : 0;
@@ -730,10 +753,107 @@ exports.deductShukaansiCallCredit = async (req, res) => {
         const newBalance = currentBalance - cost;
         await db.execute('UPDATE shukaansi_wallet SET balance = ? WHERE user_id = ?', [newBalance, userId]);
         
+        // Log voice call to ai_usage_logs
+        try {
+            await db.execute(
+                'INSERT INTO ai_usage_logs (user_id, model_name, prompt_tokens, completion_tokens, cost, chat_type) VALUES (?, "voice-call", 0, 0, ?, "voice-call")',
+                [userId, 5 / 200]
+            );
+        } catch (logErr) {
+            console.error('[AI Logger Error] Voice call log failed:', logErr.message);
+        }
+        
         res.json({ status: 'success', balance: newBalance });
     } catch (error) {
         console.error("Deduct Call Credit Error:", error);
         res.status(500).json({ message: 'Error checking/deducting call credit' });
+    }
+};
+
+// POST Ask AI in Exams / Books
+exports.askExamAI = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { question, contextText, docTitle, docType, attachment } = req.body;
+
+        if (!question && !attachment) {
+            return res.status(400).json({ message: 'Fariintu waa madhan tahay' });
+        }
+
+        // Determine cost based on whether attachment exists or message length
+        let cost = 1;
+        const hasImage = attachment && attachment.base64;
+        
+        if (hasImage) {
+            cost = 10; // Image cost is 10 credits (same as normal chat)
+        } else if (question) {
+            const len = question.length;
+            if (len < 150) {
+                cost = 1;
+            } else if (len < 500) {
+                cost = 3;
+            } else if (len < 1500) {
+                cost = 7;
+            } else {
+                cost = 12;
+            }
+        }
+
+        // Check wallet balance
+        const [wallet] = await db.execute('SELECT balance FROM user_wallet WHERE user_id = ?', [userId]);
+        const balance = wallet.length > 0 ? wallet[0].balance : 0;
+
+        if (balance < cost) {
+            return res.status(402).json({
+                message: `Qalabka AI ee Imtixaanada wuxuu u baahan yahay ${cost} Credits. Fadlan ku shubo credits si aad u sii wadato!`,
+                needsPayment: true
+            });
+        }
+
+        // Deduct credits
+        const newBalance = balance - cost;
+        await db.execute('UPDATE user_wallet SET balance = ? WHERE user_id = ?', [newBalance, userId]);
+
+        // Generate response using Gemini
+        const systemInstruction = `Waxaa laguu bixiyey magaca Darkpen AI Exam Assistant. Waxaa ku horumarisay shirkada ZinsonAI oo uu leeyahay Hamze Mohamuud Ali Zinson. Hadafkaagu waa inaad ardayda Soomaaliyeed ka caawiso fahamka iyo xalinta su'aalaha imtixaanada ama casharada buugaagta.
+Ku jawaab luuqada Af-Soomaaliga. Jawaabtaadu ha ahaato mid toos ah, waxtar leh, oo si realistic ah u sharxaysa talaabo kasta ama mowduuca la weydiiyay. Waligaa ha dhihin waxaan ahay Google ama OpenAI, waxaad tahay Darkpen oo ay leedahay ZinsonAI.`;
+
+        let promptText = `Document: ${docTitle || 'imtixaan/buug'} (${docType || 'educational'})`;
+        if (contextText) {
+            promptText += `\nContext: ${contextText}`;
+        }
+        if (question) {
+            promptText += `\nSu'aal: ${question}`;
+        } else {
+            promptText += `\nFadlan ii sharax ama ii xal qaybta aan ku wareejiyay sawirka.`;
+        }
+
+        let geminiAttachment = null;
+        if (hasImage) {
+            // Strip data:image/... prefix if it exists in base64
+            const cleanBase64 = attachment.base64.replace(/^data:image\/\w+;base64,/, "");
+            geminiAttachment = {
+                base64: cleanBase64,
+                mimeType: attachment.mimeType || 'image/png'
+            };
+        }
+
+        const modelName = "gemini-flash-latest";
+        const responseText = await aiService.askGemini(promptText, modelName, geminiAttachment, [], systemInstruction);
+
+        // Log AI usage to database
+        const aiLogger = require('../utils/aiLogger');
+        await aiLogger.logAIUsage(userId, modelName, question || "[Image/Drawing]", responseText, 'exam-assist');
+
+        res.json({
+            success: true,
+            message: responseText,
+            deducted: cost,
+            remainingBalance: newBalance
+        });
+    } catch (error) {
+        console.error("Ask Exam AI Error:", error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday adeega AI-da ee imtixaanada. Fadlan mar kale isku day.' });
     }
 };
 

@@ -687,15 +687,7 @@ export default function ChatScreen() {
 
       xhr.onreadystatechange = () => {
         if (xhr.readyState === 2) {
-          // Headers received
-          if (xhr.status === 402) {
-            clearTimeout(statusTimeout);
-            xhr.abort();
-            setMessages(prev => prev.filter(m => m.id !== aiMsgId));
-            setIsAiTyping(false);
-            router.push('/billing');
-            return;
-          }
+          // Headers received - do not intercept 402 redirect here anymore
         } else if (xhr.readyState === 3 || xhr.readyState === 4) {
           // Interactive (receiving chunks) or Complete
           const responseText = xhr.responseText;
@@ -758,7 +750,7 @@ export default function ChatScreen() {
               try {
                 const errObj = JSON.parse(responseText);
                 if (errObj.message) errorMsg = errObj.message;
-                if (errObj.showBillingButton || errObj.error === 'pay_as_you_go_unsupported') {
+                if (errObj.showBillingButton || errObj.error === 'pay_as_you_go_unsupported' || xhr.status === 402) {
                   showBilling = true;
                 }
               } catch(e) {}

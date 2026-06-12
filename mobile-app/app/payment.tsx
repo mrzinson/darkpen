@@ -47,8 +47,56 @@ export default function PaymentScreen() {
     Alert.alert('La koobiyeeyay', `Lambarada ${num} waa la koobiyeeyay.`);
   };
 
+  const validatePhoneNumber = (phone: string): string | null => {
+    // Remove spaces, hyphens, and plus sign
+    const cleaned = phone.replace(/[\s\-+]/g, '');
+    
+    // Check if empty
+    if (!cleaned) {
+      return 'Fadlan geli nambarka aad lacagta ka soo dirtay.';
+    }
+    
+    // Check if all characters are digits
+    if (!/^\d+$/.test(cleaned)) {
+      return 'Nambarku waa inuu ka koobnaadaa tiro oo kaliya (e.g. 634XXXXXX).';
+    }
+    
+    // Check minimum length (must be at least 7 digits)
+    if (cleaned.length < 7) {
+      return 'Nambarka taleefanka aad soo gelisay aad ayuu u gaaban yahay (ugu yaraan waa 7 tiro).';
+    }
+    
+    // Check maximum length
+    if (cleaned.length > 15) {
+      return 'Nambarka taleefanka aad soo gelisay aad ayuu u dheer yahay.';
+    }
+    
+    // Check prefix validation if it seems to be a local Somalia/Somaliland number
+    // Cleaned local number can be 7 digits (e.g. 4XXXXXX) or 9 digits (e.g. 63XXXXXXX)
+    // International format: 252XXXXXXXXX (12 digits)
+    if (cleaned.length === 9) {
+      const prefix = cleaned.substring(0, 2);
+      const validPrefixes = ['61', '62', '63', '65', '77', '90'];
+      if (!validPrefixes.includes(prefix)) {
+        return 'Nambarku waa inuu ku bilowdaa mid ka mid ah lambaradan: 63, 65, 61, 90, ama 77.';
+      }
+    } else if (cleaned.length === 12 && cleaned.startsWith('252')) {
+      const prefix = cleaned.substring(3, 5);
+      const validPrefixes = ['61', '62', '63', '65', '77', '90'];
+      if (!validPrefixes.includes(prefix)) {
+        return 'Nambarka u dambeeya ee 9-ka ah ee ku xiga 252 waa inuu ku bilowdaa 63, 65, 61, 90, ama 77.';
+      }
+    }
+    
+    return null; // Valid
+  };
+
   const handleSubmit = async () => {
-    if (!senderNumber) return;
+    const validationError = validatePhoneNumber(senderNumber);
+    if (validationError) {
+      Alert.alert('Nambar Khaldan', validationError);
+      return;
+    }
 
     setLoading(true);
     try {
@@ -61,6 +109,7 @@ export default function PaymentScreen() {
         return;
       }
 
+      const cleanedNumber = senderNumber.replace(/[\s\-+]/g, '');
       const res = await Promise.race([
         fetch(`${Config.API_URL}/api/auth/submit-payment`, {
           method: 'POST',
@@ -69,7 +118,7 @@ export default function PaymentScreen() {
             'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify({
-            reference_number: senderNumber,
+            reference_number: cleanedNumber,
             planId: params.planId,
             amount: params.price ? parseFloat((params.price as string).replace('$', '')) : 1.0,
             groupData: params.groupData ? JSON.parse(params.groupData as string) : null,

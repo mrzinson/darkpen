@@ -382,4 +382,136 @@ router.get('/notifications', auth, async (req, res) => {
     }
 });
 
+// GET Usage Statistics (Dynamic Progress & Breakdown)
+router.get('/usage', auth, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        
+        // Ensure wallet checks run
+        await checkAndExpireWallet(userId);
+
+        // Fetch User and Wallets
+        const [walletRows] = await db.execute('SELECT balance, last_updated FROM user_wallet WHERE user_id = ?', [userId]);
+        const [shukaansiWalletRows] = await db.execute('SELECT balance FROM shukaansi_wallet WHERE user_id = ?', [userId]);
+        
+        const standardBalance = walletRows.length > 0 ? walletRows[0].balance : 0;
+        const standardLastUpdated = walletRows.length > 0 ? walletRows[0].last_updated : new Date();
+        const shukaansiBalance = shukaansiWalletRows.length > 0 ? shukaansiWalletRows[0].balance : 0;
+
+        // Fetch Active Subscriptions
+        const [subRows] = await db.execute(
+            'SELECT type, expiry_date FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1',
+            [userId]
+        );
+        const [shukaansiSubRows] = await db.execute(
+            'SELECT type, expiry_date FROM shukaansi_subscriptions WHERE user_id = ? AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1',
+            [userId]
+        );
+
+        const standardSub = subRows.length > 0 ? subRows[0] : null;
+        const shukaansiSub = shukaansiSubRows.length > 0 ? shukaansiSubRows[0] : null;
+
+        // Calculate Standard Plan Details
+        let standardPlanName = 'Pay as you go';
+        let standardLimit = 100;
+        let standardExpiry = null;
+
+        if (standardSub) {
+            standardPlanName = standardSub.type === 'monthly_11' ? 'Bille (Premium)' : 'Bille (Basic)';
+            standardLimit = standardSub.type === 'monthly_11' ? 5000 : 1000;
+            standardExpiry = standardSub.expiry_date;
+        } else {
+            // Pay as you go limit is 100, or the current balance if it exceeds 100 (e.g. user bought multiple packages)
+            standardLimit = Math.max(100, Math.ceil(standardBalance / 100) * 100);
+            
+            // Expiry is 10 days after last_updated
+            const expiryDate = new Date(standardLastUpdated);
+            expiryDate.setDate(expiryDate.getDate() + 10);
+            standardExpiry = expiryDate;
+        }
+
+        const standardUsed = Math.max(0, standardLimit - standardBalance);
+        const standardPercentage = Math.min(100, Math.max(0, Math.round((standardUsed / standardLimit) * 100)));
+
+        // Calculate Shukaansi Plan Details
+        let shukaansiPlanName = 'Pay as you go (Shukaansi)';
+        let shukaansiLimit = 100;
+        let shukaansiExpiry = null;
+
+        if (shukaansiSub) {
+            shukaansiPlanName = shukaansiSub.type === 'monthly_11' ? 'Bille Premium (Shukaansi)' : 'Bille Basic (Shukaansi)';
+            shukaansiLimit = shukaansiSub.type === 'monthly_11' ? 5000 : 1000;
+            shukaansiExpiry = shukaansiSub.expiry_date;
+        } else {
+            shukaansiLimit = Math.max(100, Math.ceil(shukaansiBalance / 100) * 100);
+            // Shukaansi wallet does not expire, so shukaansiExpiry remains null!
+        }
+
+        const shukaansiUsed = Math.max(0, shukaansiLimit - shukaansiBalance);
+        const shukaansiPercentage = Math.min(100, Math.max(0, Math.round((shukaansiUsed / shukaansiLimit) * 100)));
+
+        // Fetch Usage Logs for Breakdown
+        const [logs] = await db.execute(
+            `SELECT chat_type, COUNT(*) as count, SUM(cost) as total_cost 
+             FROM ai_usage_logs 
+             WHERE user_id = ? 
+             GROUP BY chat_type`,
+            [userId]
+        );
+
+        // Map categories to user-friendly names
+        const categoryMapping = {
+            'education': { label: 'Chat-ka Caadiga ah', icon: 'chatbubble-ellipses-outline', color: '#3B82F6' },
+            'general': { label: 'Chat-ka Caadiga ah', icon: 'chatbubble-ellipses-outline', color: '#3B82F6' },
+            'shukaansi': { label: 'Chat-ka Shukaansiga', icon: 'heart-outline', color: '#EC4899' },
+            'image': { label: 'Sawir Sameyn (Image)', icon: 'image-outline', color: '#10B981' },
+            'exam': { label: 'Samaynta Imtixaanada', icon: 'document-text-outline', color: '#8B5CF6' },
+            'quiz': { label: 'Ka Qaybgalka Quiska', icon: 'trophy-outline', color: '#F59E0B' },
+            'voice': { label: 'Duubista Codadka', icon: 'mic-outline', color: '#EF4444' },
+            'voice-call': { label: 'Wicitaanka Shukaansiga', icon: 'call-outline', color: '#EC4899' }
+        };
+
+        const breakdown = Object.keys(categoryMapping).map(key => {
+            const log = logs.find(l => l.chat_type === key);
+            const usdCost = log ? parseFloat(log.total_cost) : 0;
+            // Convert back to credits: 1 credit = $0.005, so credits = usdCost * 200
+            const creditsCost = Math.round(usdCost * 200);
+
+            return {
+                type: key,
+                label: categoryMapping[key].label,
+                icon: categoryMapping[key].icon,
+                color: categoryMapping[key].color,
+                count: log ? log.count : 0,
+                credits: creditsCost
+            };
+        }).filter(item => item.count > 0); // Only return categories with actual usage
+
+        res.json({
+            status: 'success',
+            standard: {
+                planName: standardPlanName,
+                balance: standardBalance,
+                limit: standardLimit,
+                used: standardUsed,
+                percentage: standardPercentage,
+                expiryDate: standardExpiry
+            },
+            shukaansi: {
+                planName: shukaansiPlanName,
+                balance: shukaansiBalance,
+                limit: shukaansiLimit,
+                used: shukaansiUsed,
+                percentage: shukaansiPercentage,
+                expiryDate: shukaansiExpiry
+            },
+            breakdown
+        });
+
+    } catch (error) {
+        console.error('Error fetching usage:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday soo akhrinta isticmaalka (Usage).' });
+    }
+});
+
 module.exports = router;

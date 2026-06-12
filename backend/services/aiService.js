@@ -1,48 +1,7 @@
-const { OpenAI } = require('openai');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 require('dotenv').config();
 
-// Hubi in API keys ay ku jiraan .env
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
-
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-/**
- * La hadal OpenAI
- */
-exports.askOpenAI = async (prompt, history = [], model = "gpt-4o-mini", attachment = null) => {
-    try {
-        let content = [{ type: "text", text: prompt }];
-
-        if (attachment) {
-            content.push({
-                type: "image_url",
-                image_url: {
-                    url: `data:${attachment.mimeType};base64,${attachment.base64}`
-                }
-            });
-        }
-
-        const messages = [
-            { role: "system", content: "Waxaad tahay macallin iyo caawiye caqli badan oo ardayda u fududeeya fahamka duruusta. Si kooban oo naxariis leh ugu jawaab af-Soomaali iyo english key rabaan oo ay kugula hadlaan labadaba." },
-            ...history,
-            { role: "user", content: content }
-        ];
-
-        const response = await openai.chat.completions.create({
-            model: model, 
-            messages: messages,
-            temperature: 0.7,
-        });
-
-        return response.choices[0].message.content;
-    } catch (error) {
-        console.error("OpenAI Error:", error);
-        throw new Error("Waan ka xunnahay, darkpen waa mashquul hadda.");
-    }
-};
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -80,87 +39,105 @@ async function retryWithBackoff(fn, retries = 3, delay = 600) {
  * La hadal Gemini
  */
 exports.askGemini = async (prompt, modelName = "gemini-flash-latest", attachment = null, history = [], systemInstruction = null) => {
-    try {
-        const model = genAI.getGenerativeModel({ 
-            model: modelName,
-            systemInstruction: systemInstruction
-        });
-        
-        let parts = [{ text: prompt }];
+    const fallbackModels = Array.from(new Set([modelName, "gemini-2.5-flash", "gemini-flash-latest"]));
+    let lastError = null;
 
-        if (attachment) {
-            const atts = Array.isArray(attachment) ? attachment : [attachment];
-            for (const att of atts) {
-                if (att && att.base64 && att.mimeType) {
-                    parts.push({
-                        inlineData: {
-                            data: att.base64,
-                            mimeType: att.mimeType
-                        }
-                    });
+    for (const currentModel of fallbackModels) {
+        try {
+            console.log(`[GEMINI SERVICE] Attempting generateContent with model: ${currentModel}`);
+            const model = genAI.getGenerativeModel({ 
+                model: currentModel,
+                systemInstruction: systemInstruction
+            });
+            
+            let parts = [{ text: prompt }];
+
+            if (attachment) {
+                const atts = Array.isArray(attachment) ? attachment : [attachment];
+                for (const att of atts) {
+                    if (att && att.base64 && att.mimeType) {
+                        parts.push({
+                            inlineData: {
+                                data: att.base64,
+                                mimeType: att.mimeType
+                            }
+                        });
+                    }
                 }
             }
-        }
 
-        const responseText = await retryWithBackoff(async () => {
-            const result = await model.generateContent({
-                contents: [
-                    ...history,
-                    { role: "user", parts: parts }
-                ]
+            const responseText = await retryWithBackoff(async () => {
+                const result = await model.generateContent({
+                    contents: [
+                        ...history,
+                        { role: "user", parts: parts }
+                    ]
+                });
+                const response = await result.response;
+                return response.text();
             });
-            const response = await result.response;
-            return response.text();
-        });
-        
-        return responseText;
-    } catch (error) {
-        console.error("Gemini Error after retries:", error);
-        throw new Error("Waan ka xunnahay, darkpen cilad ayaa ku timid.");
+            
+            return responseText;
+        } catch (error) {
+            console.warn(`[GEMINI SERVICE WARNING] Model ${currentModel} failed: ${error.message}`);
+            lastError = error;
+        }
     }
+
+    console.error("Gemini Error after all fallback models and retries:", lastError);
+    throw new Error("Waan ka xunnahay, darkpen cilad ayaa ku timid.");
 };
 
 /**
  * La hadal Gemini adigoo ku jawaabaya qaab Streaming ah
  */
 exports.askGeminiStream = async (prompt, modelName = "gemini-flash-latest", attachment = null, history = [], systemInstruction = null) => {
-    try {
-        const model = genAI.getGenerativeModel({ 
-            model: modelName,
-            systemInstruction: systemInstruction
-        });
-        
-        let parts = [{ text: prompt }];
+    const fallbackModels = Array.from(new Set([modelName, "gemini-2.5-flash", "gemini-flash-latest"]));
+    let lastError = null;
 
-        if (attachment) {
-            const atts = Array.isArray(attachment) ? attachment : [attachment];
-            for (const att of atts) {
-                if (att && att.base64 && att.mimeType) {
-                    parts.push({
-                        inlineData: {
-                            data: att.base64,
-                            mimeType: att.mimeType
-                        }
-                    });
+    for (const currentModel of fallbackModels) {
+        try {
+            console.log(`[GEMINI SERVICE] Attempting generateContentStream with model: ${currentModel}`);
+            const model = genAI.getGenerativeModel({ 
+                model: currentModel,
+                systemInstruction: systemInstruction
+            });
+            
+            let parts = [{ text: prompt }];
+
+            if (attachment) {
+                const atts = Array.isArray(attachment) ? attachment : [attachment];
+                for (const att of atts) {
+                    if (att && att.base64 && att.mimeType) {
+                        parts.push({
+                            inlineData: {
+                                data: att.base64,
+                                mimeType: att.mimeType
+                            }
+                        });
+                    }
                 }
             }
-        }
 
-        const stream = await retryWithBackoff(async () => {
-            const result = await model.generateContentStream({
-                contents: [
-                    ...history,
-                    { role: "user", parts: parts }
-                ]
+            const stream = await retryWithBackoff(async () => {
+                const result = await model.generateContentStream({
+                    contents: [
+                        ...history,
+                        { role: "user", parts: parts }
+                    ]
+                });
+                return result.stream;
             });
-            return result.stream;
-        });
-        
-        return stream;
-    } catch (error) {
-        console.error("Gemini Stream Error after retries:", error);
-        throw new Error("Waan ka xunnahay, adeegga streaming-ka ee zinsonai ee loogu tala galay darkpen cilad ayaa ku timid.");
+            
+            return stream;
+        } catch (error) {
+            console.warn(`[GEMINI SERVICE WARNING] Model stream ${currentModel} failed: ${error.message}`);
+            lastError = error;
+        }
     }
+
+    console.error("Gemini Stream Error after all fallback models and retries:", lastError);
+    throw new Error("Waan ka xunnahay, adeegga streaming-ka ee zinsonai ee loogu tala galay darkpen cilad ayaa ku timid.");
 };
 
 const fs = require('fs');

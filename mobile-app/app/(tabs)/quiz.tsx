@@ -21,7 +21,7 @@ type Question = {
   type: 'multiple-choice' | 'structured';
   question: string;
   options?: string[];
-  answer: string | number;
+  // NOTE: 'answer' is NOT included — server sends questions without answers (security fix)
 };
 
 type QuizReviewItem = {
@@ -72,6 +72,12 @@ export default function QuizScreen() {
   const [freeAttemptsUsed, setFreeAttemptsUsed] = useState(0);
   const [userCredits, setUserCredits] = useState(0);
   const [lockoutSeconds, setLockoutSeconds] = useState(0);
+  const [quizCost, setQuizCost] = useState(20); // Default; updated per plan from server
+  const [userPlan, setUserPlan] = useState('credits'); // 'credits' | 'monthly_3' | 'monthly_11'
+
+  // Server-side scoring state
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [rawSubmittedAnswers, setRawSubmittedAnswers] = useState<(string | null)[]>([]);
 
   // Review & XP States
   const [userAnswers, setUserAnswers] = useState<QuizReviewItem[]>([]);
@@ -202,6 +208,9 @@ export default function QuizScreen() {
         setUserCredits(data.user_credits || 0);
         setLockoutSeconds(data.lockout_seconds || 0);
         setTournamentActive(!!data.tournament_active);
+        // Update plan-based quiz cost (fair pricing per plan)
+        if (data.quiz_cost) setQuizCost(data.quiz_cost);
+        if (data.user_plan) setUserPlan(data.user_plan);
 
         // Cache these status values to bypass blocking loading screens
         await AsyncStorage.setItem('quiz_opted_in', String(!!data.opted_in));
@@ -227,30 +236,48 @@ export default function QuizScreen() {
     }
   };
 
-  // Load cached status on initial mount
-  useEffect(() => {
-    const loadCachedQuizStatus = async () => {
-      try {
-        const cachedOptedIn = await AsyncStorage.getItem('quiz_opted_in');
-        const cachedTournamentActive = await AsyncStorage.getItem('quiz_tournament_active');
-        if (cachedOptedIn !== null) {
-          setOptedIn(cachedOptedIn === 'true');
-        } else {
-          setOptedIn(false); // Default to false to bypass the blocking spinner
-        }
-        if (cachedTournamentActive !== null) {
-          setTournamentActive(cachedTournamentActive === 'true');
-        }
-      } catch (e) {
-        setOptedIn(false);
-      }
-    };
-    loadCachedQuizStatus();
-  }, []);
-
+  // Fetch status on mount and on quiz state change
   useEffect(() => {
     fetchStatus();
   }, [quizState]);
+
+  const renderPrizeBreakdown = () => (
+    <View style={styles.prizeCard}>
+      <View style={styles.prizeHeaderRow}>
+        <Ionicons name="gift-outline" size={20} color="#FFD700" />
+        <Text style={styles.prizeHeaderTitle}>ABAAL-MARINADA TARTANKA ($2,800 Pool)</Text>
+      </View>
+      <Text style={styles.prizeSubtitle}>
+        Ka qayb gal tartanka 100-ka casho soconaya. Abaal-marinaha waxay u kala baxayaan 10-ka arday ee ugu dhibcaha (XP) badan dalka sida tan:
+      </Text>
+      
+      <View style={styles.prizeRow}>
+        <Text style={styles.prizeLabel}>🥇 Kaalinta 1-aad:</Text>
+        <Text style={styles.prizeValue}>$1,000</Text>
+      </View>
+      <View style={styles.prizeRow}>
+        <Text style={styles.prizeLabel}>🥈 Kaalinta 2-aad:</Text>
+        <Text style={styles.prizeValue}>$800</Text>
+      </View>
+      <View style={styles.prizeRow}>
+        <Text style={styles.prizeLabel}>🥉 Kaalinta 3-aad:</Text>
+        <Text style={styles.prizeValue}>$500</Text>
+      </View>
+      <View style={styles.prizeRow}>
+        <Text style={styles.prizeLabel}>🏅 Kaalinta 4-aad - 6-aad:</Text>
+        <Text style={styles.prizeValue}>$100 (midkiiba)</Text>
+      </View>
+      <View style={styles.prizeRow}>
+        <Text style={styles.prizeLabel}>🎗️ Kaalinta 7-aad - 10-aad:</Text>
+        <Text style={styles.prizeValue}>$50 (midkiiba)</Text>
+      </View>
+      
+      <View style={styles.prizeFooter}>
+        <Ionicons name="information-circle-outline" size={14} color="#3B82F6" style={{ marginRight: 6 }} />
+        <Text style={styles.prizeFooterText}>Tartanku wuxuu soconayaa muddo 100 maalmood ah.</Text>
+      </View>
+    </View>
+  );
 
   // 2. Lockout Countdown Timer
   useEffect(() => {
@@ -333,12 +360,14 @@ export default function QuizScreen() {
     }
   };
 
-  // Start Quiz (Deducts credits if attempts >= 5)
+  // Start Quiz (Deducts plan-based credits if attempts >= 5)
   const handleStartQuiz = async () => {
     setQuizState('generating');
     setXpEarned(null);
     setNewTotalXp(null);
     setUserAnswers([]);
+    setRawSubmittedAnswers([]);
+    setSessionToken(null);
     setMathAnswer('');
     setScratchpadText('');
     setShowScratchpad(false);
@@ -353,6 +382,7 @@ export default function QuizScreen() {
 
       if (response.ok && data.questions && data.questions.length > 0) {
         setQuestions(data.questions);
+        setSessionToken(data.session_token); // Store session token for server-side scoring
         setScore(0);
         setCurrentQuestionIndex(0);
         setTimeLeft(300);
@@ -379,16 +409,28 @@ export default function QuizScreen() {
     setSubmittingScore(true);
     try {
       const token = await AsyncStorage.getItem('userToken');
+
+      // SECURITY FIX: Send session_token + raw answers to server.
+      // Server verifies answers against stored quiz and calculates score.
+      // If cheat detected (app minimized), send all nulls so server scores 0.
+      const answersToSubmit = cheatDetected
+        ? new Array(questions.length).fill(null)
+        : rawSubmittedAnswers;
+
       const response = await fetch(`${Config.API_URL}/api/chat/quiz/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ score: cheatDetected ? 0 : finalScore })
+        body: JSON.stringify({
+          session_token: sessionToken,
+          answers: answersToSubmit
+        })
       });
       const data = await response.json();
       if (response.ok) {
+        setScore(data.score); // Use server-verified score
         setXpEarned(data.xp_earned);
         setNewTotalXp(data.new_total_xp);
       }
@@ -408,40 +450,34 @@ export default function QuizScreen() {
   };
 
   // Submit Answer
+  // NOTE: We no longer check correctness client-side (answers not sent by server).
+  // We store the raw selected answer and send all answers to server on finish.
   const handleAnswerSubmit = (selected: string, isMath = false) => {
     const currentQ = questions[currentQuestionIndex];
-    let isCorrect = false;
-    let correctAnswerStr = '';
 
-    if (currentQ.type === 'multiple-choice' && currentQ.options) {
-      const correctIdx = Number(currentQ.answer);
-      correctAnswerStr = currentQ.options[correctIdx] || '';
-      isCorrect = selected === correctAnswerStr;
-    } else {
-      // Structured numeric/short answer matching
-      correctAnswerStr = String(currentQ.answer).trim().toLowerCase();
-      isCorrect = selected.trim().toLowerCase() === correctAnswerStr;
-    }
+    // Store the raw answer for server scoring
+    setRawSubmittedAnswers(prev => {
+      const updated = [...prev];
+      updated[currentQuestionIndex] = selected;
+      return updated;
+    });
 
-    // Record review details
+    // Record for local review display (without correct answer — server returns that after submit)
     const reviewItem: QuizReviewItem = {
       question: currentQ.question,
       subject: currentQ.subject,
       selectedAnswer: selected,
-      correctAnswer: correctAnswerStr,
-      isCorrect: isCorrect
+      correctAnswer: '...', // Will not know until server responds
+      isCorrect: false      // Placeholder; server determines correctness
     };
 
     setUserAnswers(prev => [...prev, reviewItem]);
-
-    const nextScore = isCorrect ? score + 1 : score;
-    if (isCorrect) setScore(prev => prev + 1);
 
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(prev => prev + 1);
       setMathAnswer('');
     } else {
-      showAdAndFinish(nextScore);
+      showAdAndFinish(score);
     }
   };
 
@@ -675,6 +711,8 @@ export default function QuizScreen() {
                     </View>
                   )}
 
+                  {renderPrizeBreakdown()}
+
                   {/* Rules list */}
                   <View style={styles.rulesList}>
                     <Text style={styles.rulesHeader}>QAYBAHA AMNIGA & XEERARKA TARTANKA</Text>
@@ -707,7 +745,7 @@ export default function QuizScreen() {
                       <Ionicons name="card-outline" size={20} color="#F59E0B" style={styles.ruleIcon} />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.ruleTitle}>Tijaabo (5 Days Free Trial)</Text>
-                        <Text style={styles.ruleDesc}>Shanta casho ee hore waa free, laakiin maalmaha ka dambeeya waxaa lagaa jarayaa 30 credits halkii isku-day.</Text>
+                        <Text style={styles.ruleDesc}>Shanta isku-day ee hore waa free. Ka dib, waxaa lagaa jarayaa {quizCost} credits halkii isku-day (~$0.10 — isku-faa'ido dhammaan qorshayaasha).</Text>
                       </View>
                     </View>
                   </View>
@@ -739,6 +777,8 @@ export default function QuizScreen() {
                   <TouchableOpacity style={styles.optInLaterButton} onPress={() => setOptedIn(true)}>
                     <Text style={styles.optInLaterText}>Practice Only (Kaliya Tababar)</Text>
                   </TouchableOpacity>
+
+                  {renderPrizeBreakdown()}
                 </View>
               </ScrollView>
             )}
@@ -779,15 +819,17 @@ export default function QuizScreen() {
                     </View>
                   ) : (
                     <TouchableOpacity
-                      style={[styles.startButton, userCredits < 30 && freeAttemptsUsed >= 5 && styles.startButtonDisabled]}
+                      style={[styles.startButton, userCredits < quizCost && freeAttemptsUsed >= 5 && styles.startButtonDisabled]}
                       onPress={handleStartQuiz}
                       activeOpacity={0.8}
-                      disabled={userCredits < 30 && freeAttemptsUsed >= 5}
+                      disabled={userCredits < quizCost && freeAttemptsUsed >= 5}
                     >
                       <Text style={styles.startButtonText}>Start Quiz Challenge</Text>
                       <Ionicons name="arrow-forward" size={20} color="white" style={{ marginLeft: 8 }} />
                     </TouchableOpacity>
                   )}
+
+                  {renderPrizeBreakdown()}
 
                   {/* Rules list */}
                   <View style={styles.rulesList}>
@@ -821,7 +863,7 @@ export default function QuizScreen() {
                       <Ionicons name="card-outline" size={20} color="#F59E0B" style={styles.ruleIcon} />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.ruleTitle}>Tijaabo (5 Days Free Trial)</Text>
-                        <Text style={styles.ruleDesc}>Shanta isku-day ee hore waa free, laakiin maalmaha ka dambeeya waxaa lagaa jarayaa 30 credits halkii isku-day.</Text>
+                        <Text style={styles.ruleDesc}>Shanta isku-day ee hore waa free. Ka dib, waxaa lagaa jarayaa {quizCost} credits halkii isku-day (qorshahaagu ahaanshaha {userPlan === 'monthly_11' ? 'Premium' : userPlan === 'monthly_3' ? 'Basic' : 'Pay as you go'} — dhammaan users-ka isku-faa'ido ayay bixiyaan ~$0.10 halkii isku-day).</Text>
                       </View>
                     </View>
                   </View>
@@ -1961,5 +2003,68 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: 'white',
     fontSize: 13,
     fontWeight: '800',
+  },
+  prizeCard: {
+    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginVertical: 12,
+    borderWidth: 1.5,
+    borderColor: isDark ? '#334155' : '#E5E7EB',
+    width: '90%',
+    alignSelf: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  prizeHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  prizeHeaderTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: colors.primary,
+    marginLeft: 8,
+    letterSpacing: -0.2,
+  },
+  prizeSubtitle: {
+    fontSize: 12,
+    color: colors.neutral,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  prizeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: isDark ? '#2D3748' : '#F3F4F6',
+  },
+  prizeLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.secondary,
+  },
+  prizeValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#10B981',
+  },
+  prizeFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    backgroundColor: isDark ? '#172554' : '#EFF6FF',
+    padding: 8,
+    borderRadius: 8,
+  },
+  prizeFooterText: {
+    fontSize: 11,
+    color: '#3B82F6',
+    fontWeight: '600',
   }
 });

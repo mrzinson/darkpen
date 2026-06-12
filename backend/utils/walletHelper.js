@@ -21,8 +21,8 @@ async function checkAndExpireWallet(userId) {
         const diffMs = now.getTime() - lastUpdatedDate.getTime();
         const diffDays = diffMs / (1000 * 60 * 60 * 24);
 
-        // If older than 30 days (1 month), expire it!
-        if (diffDays >= 30) {
+        // If older than 10 days, expire it!
+        if (diffDays >= 10) {
             console.log(`[WALLET EXPIRATION] Expiring wallet for user ${userId}. Old balance: ${balance}`);
 
             // 1. Set balance to 0
@@ -42,7 +42,7 @@ async function checkAndExpireWallet(userId) {
                 await pushService.sendPushNotification(
                     userId,
                     'Credits-kaagii waa uu dhacay',
-                    `Credits-kaagii (Pay as you go) oo ahaa ${balance} ayaa dhacay sababtoo ah ma aadan isticmaalin muddo 1 bil ah. Fadlan ku shubo credits cusub.`
+                    `Credits-kaagii (Pay as you go) oo ahaa ${balance} ayaa dhacay sababtoo ah ma aadan isticmaalin muddo 10 casho ah. Fadlan ku shubo credits cusub.`
                 );
             } catch (err) {
                 console.error('[WALLET EXPIRATION] Push notification error:', err.message);

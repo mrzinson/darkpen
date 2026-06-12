@@ -311,7 +311,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: colors.textLight,
   },
   activeTabText: {
-    color: colors.card,
+    color: '#FFFFFF',
   },
   searchContainer: {
     flexDirection: 'row',

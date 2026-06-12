@@ -240,13 +240,23 @@ router.post('/payments/:id/approve', async (req, res) => {
         if (p.amount >= 11.0) {
             // Premium Subscription ($11.00)
             await db.execute(`INSERT INTO ${subTable} (user_id, type, expiry_date) VALUES (?, "monthly_11", DATE_ADD(NOW(), INTERVAL 30 DAY))`, [p.user_id]);
+            // Set balance to Premium limit (5000 credits)
+            await db.execute(
+                `INSERT INTO ${walletTable} (user_id, balance) VALUES (?, 5000) ON DUPLICATE KEY UPDATE balance = 5000, last_updated = NOW()`,
+                [p.user_id]
+            );
         } else if (p.amount >= 3.0) {
             // Basic Subscription ($3.00)
             await db.execute(`INSERT INTO ${subTable} (user_id, type, expiry_date) VALUES (?, "monthly_3", DATE_ADD(NOW(), INTERVAL 30 DAY))`, [p.user_id]);
+            // Set balance to Basic limit (1000 credits)
+            await db.execute(
+                `INSERT INTO ${walletTable} (user_id, balance) VALUES (?, 1000) ON DUPLICATE KEY UPDATE balance = 1000, last_updated = NOW()`,
+                [p.user_id]
+            );
         } else if (p.amount >= 0.5) {
             // Add Credits ($0.50)
             await db.execute(
-                `INSERT INTO ${walletTable} (user_id, balance) VALUES (?, 100) ON DUPLICATE KEY UPDATE balance = balance + 100`,
+                `INSERT INTO ${walletTable} (user_id, balance) VALUES (?, 100) ON DUPLICATE KEY UPDATE balance = balance + 100, last_updated = NOW()`,
                 [p.user_id]
             );
         }

@@ -28,6 +28,7 @@ type Message = {
   reply_to_id?: string | number;
   reply_to_message?: string;
   reply_to_sender?: 'user' | 'ai';
+  showBillingButton?: boolean;
 };
 
 
@@ -422,10 +423,20 @@ export default function ShukaansiScreen() {
 
       if (response.status === 402) {
         setIsAiTyping(false);
-        return router.push({
-          pathname: '/billing',
-          params: { chatType: 'shukaansi' }
-        });
+        let errorMsg = 'Dhibcahaaga wada-sheekaysiga shukaansiga waa ay dhammaadeen. Fadlan iibso qorshe si aad u sii wadato. ❤️';
+        try {
+          const errData = await response.json();
+          if (errData.message) errorMsg = errData.message;
+        } catch (e) {}
+
+        const errAiMsg: Message = { 
+          id: String(Date.now() + 1), 
+          text: errorMsg, 
+          sender: 'ai',
+          showBillingButton: true
+        };
+        setMessages(prev => [...prev, errAiMsg]);
+        return;
       }
 
       const data = await response.json();
@@ -547,15 +558,49 @@ export default function ShukaansiScreen() {
                 
                 {msg.text ? (
                   msg.sender === 'ai' ? (
-                    <BlurView 
-                      intensity={isDark ? 45 : 75} 
-                      tint={isDark ? 'dark' : 'light'} 
-                      style={StyleSheet.flatten([styles.messageBubble, styles.messageBubbleAi, { overflow: 'hidden' }])}
-                    >
-                      <Text style={StyleSheet.flatten([styles.messageText, styles.messageTextAi])}>
-                        {msg.text}
-                      </Text>
-                    </BlurView>
+                    <View style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+                      <BlurView 
+                        intensity={isDark ? 45 : 75} 
+                        tint={isDark ? 'dark' : 'light'} 
+                        style={StyleSheet.flatten([styles.messageBubble, styles.messageBubbleAi, { overflow: 'hidden' }])}
+                      >
+                        <Text style={StyleSheet.flatten([styles.messageText, styles.messageTextAi])}>
+                          {msg.text}
+                        </Text>
+                      </BlurView>
+                      {msg.showBillingButton && (
+                        <TouchableOpacity 
+                          style={{
+                            marginTop: 8,
+                            backgroundColor: '#E11D48',
+                            paddingVertical: 10,
+                            paddingHorizontal: 16,
+                            borderRadius: 12,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexDirection: 'row',
+                            gap: 8,
+                            shadowColor: '#E11D48',
+                            shadowOffset: { width: 0, height: 4 },
+                            shadowOpacity: 0.2,
+                            shadowRadius: 6,
+                            elevation: 4
+                          }} 
+                          onPress={() => {
+                            router.push({
+                              pathname: '/billing',
+                              params: { chatType: 'shukaansi' }
+                            });
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons name="card-outline" size={16} color="#FFF" />
+                          <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '700' }}>
+                            Iibso Qorshe (Buy Plan)
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   ) : (
                     <View style={StyleSheet.flatten([styles.messageBubble, styles.messageBubbleUser, { backgroundColor: chatTheme.color }])}>
                       <Text style={StyleSheet.flatten([styles.messageText, styles.messageTextUser])}>
@@ -820,10 +865,7 @@ export default function ShukaansiScreen() {
           </ScrollView>
 
           <View style={styles.sidebarFooter}>
-            <TouchableOpacity style={styles.footerItem} onPress={() => { closeOverlays(); router.push('/downloaded'); }}>
-              <Ionicons name="cloud-download-outline" size={24} color={colors.secondary} style={{ marginRight: 12 }} />
-              <Text style={styles.footerItemText}>Downloaded (Offline)</Text>
-            </TouchableOpacity>
+
             <TouchableOpacity style={styles.footerItem}>
               <Ionicons name="settings-outline" size={24} color={colors.secondary} />
               <Text style={styles.footerItemText}>AI Settings</Text>

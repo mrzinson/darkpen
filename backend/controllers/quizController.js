@@ -1,8 +1,22 @@
 const db = require('../config/db');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+// ─── Helper: Calculate quiz cost in credits based on user's plan ─────────────
+// Goal: Make every user pay approximately $0.10 per quiz attempt regardless of plan
+// - Pay as you go (credits): $0.005/credit → 20 credits = $0.10
+// - Basic (monthly_3):       $0.003/credit → 33 credits = $0.099 ≈ $0.10
+// - Premium (monthly_11):    $0.0022/credit → 45 credits = $0.099 ≈ $0.10
+function getQuizCostForPlan(planType) {
+    switch (planType) {
+        case 'monthly_11': return 45;  // Premium users: 45 credits ≈ $0.10
+        case 'monthly_3':  return 33;  // Basic users: 33 credits ≈ $0.10
+        default:           return 20;  // Pay as you go / credits: 20 credits ≈ $0.10
+    }
+}
 
 exports.generateQuiz = async (req, res) => {
     try {
@@ -49,24 +63,42 @@ exports.generateQuiz = async (req, res) => {
             }
         }
 
-        // 3. Check Monetization: 5 Days Free, then 30 credits
+        // 3. Check Monetization: 5 Days Free, then plan-based credits
         const [attemptsCount] = await db.execute('SELECT COUNT(*) as total FROM quiz_attempts WHERE user_id = ?', [userId]);
         const totalAttempts = attemptsCount[0].total;
 
         if (totalAttempts >= 5) {
-            // Costs 30 credits
+            // Get user's active plan to determine cost
+            const [subRes] = await db.execute(
+                'SELECT type FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1',
+                [userId]
+            );
+            const planType = subRes.length > 0 ? subRes[0].type : 'credits';
+            const quizCost = getQuizCostForPlan(planType);
+
+            // Check wallet balance
             const [wallet] = await db.execute('SELECT balance FROM user_wallet WHERE user_id = ?', [userId]);
             const balance = wallet.length > 0 ? wallet[0].balance : 0;
 
-            if (balance < 30) {
+            if (balance < quizCost) {
                 return res.status(402).json({
                     status: 'insufficient_credits',
-                    message: 'Waan ka xunnahay, 5-tii maalmood ee lacag la\'aanta (free) ahayd way kuu dhammaadeen. Tartanka maanta wuxuu u baahan yahay 30 Credits. Fadlan ku shubo credits si aad u sii wadato!'
+                    message: `Waan ka xunnahay, 5-tii maalmood ee lacag la'aanta (free) ahayd way kuu dhammaadeen. Tartanka maanta wuxuu u baahan yahay ${quizCost} Credits (qorshahaaagu ahaanshaha ${planType === 'credits' ? 'Pay as you go' : planType === 'monthly_3' ? 'Basic' : 'Premium'}). Fadlan ku shubo credits si aad u sii wadato!`
                 });
             }
 
-            // Deduct 30 credits
-            await db.execute('UPDATE user_wallet SET balance = balance - 30 WHERE user_id = ?', [userId]);
+            // Deduct plan-appropriate credits
+            await db.execute('UPDATE user_wallet SET balance = balance - ? WHERE user_id = ?', [quizCost, userId]);
+
+            // Log quiz attempt to ai_usage_logs
+            try {
+                await db.execute(
+                    'INSERT INTO ai_usage_logs (user_id, model_name, prompt_tokens, completion_tokens, cost, chat_type) VALUES (?, "quiz-generator", 0, 0, ?, "quiz")',
+                    [userId, quizCost / 200]
+                );
+            } catch (logErr) {
+                console.error('[AI Logger Error] Quiz log failed:', logErr.message);
+            }
         }
 
         // 4. Generate 10-subject multilingual questions via Gemini
@@ -75,7 +107,7 @@ exports.generateQuiz = async (req, res) => {
             generationConfig: { responseMimeType: "application/json" }
         });
 
-        // Pull some educational chunks for context if available to ground questions
+        // Pull some educational chunks for context
         const [rows] = await db.execute('SELECT chunk_text FROM book_embeddings ORDER BY RAND() LIMIT 5');
         const contextText = rows.map(r => r.chunk_text).join("\n\n");
 
@@ -124,11 +156,33 @@ exports.generateQuiz = async (req, res) => {
         const responseText = response.text().trim();
         const quizData = JSON.parse(responseText);
 
+        if (!quizData.questions || quizData.questions.length === 0) {
+            throw new Error('Gemini returned empty questions');
+        }
+
+        // ─── SECURITY FIX: Store full quiz (with answers) server-side ───────────
+        // Generate a unique session token for this quiz attempt
+        const sessionToken = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes from now
+
+        // Store the FULL quiz (including answers) server-side ONLY
+        await db.execute(
+            'INSERT INTO quiz_sessions (user_id, session_token, questions_json, expires_at) VALUES (?, ?, ?, ?)',
+            [userId, sessionToken, JSON.stringify(quizData.questions), expiresAt]
+        );
+
+        // Strip answers from questions before sending to client
+        const questionsForClient = quizData.questions.map(q => {
+            const { answer, ...questionWithoutAnswer } = q;
+            return questionWithoutAnswer;
+        });
+
         res.json({
             status: 'success',
             opted_in: userRow[0].tournament_opt_in,
             free_attempts_used: totalAttempts,
-            questions: quizData.questions
+            session_token: sessionToken,       // Client uses this token when submitting
+            questions: questionsForClient      // NO answers included
         });
 
     } catch (error) {
@@ -154,16 +208,59 @@ exports.optIn = async (req, res) => {
 exports.submitQuiz = async (req, res) => {
     try {
         const userId = req.user.id;
-        const { score } = req.body;
+        const { session_token, answers } = req.body;
 
-        if (score === undefined || score < 0 || score > 10) {
-            return res.status(400).json({ message: 'Score-ku waa inuu u dhaxeeyo 0 iyo 10' });
+        // ─── SECURITY: Validate session token and score server-side ─────────────
+        if (!session_token || !answers || !Array.isArray(answers)) {
+            return res.status(400).json({ message: 'Session token ama jawaabuhu waa maqan yihiin' });
         }
+
+        // Fetch the quiz session from server (contains full questions WITH answers)
+        const [sessionRows] = await db.execute(
+            'SELECT * FROM quiz_sessions WHERE session_token = ? AND user_id = ? AND is_completed = 0 AND expires_at > NOW()',
+            [session_token, userId]
+        );
+
+        if (sessionRows.length === 0) {
+            return res.status(400).json({ 
+                message: 'Session-ka quiz-ka lama helin, wuu dhacay, ama horeba waa la gudbiyey.'
+            });
+        }
+
+        const session = sessionRows[0];
+        const fullQuestions = JSON.parse(session.questions_json);
+
+        // Score the quiz server-side by comparing submitted answers against stored answers
+        let score = 0;
+        fullQuestions.forEach((q, idx) => {
+            const userAnswer = answers[idx];
+            if (userAnswer === undefined || userAnswer === null) return;
+
+            if (q.type === 'multiple-choice' && q.options) {
+                const correctAnswer = q.options[Number(q.answer)];
+                if (String(userAnswer).trim() === String(correctAnswer).trim()) {
+                    score++;
+                }
+            } else {
+                // Structured question - case-insensitive match
+                if (String(userAnswer).trim().toLowerCase() === String(q.answer).trim().toLowerCase()) {
+                    score++;
+                }
+            }
+        });
+
+        // Validate score is within bounds
+        if (score < 0 || score > fullQuestions.length) {
+            return res.status(400).json({ message: 'Score-ku waa khalad' });
+        }
+
+        // Mark session as completed (prevent resubmission)
+        await db.execute('UPDATE quiz_sessions SET is_completed = 1 WHERE id = ?', [session.id]);
 
         // 1 correct answer = 10 XP
         const xpEarned = score * 10;
 
-        // Check if opted in to save XP. Even if not opted in, attempt is recorded to restrict multiple entries.
+        // Check if opted in to save XP
         const [userRow] = await db.execute('SELECT tournament_opt_in FROM users WHERE id = ?', [userId]);
         const optedIn = userRow.length > 0 ? userRow[0].tournament_opt_in : 0;
 
@@ -187,6 +284,8 @@ exports.submitQuiz = async (req, res) => {
 
         res.json({
             status: 'success',
+            score: score,
+            total_questions: fullQuestions.length,
             xp_earned: optedIn ? xpEarned : 0,
             new_total_xp: newTotalXp,
             opted_in: optedIn,
@@ -206,7 +305,7 @@ exports.getLeaderboard = async (req, res) => {
         const [settingsRow] = await db.execute('SELECT reveal_leaderboard FROM tournament_settings WHERE id = 1');
         const revealLeaderboard = settingsRow.length > 0 ? settingsRow[0].reveal_leaderboard : 0;
 
-        // Fetch all top 20 contestants
+        // Fetch all top 20 contestants (uses compound index: tournament_opt_in, is_suspended_from_tournament, xp DESC)
         const [contestants] = await db.execute(`
             SELECT id, name, username, profile_picture, xp 
             FROM users 
@@ -219,7 +318,6 @@ exports.getLeaderboard = async (req, res) => {
         const leaderboard = contestants.map((u, idx) => {
             const isSelf = u.id === userId;
             
-            // If revealed, or if it is the user themselves, show details clearly
             if (revealLeaderboard || isSelf) {
                 return {
                     id: u.id,
@@ -230,7 +328,6 @@ exports.getLeaderboard = async (req, res) => {
                     is_blurred: false
                 };
             } else {
-                // Otherwise, mask details to preserve privacy
                 return {
                     id: u.id,
                     name: `Contestant ${idx + 1}`,
@@ -242,7 +339,7 @@ exports.getLeaderboard = async (req, res) => {
             }
         });
 
-        // Get calling user's rank
+        // Get calling user's rank (uses idx_users_xp_tournament index)
         const [userRankRow] = await db.execute(`
             SELECT COUNT(*) + 1 AS user_rank 
             FROM users 
@@ -278,45 +375,43 @@ exports.getQuizStatus = async (req, res) => {
     try {
         const userId = req.user.id;
 
-        // 1. Get user details
-        const [userRow] = await db.execute(`
-            SELECT is_suspended_from_tournament, tournament_opt_in 
-            FROM users WHERE id = ?
-        `, [userId]);
+        // 1. Get user details and active plan in parallel
+        const [[userRow], [subRes]] = await Promise.all([
+            db.execute('SELECT is_suspended_from_tournament, tournament_opt_in FROM users WHERE id = ?', [userId]),
+            db.execute('SELECT type FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1', [userId])
+        ]);
 
         if (userRow.length === 0) {
             return res.status(404).json({ message: 'User-ka lama helin' });
         }
 
         const user = userRow[0];
+        const planType = subRes.length > 0 ? subRes[0].type : 'credits';
+        const quizCost = getQuizCostForPlan(planType);
 
-        // 2. Get wallet balance
-        const [wallet] = await db.execute('SELECT balance FROM user_wallet WHERE user_id = ?', [userId]);
+        // 2. Get wallet balance, attempts count, and last attempt in parallel
+        const [[wallet], [attemptsCount], [attempts], [settingsRow]] = await Promise.all([
+            db.execute('SELECT balance FROM user_wallet WHERE user_id = ?', [userId]),
+            db.execute('SELECT COUNT(*) as total FROM quiz_attempts WHERE user_id = ?', [userId]),
+            db.execute('SELECT created_at FROM quiz_attempts WHERE user_id = ? ORDER BY created_at DESC LIMIT 1', [userId]),
+            db.execute('SELECT * FROM tournament_settings WHERE id = 1')
+        ]);
+
         const balance = wallet.length > 0 ? wallet[0].balance : 0;
-
-        // 3. Get attempts count
-        const [attemptsCount] = await db.execute('SELECT COUNT(*) as total FROM quiz_attempts WHERE user_id = ?', [userId]);
         const totalAttempts = attemptsCount[0].total;
 
-        // 4. Get last attempt and calculate lockout
-        const [attempts] = await db.execute(
-            'SELECT created_at FROM quiz_attempts WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
-            [userId]
-        );
-
+        // 3. Calculate lockout
         let lockoutSeconds = 0;
         if (attempts.length > 0) {
             const lastAttemptTime = new Date(attempts[0].created_at).getTime();
             const now = Date.now();
             const diffMs = now - lastAttemptTime;
-            const limitMs = 24 * 60 * 60 * 1000; // 24 hours
+            const limitMs = 24 * 60 * 60 * 1000;
             if (diffMs < limitMs) {
                 lockoutSeconds = Math.ceil((limitMs - diffMs) / 1000);
             }
         }
 
-        // 5. Get tournament settings
-        const [settingsRow] = await db.execute('SELECT * FROM tournament_settings WHERE id = 1');
         const settings = settingsRow.length > 0 ? settingsRow[0] : {};
 
         res.json({
@@ -330,6 +425,8 @@ exports.getQuizStatus = async (req, res) => {
             reveal_leaderboard: !!settings.reveal_leaderboard,
             tournament_start_date: settings.start_date,
             reward_description: settings.reward_description || '',
+            quiz_cost: quizCost,           // Tell frontend how many credits this quiz costs
+            user_plan: planType,           // Tell frontend the plan type
             gen_ad_title: settings.gen_ad_title || '',
             gen_ad_desc: settings.gen_ad_desc || '',
             gen_ad_btn_text: settings.gen_ad_btn_text || '',
@@ -344,5 +441,3 @@ exports.getQuizStatus = async (req, res) => {
         res.status(500).json({ message: 'Cilad ayaa dhacday haynta statuska quiska' });
     }
 };
-
-

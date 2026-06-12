@@ -164,7 +164,18 @@ server.listen(PORT, () => {
     // Run AI group presence check
     const groupController = require('./controllers/groupController');
     groupController.ensureAIPresenceInAllGroups().catch(console.error);
+
+    // Run WhatsApp Bot if enabled in environment
+    if (process.env.ENABLE_WHATSAPP_BOT === 'true') {
+        try {
+            const whatsappBot = require('./services/whatsappBot');
+            whatsappBot.initialize();
+        } catch (err) {
+            console.error('[WHATSAPP BOT LOAD ERROR]:', err.message);
+        }
+    }
 });
+
 
 // Global Error Handling
 process.on('unhandledRejection', (reason, promise) => {

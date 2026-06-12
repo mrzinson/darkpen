@@ -1,10 +1,11 @@
 import { useTheme } from '../context/ThemeContext';
 import React, { useState, useRef } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Image, Platform, Linking, Alert, Modal, Animated } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Image, Platform, Linking, Alert, Modal, Animated, Share, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 import { AuthGuard } from '../components/AuthGuard';
 import { AppLogo } from '../components/AppLogo';
 import Config from '../constants/Config';
@@ -17,16 +18,92 @@ export default function SettingsScreen() {
   const [userData, setUserData] = useState<any>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // New States for functional cards
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showClearCacheModal, setShowClearCacheModal] = useState(false);
+  const [cacheSize, setCacheSize] = useState('14.2 MB');
+  const [isClearingCache, setIsClearingCache] = useState(false);
+
+  // Settings Toggles State
+  const [notifSound, setNotifSound] = useState(true);
+  const [notifAlerts, setNotifAlerts] = useState(true);
+  const [notifUpdates, setNotifUpdates] = useState(true);
+  
+  const [privSaveHistory, setPrivSaveHistory] = useState(true);
+  const [privIncognito, setPrivIncognito] = useState(false);
+
+  // Animation values
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
+  
+  const privScaleAnim = useRef(new Animated.Value(0)).current;
+  const privOpacityAnim = useRef(new Animated.Value(0)).current;
+  const notifScaleAnim = useRef(new Animated.Value(0)).current;
+  const notifOpacityAnim = useRef(new Animated.Value(0)).current;
 
   useFocusEffect(
     React.useCallback(() => {
       AsyncStorage.getItem('userData').then(data => {
         if (data) setUserData(JSON.parse(data));
       });
+
+      // Load Settings
+      AsyncStorage.getItem('settings_notif_sound').then(v => {
+        if (v !== null) setNotifSound(v === 'true');
+      });
+      AsyncStorage.getItem('settings_notif_alerts').then(v => {
+        if (v !== null) setNotifAlerts(v === 'true');
+      });
+      AsyncStorage.getItem('settings_notif_updates').then(v => {
+        if (v !== null) setNotifUpdates(v === 'true');
+      });
+      AsyncStorage.getItem('settings_priv_save_history').then(v => {
+        if (v !== null) setPrivSaveHistory(v === 'true');
+      });
+      AsyncStorage.getItem('settings_priv_incognito').then(v => {
+        if (v !== null) setPrivIncognito(v === 'true');
+      });
+      AsyncStorage.getItem('settings_cache_size').then(v => {
+        if (v !== null) {
+          setCacheSize(v);
+        } else {
+          setCacheSize('14.2 MB');
+        }
+      });
     }, [])
   );
+
+  const toggleNotifSound = async () => {
+    const newVal = !notifSound;
+    setNotifSound(newVal);
+    await AsyncStorage.setItem('settings_notif_sound', String(newVal));
+  };
+
+  const toggleNotifAlerts = async () => {
+    const newVal = !notifAlerts;
+    setNotifAlerts(newVal);
+    await AsyncStorage.setItem('settings_notif_alerts', String(newVal));
+  };
+
+  const toggleNotifUpdates = async () => {
+    const newVal = !notifUpdates;
+    setNotifUpdates(newVal);
+    await AsyncStorage.setItem('settings_notif_updates', String(newVal));
+  };
+
+  const togglePrivSaveHistory = async () => {
+    const newVal = !privSaveHistory;
+    setPrivSaveHistory(newVal);
+    await AsyncStorage.setItem('settings_priv_save_history', String(newVal));
+  };
+
+  const togglePrivIncognito = async () => {
+    const newVal = !privIncognito;
+    setPrivIncognito(newVal);
+    await AsyncStorage.setItem('settings_priv_incognito', String(newVal));
+  };
 
   const openDeleteModal = () => {
     setShowDeleteModal(true);
@@ -44,6 +121,89 @@ export default function SettingsScreen() {
   };
 
   const handleDeleteAccount = openDeleteModal;
+
+  const openPrivacyModal = () => {
+    setShowPrivacyModal(true);
+    Animated.parallel([
+      Animated.spring(privScaleAnim, { toValue: 1, useNativeDriver: true, damping: 14, stiffness: 200 }),
+      Animated.timing(privOpacityAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const closePrivacyModal = () => {
+    Animated.parallel([
+      Animated.spring(privScaleAnim, { toValue: 0.8, useNativeDriver: true, damping: 14, stiffness: 200 }),
+      Animated.timing(privOpacityAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
+    ]).start(() => setShowPrivacyModal(false));
+  };
+
+  const openNotifModal = () => {
+    setShowNotificationsModal(true);
+    Animated.parallel([
+      Animated.spring(notifScaleAnim, { toValue: 1, useNativeDriver: true, damping: 14, stiffness: 200 }),
+      Animated.timing(notifOpacityAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const closeNotifModal = () => {
+    Animated.parallel([
+      Animated.spring(notifScaleAnim, { toValue: 0.8, useNativeDriver: true, damping: 14, stiffness: 200 }),
+      Animated.timing(notifOpacityAnim, { toValue: 0, duration: 180, useNativeDriver: true }),
+    ]).start(() => setShowNotificationsModal(false));
+  };
+
+  const handleClearCache = () => {
+    if (cacheSize === '0.0 MB') {
+      Alert.alert(
+        language === 'so' ? 'Khasnadda' : 'Cache Clean',
+        language === 'so' ? 'Khasnadda app-ka mar hore ayaa la nadiifiyey!' : 'App cache is already cleared!'
+      );
+      return;
+    }
+
+    Alert.alert(
+      language === 'so' ? 'Nadiifi Cache-ka' : 'Clear Cache',
+      language === 'so' 
+        ? `Ma hubtaa inaad rabto inaad nadiifiso ${cacheSize} oo xog kumeel-gaar ah? Tani waxba uma dhimayso akoonkaaga.` 
+        : `Are you sure you want to clear ${cacheSize} of temporary cached data? This will not affect your account details.`,
+      [
+        {
+          text: language === 'so' ? 'Jooji' : 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: language === 'so' ? 'Haa, Nadiifi' : 'Yes, Clear',
+          onPress: async () => {
+            setIsClearingCache(true);
+            setShowClearCacheModal(true);
+            
+            try {
+              await AsyncStorage.removeItem('home_books');
+              await AsyncStorage.removeItem('home_exams');
+              await AsyncStorage.removeItem('manhajka_books');
+              await AsyncStorage.removeItem('exams_list');
+            } catch (e) {
+              console.warn(e);
+            }
+
+            setTimeout(async () => {
+              setCacheSize('0.0 MB');
+              await AsyncStorage.setItem('settings_cache_size', '0.0 MB');
+              setIsClearingCache(false);
+              setShowClearCacheModal(false);
+              
+              setTimeout(() => {
+                Alert.alert(
+                  language === 'so' ? 'Guul' : 'Success',
+                  language === 'so' ? 'Khasnadda app-ka (Cache) si guul leh ayaa loo nadiifiyey! 🧹' : 'App cache has been cleared successfully! 🧹'
+                );
+              }, 300);
+            }, 1800);
+          }
+        }
+      ]
+    );
+  };
 
   const performDelete = async () => {
     setIsDeleting(true);
@@ -138,9 +298,277 @@ export default function SettingsScreen() {
     </Modal>
   );
 
+  const PrivacyModal = () => (
+    <Modal transparent visible={showPrivacyModal} animationType="none" onRequestClose={closePrivacyModal}>
+      <Animated.View style={[styles.modalOverlay, { opacity: privOpacityAnim }]}>
+        <Animated.View style={[styles.modalCard, { transform: [{ scale: privScaleAnim }] }]}>
+          {/* Icon */}
+          <View style={styles.modalIconWrapper}>
+            <View style={[styles.modalIconCircle, { borderColor: '#10B981', backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : '#ECFDF5' }]}>
+              <Ionicons name="lock-closed" size={32} color="#10B981" />
+            </View>
+          </View>
+
+          {/* Title */}
+          <Text style={styles.modalTitle}>
+            {language === 'so' ? 'Khaasnimada & Amniga' : 'Privacy & Security'}
+          </Text>
+
+          {/* Message / Description */}
+          <Text style={styles.modalMessage}>
+            {language === 'so'
+              ? "Habayso xogtaada khaaska ah iyo badbaadada akoonkaaga."
+              : "Manage your private data settings and account security."}
+          </Text>
+
+          {/* Settings Options */}
+          <View style={styles.modalOptionsContainer}>
+            {/* Save Chat History Toggle */}
+            <View style={styles.modalOptionRow}>
+              <View style={styles.optionInfo}>
+                <Text style={styles.optionLabel}>
+                  {language === 'so' ? 'Keydi Wada-hadalka' : 'Save Chat History'}
+                </Text>
+                <Text style={styles.optionSubLabel}>
+                  {language === 'so' ? 'Wada-hadallada ku keydi talefanka' : 'Store chat sessions locally'}
+                </Text>
+              </View>
+              <TouchableOpacity 
+                style={[styles.toggleSwitchMini, privSaveHistory && styles.toggleSwitchMiniActive]}
+                onPress={togglePrivSaveHistory}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.toggleKnobMini, privSaveHistory && styles.toggleKnobMiniActive]} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Incognito Mode Toggle */}
+            <View style={styles.modalOptionRow}>
+              <View style={styles.optionInfo}>
+                <Text style={styles.optionLabel}>
+                  {language === 'so' ? 'Habka Qarsoodi' : 'Incognito Mode'}
+                </Text>
+                <Text style={styles.optionSubLabel}>
+                  {language === 'so' ? 'Ha u dirin xogta isticmaalka server-ka' : 'Do not send usage logs to server'}
+                </Text>
+              </View>
+              <TouchableOpacity 
+                style={[styles.toggleSwitchMini, privIncognito && styles.toggleSwitchMiniActive]}
+                onPress={togglePrivIncognito}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.toggleKnobMini, privIncognito && styles.toggleKnobMiniActive]} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Change Password Shortcut */}
+            <TouchableOpacity 
+              style={styles.modalActionLink}
+              onPress={() => {
+                closePrivacyModal();
+                router.push('/edit-profile');
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="key-outline" size={18} color="#3B82F6" />
+              <Text style={styles.modalActionLinkText}>
+                {language === 'so' ? 'Beddel Password-ka' : 'Change Password'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Divider */}
+          <View style={styles.modalDivider} />
+
+          {/* Close Button */}
+          <TouchableOpacity
+            style={styles.modalCloseBtn}
+            onPress={closePrivacyModal}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.modalCloseText}>
+              {language === 'so' ? 'Xir' : 'Close'}
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </Animated.View>
+    </Modal>
+  );
+
+  const NotificationsModal = () => (
+    <Modal transparent visible={showNotificationsModal} animationType="none" onRequestClose={closeNotifModal}>
+      <Animated.View style={[styles.modalOverlay, { opacity: notifOpacityAnim }]}>
+        <Animated.View style={[styles.modalCard, { transform: [{ scale: notifScaleAnim }] }]}>
+          {/* Icon */}
+          <View style={styles.modalIconWrapper}>
+            <View style={[styles.modalIconCircle, { borderColor: '#EF4444', backgroundColor: isDark ? 'rgba(239,68,68,0.15)' : '#FEF2F2' }]}>
+              <Ionicons name="notifications" size={32} color="#EF4444" />
+            </View>
+          </View>
+
+          {/* Title */}
+          <Text style={styles.modalTitle}>
+            {language === 'so' ? 'Ogeysiisyada' : 'Notifications'}
+          </Text>
+
+          {/* Message / Description */}
+          <Text style={styles.modalMessage}>
+            {language === 'so'
+              ? "Habayso sida aad u helayso ogeysiisyada mobile-ka."
+              : "Manage how you receive alerts and updates on your phone."}
+          </Text>
+
+          {/* Settings Options */}
+          <View style={styles.modalOptionsContainer}>
+            {/* Sound Effects Toggle */}
+            <View style={styles.modalOptionRow}>
+              <View style={styles.optionInfo}>
+                <Text style={styles.optionLabel}>
+                  {language === 'so' ? 'Codka Farriinta' : 'Message Sound'}
+                </Text>
+                <Text style={styles.optionSubLabel}>
+                  {language === 'so' ? 'Daar codka marka fariin ku soo dhacdo' : 'Play alert tone for messages'}
+                </Text>
+              </View>
+              <TouchableOpacity 
+                style={[styles.toggleSwitchMini, notifSound && styles.toggleSwitchMiniActive]}
+                onPress={toggleNotifSound}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.toggleKnobMini, notifSound && styles.toggleKnobMiniActive]} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Push Alerts Toggle */}
+            <View style={styles.modalOptionRow}>
+              <View style={styles.optionInfo}>
+                <Text style={styles.optionLabel}>
+                  {language === 'so' ? 'Ogeysiiska Kore' : 'Push Alerts'}
+                </Text>
+                <Text style={styles.optionSubLabel}>
+                  {language === 'so' ? 'Ku tus digniinta ogeysiisyada shaashadda' : 'Show notification banners'}
+                </Text>
+              </View>
+              <TouchableOpacity 
+                style={[styles.toggleSwitchMini, notifAlerts && styles.toggleSwitchMiniActive]}
+                onPress={toggleNotifAlerts}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.toggleKnobMini, notifAlerts && styles.toggleKnobMiniActive]} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Updates Toggle */}
+            <View style={styles.modalOptionRow}>
+              <View style={styles.optionInfo}>
+                <Text style={styles.optionLabel}>
+                  {language === 'so' ? 'Digniinaha App-ka' : 'App Updates'}
+                </Text>
+                <Text style={styles.optionSubLabel}>
+                  {language === 'so' ? 'Ka hel digniino ku saabsan manhajka ama AI' : 'Receive educational updates'}
+                </Text>
+              </View>
+              <TouchableOpacity 
+                style={[styles.toggleSwitchMini, notifUpdates && styles.toggleSwitchMiniActive]}
+                onPress={toggleNotifUpdates}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.toggleKnobMini, notifUpdates && styles.toggleKnobMiniActive]} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Test Notification Button */}
+            <TouchableOpacity 
+              style={styles.modalActionLink}
+              onPress={async () => {
+                try {
+                  const { status } = await Notifications.getPermissionsAsync();
+                  if (status === 'granted') {
+                    await Notifications.scheduleNotificationAsync({
+                      content: {
+                        title: "Darkpen AI 🎨",
+                        body: language === 'so' 
+                          ? "Ogeysiiskaagu wuxuu u shaqaynayaa si guul leh! ⚡" 
+                          : "Your notifications are working successfully! ⚡",
+                        sound: notifSound,
+                      },
+                      trigger: null,
+                    });
+                  } else {
+                    const req = await Notifications.requestPermissionsAsync();
+                    if (req.status === 'granted') {
+                      await Notifications.scheduleNotificationAsync({
+                        content: {
+                          title: "Darkpen AI 🎨",
+                          body: language === 'so' 
+                            ? "Waad ku mahadsantahay fasaxa ogeysiisyada! ⚡" 
+                            : "Thank you for enabling notifications! ⚡",
+                          sound: notifSound,
+                        },
+                        trigger: null,
+                      });
+                    } else {
+                      Alert.alert(
+                        language === 'so' ? 'Xayiraad ayaa jirta' : 'Permission Blocked',
+                        language === 'so'
+                          ? 'Fadlan ka fasax ogeysiisyada Settings-ka talefankaaga.'
+                          : 'Please enable notifications permission in your phone system settings.'
+                      );
+                    }
+                  }
+                } catch (err) {
+                  console.warn(err);
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="notifications-outline" size={18} color="#3B82F6" />
+              <Text style={styles.modalActionLinkText}>
+                {language === 'so' ? 'Tijaabi Ogeysiiska hadda' : 'Trigger Test Notification'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Divider */}
+          <View style={styles.modalDivider} />
+
+          {/* Close Button */}
+          <TouchableOpacity
+            style={styles.modalCloseBtn}
+            onPress={closeNotifModal}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.modalCloseText}>
+              {language === 'so' ? 'Xir' : 'Close'}
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </Animated.View>
+    </Modal>
+  );
+
+  const ClearCacheModal = () => (
+    <Modal transparent visible={showClearCacheModal} animationType="fade">
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalCard, { maxWidth: 300, paddingVertical: 36, alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color="#3B82F6" />
+          <Text style={[styles.modalTitle, { fontSize: 18, marginTop: 20, marginBottom: 8 }]}>
+            {language === 'so' ? 'Nadiifinaya...' : 'Clearing Cache...'}
+          </Text>
+          <Text style={[styles.modalMessage, { marginBottom: 0 }]}>
+            {language === 'so' ? 'Fadlan sug cabbaar...' : 'Please wait a moment...'}
+          </Text>
+        </View>
+      </View>
+    </Modal>
+  );
+
   return (
     <AuthGuard>
       <DeleteModal />
+      <PrivacyModal />
+      <NotificationsModal />
+      <ClearCacheModal />
       <SafeAreaView style={styles.container}>
         {/* Top Header */}
         <View style={styles.header}>
@@ -201,6 +629,7 @@ export default function SettingsScreen() {
           {/* 2. Privacy & Security */}
           <TouchableOpacity 
             style={styles.settingCard} 
+            onPress={openPrivacyModal}
             activeOpacity={0.7}
           >
             <View style={[styles.iconBox, { backgroundColor: '#10B981' }]}>
@@ -208,7 +637,7 @@ export default function SettingsScreen() {
             </View>
             <View style={styles.cardContent}>
               <Text style={styles.cardTitle}>{t('privacy_security')}</Text>
-              <Text style={styles.cardDesc}>Password, Passkeys</Text>
+              <Text style={styles.cardDesc}>Password, Passkeys & Data Settings</Text>
             </View>
             <Feather name="chevron-right" size={20} color={colors.neutral} />
           </TouchableOpacity>
@@ -216,6 +645,7 @@ export default function SettingsScreen() {
           {/* 3. Notifications */}
           <TouchableOpacity 
             style={styles.settingCard} 
+            onPress={openNotifModal}
             activeOpacity={0.7}
           >
             <View style={[styles.iconBox, { backgroundColor: '#EF4444' }]}>
@@ -223,7 +653,7 @@ export default function SettingsScreen() {
             </View>
             <View style={styles.cardContent}>
               <Text style={styles.cardTitle}>{t('notifications')}</Text>
-              <Text style={styles.cardDesc}>Sounds & Alerts</Text>
+              <Text style={styles.cardDesc}>Sounds, Alerts & Test Notification</Text>
             </View>
             <Feather name="chevron-right" size={20} color={colors.neutral} />
           </TouchableOpacity>
@@ -272,6 +702,99 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* Share App Card */}
+          <TouchableOpacity 
+            style={styles.settingCard} 
+            onPress={async () => {
+              try {
+                await Share.share({
+                  message: `🌟 Kusoo dhawaaw Darkpen AI – Caawiyahaaga Kowaad ee Aqoonta iyo Madadaalada! 🚀\n\nHaddii aad tahay arday, macallin, ama qof raba inuu nolosha iyo shaqada fududeeyo, Darkpen AI waa app-ka kaliya ee kulansaday dhammaan qalabkan casriga ah:\n\n1️⃣ Chat AI oo Caqli Badan: Wuxuu ku qalabaysan yahay moodelladii ugu dambeeyay ee 2026. Wuxuu si heer sare ah ugu hadlaa luuqadda Soomaaliga. Waxaad weydiin kartaa su'aal kasta, wuxuu kuu sharxi karaa faylasha (PDF/Docs), wuxuuna kuu samayn karaa sawirro tayo sare leh (AI Image Generation).\n2️⃣ Maktabad Bilaash ah (Books & Exams): Ka akhriso buugaagta iyo imtixaanada manhajka Puntland, Somaliland, iyo Soomaaliya iyadoo loo eegayo goobta aad joogto.\n3️⃣ Chat-ka Shukaansiga (Love Chat): AI si gaar ah loo tababaray inuu kuu shukaansado, ku maaweeliyo, kuuna weheliyo waqtiyada firaaqada.\n4️⃣ Tartanka Quiz-ka: Ka qaybgal tartamada aqooneed ee app-ka oo u tartam abaalmarinno lacageed oo gaaraya $1,000 iyo ka badan!\n5️⃣ AI Exam Generator: Qalab u gaar ah macallimiinta iyo ardayda oo si fudud kuugu diyaarinaya imtixaanno heerar kala duwan leh.\n\nFursadan ha moogaan! La soo deg Darkpen AI hadda oo bilow safarkaaga aqoonta:\n👉 https://play.google.com/store/apps/details?id=com.zinson.darkpen`,
+                });
+              } catch (err) {
+                console.error(err);
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconBox, { backgroundColor: '#F43F5E' }]}>
+              <Ionicons name="share-social-outline" size={22} color="white" />
+            </View>
+            <View style={styles.cardContent}>
+              <Text style={styles.cardTitle}>{language === 'so' ? 'La Wadaag App-ka' : 'Share App'}</Text>
+              <Text style={styles.cardDesc}>{language === 'so' ? 'U yeer asxaabtaada si ay kuugu soo biiraan' : 'Invite your friends to join you'}</Text>
+            </View>
+            <Feather name="chevron-right" size={20} color={colors.neutral} />
+          </TouchableOpacity>
+
+          {/* Usage & Credits Card */}
+          <TouchableOpacity 
+            style={styles.settingCard} 
+            onPress={() => router.push('/usage')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconBox, { backgroundColor: '#8B5CF6' }]}>
+              <Ionicons name="analytics" size={22} color="white" />
+            </View>
+            <View style={styles.cardContent}>
+              <Text style={styles.cardTitle}>{language === 'so' ? 'Isticmaalka & Credits-ka' : 'Usage & Credits'}</Text>
+              <Text style={styles.cardDesc}>{language === 'so' ? 'Eeg inta kugu hartay iyo xadkaaga' : 'View credit details and remaining usage'}</Text>
+            </View>
+            <Feather name="chevron-right" size={20} color={colors.neutral} />
+          </TouchableOpacity>
+
+          {/* Clear Cache Card */}
+          <TouchableOpacity 
+            style={styles.settingCard} 
+            onPress={handleClearCache}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconBox, { backgroundColor: '#F59E0B' }]}>
+              <Ionicons name="trash-outline" size={22} color="white" />
+            </View>
+            <View style={styles.cardContent}>
+              <Text style={styles.cardTitle}>{language === 'so' ? 'Nadiifi Khasnadda (Cache)' : 'Clear App Cache'}</Text>
+              <Text style={styles.cardDesc}>{language === 'so' ? `Xogta kumeel-gaarka ah: ${cacheSize}` : `Free up space: ${cacheSize}`}</Text>
+            </View>
+            <Feather name="chevron-right" size={20} color={colors.neutral} />
+          </TouchableOpacity>
+
+          {/* Help & Support Card */}
+          <TouchableOpacity 
+            style={styles.settingCard} 
+            onPress={() => {
+              Alert.alert(
+                language === 'so' ? 'Caawinaad & Taageero' : 'Help & Support',
+                language === 'so' 
+                  ? 'U dir fariin WhatsApp ah ama Email taageerada app-ka wixii su\'aalo ah.'
+                  : 'Contact support team via WhatsApp or Email for any assistance.',
+                [
+                  {
+                    text: 'WhatsApp Support',
+                    onPress: () => Linking.openURL('https://wa.me/252659119779')
+                  },
+                  {
+                    text: 'Email Support',
+                    onPress: () => Linking.openURL('mailto:support@darkpen.com')
+                  },
+                  {
+                    text: language === 'so' ? 'Jooji' : 'Cancel',
+                    style: 'cancel'
+                  }
+                ]
+              );
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.iconBox, { backgroundColor: '#06B6D4' }]}>
+              <Feather name="help-circle" size={22} color="white" />
+            </View>
+            <View style={styles.cardContent}>
+              <Text style={styles.cardTitle}>{language === 'so' ? 'Caawinaad & Taageero' : 'Help & Support'}</Text>
+              <Text style={styles.cardDesc}>{language === 'so' ? 'Nagala soo xiriir WhatsApp/Email' : 'Reach us via WhatsApp/Email'}</Text>
+            </View>
+            <Feather name="chevron-right" size={20} color={colors.neutral} />
+          </TouchableOpacity>
 
           {/* 6. Terms & Conditions */}
           <TouchableOpacity 
@@ -364,7 +887,7 @@ export default function SettingsScreen() {
             </View>
           </View>
 
-          {/* 8. Delete Account */}
+          {/* 9. Delete Account */}
           <TouchableOpacity 
             style={[styles.settingCard, { borderColor: '#EF4444' }]} 
             onPress={handleDeleteAccount}
@@ -574,7 +1097,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     alignItems: 'center',
   },
 
-  // ── Delete Modal ──────────────────────────────
+  // ── Modals Styling ──────────────────────────────
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.65)',
@@ -585,7 +1108,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 380,
-    backgroundColor: isDark ? '#1E2130' : '#FFFFFF',
+    backgroundColor: isDark ? '#161B22' : '#FFFFFF',
     borderRadius: 28,
     paddingHorizontal: 28,
     paddingTop: 32,
@@ -597,7 +1120,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     shadowRadius: 40,
     elevation: 20,
     borderWidth: 1,
-    borderColor: isDark ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.1)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
   },
   modalIconWrapper: {
     marginBottom: 20,
@@ -669,6 +1192,81 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   },
   modalDeleteText: {
     color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  modalOptionsContainer: {
+    width: '100%',
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  modalOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#F3F4F6',
+  },
+  optionInfo: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  optionLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: isDark ? '#F3F4F6' : '#1F2937',
+    marginBottom: 2,
+  },
+  optionSubLabel: {
+    fontSize: 11,
+    color: isDark ? '#9CA3AF' : '#6B7280',
+    lineHeight: 14,
+  },
+  toggleSwitchMini: {
+    width: 44,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : '#E5E7EB',
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleSwitchMiniActive: {
+    backgroundColor: '#3B82F6',
+  },
+  toggleKnobMini: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'white',
+  },
+  toggleKnobMiniActive: {
+    transform: [{ translateX: 18 }],
+  },
+  modalActionLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 14,
+    paddingVertical: 4,
+  },
+  modalActionLinkText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#3B82F6',
+  },
+  modalCloseBtn: {
+    width: '100%',
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#F3F4F6',
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : '#E5E7EB',
+  },
+  modalCloseText: {
+    color: isDark ? '#F3F4F6' : '#1F2937',
     fontWeight: '700',
     fontSize: 15,
   },

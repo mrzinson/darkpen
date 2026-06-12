@@ -44,29 +44,50 @@ export default function BillingScreen() {
     {
       id: 'pay_as_you_go',
       title: 'Pay as you go',
-      price: userCountry === 'Somaliland' ? '$0.5' : '$1.00',
+      price: '$0.5',
       somaliland: userCountry === 'Somaliland' ? '5,000 SL Shilling' : '',
-      description: 'Ku hel 100 Credits ',
+      description: 'Ku hel credits si aad u tijaabiso awoodda AI-da.',
       color: '#0A84FF',
-      icon: 'flash'
+      icon: 'flash',
+      expiry: 'Weligii ma dhacayo (No expiry)',
+      benefits: '100 Credits (Dhibcood)',
+      features: [
+        'Ku weydii su\'aalo caadi ah chat-ka',
+        'Ka jarista credit-ka ku xiran isticmaalkaaga',
+        'Ku habboon tijaabada iyo adeegsiga yar yar'
+      ]
     },
     {
       id: 'monthly_basic',
       title: 'Bille (Basic)',
       price: '$3',
       somaliland: userCountry === 'Somaliland' ? '30,000 SL Shilling' : '',
-      description: 'Isticmaal chat-ka hal bil adiga oo aan xadidnayn.',
+      description: 'Qorshe aan xadidnayn oo wada-hadalka AI ah.',
       color: '#32D74B',
-      icon: 'calendar'
+      icon: 'calendar',
+      expiry: '30 Maalmood ka dib (Expires in 30 days)',
+      benefits: 'Hal bil oo chat aan xaddidnayn ah',
+      features: [
+        'Wada-hadal iyo caawinaad aan xaddidnayn',
+        'Ku shaqeeya moodelka caadiga ah (Basic model)',
+        'Kuma habboona xallinta xisaabaadka aadka u adag'
+      ]
     },
     {
       id: 'monthly_premium',
       title: 'Bille (Premium)',
       price: '$11',
       somaliland: userCountry === 'Somaliland' ? '110,000 SL Shilling' : '',
-      description: 'Hel AI model aad uga awood badan kuwii hore uu kuu qaban qara shaqo kasta oo aad ubaahato.',
-      color: '#3882f6',
-      icon: 'star'
+      description: 'Hel moodelka AI ee ugu awoodda iyo casrisan.',
+      color: '#EAB308',
+      icon: 'star',
+      expiry: '30 Maalmood ka dib (Expires in 30 days)',
+      benefits: 'Chat aan xaddidnayn + Moodelka premium-ka ah',
+      features: [
+        'Xallinta su\'aalaha adag iyo Xisaabaadka (Math & Science)',
+        'Sawirro ku wareejinta iyo crop-gareynta imtixaannada',
+        'Jawaabo aad u degdeg badan oo sax ah 100%'
+      ]
     }
   ];
 
@@ -93,7 +114,7 @@ export default function BillingScreen() {
         <Text style={styles.subtitle}>Si aad u sii wadato isticmaalka Darkpen AI, fadlan dooro mid ka mid ah BIILLESHAN.</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Pending Payment Notice Card */}
         {paymentStatus === 'pending' && (
           <View style={{
@@ -104,7 +125,8 @@ export default function BillingScreen() {
             padding: 16,
             flexDirection: 'row',
             alignItems: 'center',
-            gap: 12
+            gap: 12,
+            marginBottom: 8
           }}>
             <Ionicons name="time" size={28} color="#D97706" />
             <View style={{ flex: 1 }}>
@@ -117,27 +139,64 @@ export default function BillingScreen() {
             </View>
           </View>
         )}
+
         {plans.map((plan) => (
           <TouchableOpacity 
             key={plan.id} 
-            style={{ ...styles.planCard, borderLeftColor: plan.color }}
+            style={[styles.planCard, { borderLeftColor: plan.color }]}
             onPress={() => handleSelect(plan)}
-            activeOpacity={0.7}
+            activeOpacity={0.8}
           >
-            <View style={styles.planInfo}>
-              <View style={{ ...styles.iconContainer, backgroundColor: plan.color + '20' }}>
-                <Ionicons name={plan.icon as any} size={24} color={plan.color} />
+            {/* Card Header: Icon & Plan Title & Price */}
+            <View style={styles.cardHeader}>
+              <View style={styles.planHeaderLeft}>
+                <View style={{ ...styles.iconContainer, backgroundColor: plan.color + '20' }}>
+                  <Ionicons name={plan.icon as any} size={24} color={plan.color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.planTitle}>{plan.title}</Text>
+                  <Text style={styles.planDescText}>{plan.description}</Text>
+                </View>
               </View>
-              <View style={styles.planText}>
-                <Text style={styles.planTitle}>{plan.title}</Text>
-                <Text style={styles.planDesc}>{plan.description}</Text>
+              <View style={styles.planPriceSection}>
+                <Text style={{ ...styles.priceText, color: plan.color }}>{plan.price}</Text>
+                {plan.somaliland ? <Text style={styles.slText}>{plan.somaliland}</Text> : null}
               </View>
             </View>
-            <View style={styles.planPrice}>
-              <Text style={{ ...styles.priceText, color: plan.color }}>{plan.price}</Text>
-              <Text style={styles.slText}>{plan.somaliland}</Text>
-              <Ionicons name="chevron-forward" size={20} color={colors.neutral} />
+
+            {/* Plan Specs: Benefits & Expiry */}
+            <View style={styles.specsContainer}>
+              <View style={styles.specRow}>
+                <Ionicons name="gift-outline" size={16} color={plan.color} />
+                <Text style={styles.specLabel}>Waxa aad helayso: <Text style={styles.specValue}>{plan.benefits}</Text></Text>
+              </View>
+              <View style={styles.specRow}>
+                <Ionicons name="time-outline" size={16} color={plan.color} />
+                <Text style={styles.specLabel}>Goorta uu dhacayo: <Text style={styles.specValue}>{plan.expiry}</Text></Text>
+              </View>
             </View>
+
+            {/* Divider */}
+            <View style={styles.divider} />
+
+            {/* Features List */}
+            <View style={styles.featuresList}>
+              <Text style={styles.featuresTitle}>Awoodaha qorshahan:</Text>
+              {plan.features.map((feature, idx) => (
+                <View key={idx} style={styles.featureItem}>
+                  <Ionicons name="checkmark-circle" size={16} color={plan.color} />
+                  <Text style={styles.featureText}>{feature}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Select Plan Button */}
+            <TouchableOpacity 
+              style={[styles.selectBtn, { backgroundColor: plan.color }]}
+              onPress={() => handleSelect(plan)}
+            >
+              <Text style={styles.selectBtnText}>Dooro Qorshahan →</Text>
+            </TouchableOpacity>
           </TouchableOpacity>
         ))}
 
@@ -189,21 +248,14 @@ const getStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: 16,
     padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     borderLeftWidth: 6,
+    marginBottom: 8,
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1, shadowRadius: 8 },
       android: { elevation: 4 }
     })
-  },
-  planInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 15,
   },
   iconContainer: {
     width: 48,
@@ -212,22 +264,99 @@ const getStyles = (colors: any) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  planText: {
-    flex: 1,
-  },
   planTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: colors.secondary,
     marginBottom: 4,
   },
-  planDesc: {
-    fontSize: 13,
-    color: colors.neutral,
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    width: '100%',
+    marginBottom: 12,
+    gap: 12,
   },
-  planPrice: {
+  planHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  planPriceSection: {
     alignItems: 'flex-end',
     gap: 2,
+  },
+  planDescText: {
+    fontSize: 13,
+    color: colors.textLight || '#64748B',
+    lineHeight: 18,
+  },
+  specsContainer: {
+    backgroundColor: colors.tertiary || '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+    gap: 8,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: colors.border || '#E2E8F0',
+  },
+  specRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  specLabel: {
+    fontSize: 13,
+    color: colors.neutral,
+    fontWeight: '600',
+  },
+  specValue: {
+    color: colors.text,
+    fontWeight: '700',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border || '#E2E8F0',
+    marginVertical: 12,
+  },
+  featuresList: {
+    gap: 8,
+    marginBottom: 16,
+  },
+  featuresTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.secondary,
+    marginBottom: 4,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  featureText: {
+    fontSize: 13,
+    color: colors.text,
+    lineHeight: 18,
+  },
+  selectBtn: {
+    width: '100%',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  selectBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
   },
   priceText: {
     fontSize: 20,

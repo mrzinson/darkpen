@@ -126,6 +126,21 @@ export default function ProfileScreen() {
                   </Text>
                 </View>
               </View>
+
+              <View style={styles.divider} />
+
+              <TouchableOpacity 
+                style={styles.infoRow}
+                onPress={() => router.push('/usage')}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="pie-chart-outline" size={22} color={colors.primary} />
+                <View style={styles.infoTextContainer}>
+                  <Text style={styles.infoLabel}>Isticmaalka & Xogta (Usage)</Text>
+                  <Text style={styles.infoValue}>Eeg kharashka ku baxay</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.neutral} style={{ marginRight: 4 }} />
+              </TouchableOpacity>
             </View>
 
             <TouchableOpacity 

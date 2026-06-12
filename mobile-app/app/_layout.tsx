@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { Stack, useSegments } from 'expo-router';
 import { useFonts } from 'expo-font';
 import { Ionicons, Feather, FontAwesome, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as SplashScreen from 'expo-splash-screen';
@@ -9,6 +9,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { showCustomAlert } from '../utils/customAlert';
 import { CustomAlert } from '../components/CustomAlert';
+import { usePushNotifications } from '../hooks/usePushNotifications';
+import Config from '../constants/Config';
 
 
 // Monkey patch AsyncStorage to securely encrypt JWT token using expo-secure-store
@@ -159,6 +161,32 @@ function RootStack() {
 }
 
 export default function RootLayout() {
+  const { expoPushToken } = usePushNotifications();
+  const segments = useSegments();
+
+  useEffect(() => {
+    async function saveToken() {
+      if (!expoPushToken?.data) return;
+      try {
+        const userToken = await AsyncStorage.getItem('userToken');
+        if (!userToken) return;
+        
+        await fetch(`${Config.API_URL}/api/auth/push-token`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${userToken}`
+          },
+          body: JSON.stringify({ token: expoPushToken.data })
+        });
+        console.log('[PUSH] Push token registered successfully with backend.');
+      } catch (err) {
+        console.error('[PUSH] Error saving push token:', err);
+      }
+    }
+    saveToken();
+  }, [expoPushToken, segments]);
+
   const [loaded, error] = useFonts({
     'Inter_400Regular': require('../assets/fonts/Inter-Regular.ttf'),
     'Inter_500Medium': require('../assets/fonts/Inter-Medium.ttf'),

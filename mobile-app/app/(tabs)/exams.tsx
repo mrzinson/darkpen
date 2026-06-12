@@ -89,9 +89,23 @@ export default function ExamsScreen() {
     const matchesCategory = activeCategory === 'All' || (exam.category && exam.category === activeCategory);
     const matchesYear = activeYear === 'All' || (exam.year && exam.year === activeYear);
     const matchesGrade = activeGrade === 'All' || (exam.grade && (
-      exam.grade.toLowerCase() === activeGrade.toLowerCase() || 
-      (activeGrade === 'Class 8' && (exam.grade.toLowerCase().includes('8') || exam.grade.toLowerCase().includes('eight'))) ||
-      (activeGrade === 'Form 4' && (exam.grade.toLowerCase().includes('form 4') || exam.grade.toLowerCase().includes('form4') || exam.grade.toLowerCase().includes('four')))
+      String(exam.grade).toLowerCase() === activeGrade.toLowerCase() || 
+      (activeGrade === 'Class 8' && (
+        String(exam.grade).toLowerCase().includes('8') || 
+        String(exam.grade).toLowerCase().includes('eight') ||
+        String(exam.grade).toLowerCase().includes('class 8') ||
+        String(exam.grade).toLowerCase().includes('grade 8') ||
+        String(exam.grade).toLowerCase().includes('8aad') ||
+        String(exam.grade).toLowerCase().includes('8-aad')
+      )) ||
+      (activeGrade === 'Form 4' && (
+        String(exam.grade).toLowerCase().includes('form 4') || 
+        String(exam.grade).toLowerCase().includes('form4') || 
+        String(exam.grade).toLowerCase().includes('four') ||
+        String(exam.grade).toLowerCase().includes('4') ||
+        String(exam.grade).toLowerCase().includes('grade 12') ||
+        String(exam.grade).toLowerCase().includes('12')
+      ))
     ));
     const examTitle = exam.title || '';
     const matchesSearch = examTitle.toLowerCase().includes(searchQuery.toLowerCase());
@@ -105,9 +119,23 @@ export default function ExamsScreen() {
     exams.forEach(exam => {
       const matchesCategory = activeCategory === 'All' || exam.category === activeCategory;
       const matchesGrade = activeGrade === 'All' || (exam.grade && (
-        exam.grade.toLowerCase() === activeGrade.toLowerCase() || 
-        (activeGrade === 'Class 8' && (exam.grade.toLowerCase().includes('8') || exam.grade.toLowerCase().includes('eight'))) ||
-        (activeGrade === 'Form 4' && (exam.grade.toLowerCase().includes('form 4') || exam.grade.toLowerCase().includes('form4') || exam.grade.toLowerCase().includes('four')))
+        String(exam.grade).toLowerCase() === activeGrade.toLowerCase() || 
+        (activeGrade === 'Class 8' && (
+          String(exam.grade).toLowerCase().includes('8') || 
+          String(exam.grade).toLowerCase().includes('eight') ||
+          String(exam.grade).toLowerCase().includes('class 8') ||
+          String(exam.grade).toLowerCase().includes('grade 8') ||
+          String(exam.grade).toLowerCase().includes('8aad') ||
+          String(exam.grade).toLowerCase().includes('8-aad')
+        )) ||
+        (activeGrade === 'Form 4' && (
+          String(exam.grade).toLowerCase().includes('form 4') || 
+          String(exam.grade).toLowerCase().includes('form4') || 
+          String(exam.grade).toLowerCase().includes('four') ||
+          String(exam.grade).toLowerCase().includes('4') ||
+          String(exam.grade).toLowerCase().includes('grade 12') ||
+          String(exam.grade).toLowerCase().includes('12')
+        ))
       ));
       if (matchesCategory && matchesGrade) {
         if (exam.year) years.add(exam.year);
@@ -475,7 +503,7 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     color: isDark ? colors.textLight : '#2563EB',
   },
   yearTextActive: {
-    color: isDark ? colors.card : '#FFFFFF',
+    color: '#FFFFFF',
   },
   aiBanner: {
     marginBottom: 16,
