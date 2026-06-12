@@ -1,5 +1,6 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
+const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
 const db = require('../config/db');
@@ -15,6 +16,13 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 let client = null;
+
+// QR Code and bot status tracking
+let botStatus = 'initializing'; // 'initializing' | 'qr_ready' | 'connected' | 'disconnected' | 'error'
+let currentQRDataURL = null;    // Base64 QR image for the /api/whatsapp/qr endpoint
+
+exports.getBotStatus = () => botStatus;
+exports.getQRCode = () => currentQRDataURL;
 
 // Initialize function
 exports.initialize = async () => {
@@ -98,11 +106,19 @@ exports.initialize = async () => {
         });
 
         // Event: QR code generation
-        client.on('qr', (qr) => {
+        client.on('qr', async (qr) => {
             console.log('\n--- WHATSAPP QR CODE ---');
-            console.log('Fadlan scan-garee QR Code-kan si aad u kiciso bot-ka:');
+            console.log('Fadlan browser-ka u tag: /api/whatsapp/qr si aad QR-ka u sawirto');
             qrcode.generate(qr, { small: true });
             console.log('------------------------\n');
+            // Store QR as base64 image for the API endpoint
+            try {
+                currentQRDataURL = await QRCode.toDataURL(qr, { width: 400, margin: 2 });
+                botStatus = 'qr_ready';
+                console.log('[WHATSAPP BOT] QR Code ready at /api/whatsapp/qr');
+            } catch (err) {
+                console.error('[WHATSAPP BOT] Failed to generate QR image:', err.message);
+            }
         });
 
         // Event: Loading progress
@@ -112,7 +128,16 @@ exports.initialize = async () => {
 
         // Event: Ready
         client.on('ready', () => {
+            botStatus = 'connected';
+            currentQRDataURL = null; // clear QR once connected
             console.log('[WHATSAPP BOT] Client is ready and listening to messages!');
+        });
+
+        // Event: Disconnected
+        client.on('disconnected', (reason) => {
+            botStatus = 'disconnected';
+            currentQRDataURL = null;
+            console.log(`[WHATSAPP BOT] Disconnected: ${reason}`);
         });
 
         // Event: Call handling (Missed Call rejection)

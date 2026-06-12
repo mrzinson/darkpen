@@ -103,6 +103,60 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'API-gu wuu shaqaynayaa!' });
 });
 
+// WhatsApp Bot QR Code endpoint - scan this in the browser to connect the bot
+app.get('/api/whatsapp/qr', (req, res) => {
+    const whatsappBot = require('./services/whatsappBot');
+    const status = whatsappBot.getBotStatus();
+    const qrDataURL = whatsappBot.getQRCode();
+
+    if (status === 'connected') {
+        return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+        <title>WhatsApp Bot - Darkpen</title>
+        <style>body{font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#111;color:#fff;margin:0;}
+        .box{background:#1a1a1a;padding:40px;border-radius:16px;text-align:center;border:2px solid #25d366;}
+        h2{color:#25d366;} p{color:#aaa;}</style></head>
+        <body><div class="box"><h2>✅ WhatsApp Bot Wuu Xidhmay!</h2>
+        <p>Bot-ku wuu shaqaynayaa oo uu farriimahaaga u jawaabayaa.</p>
+        <p style="color:#555;font-size:12px;">Status: connected</p></div></body></html>`);
+    }
+
+    if (status === 'qr_ready' && qrDataURL) {
+        return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+        <meta http-equiv="refresh" content="30">
+        <title>WhatsApp Bot QR - Darkpen</title>
+        <style>body{font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#111;color:#fff;margin:0;}
+        .box{background:#1a1a1a;padding:40px;border-radius:16px;text-align:center;border:2px solid #25d366;max-width:500px;}
+        h2{color:#25d366;margin-bottom:8px;} p{color:#aaa;margin-bottom:20px;} img{border-radius:8px;background:#fff;padding:10px;}
+        .timer{color:#555;font-size:12px;margin-top:16px;}</style></head>
+        <body><div class="box">
+        <h2>📱 WhatsApp Scan QR Code</h2>
+        <p>WhatsApp app-kaaga fur → Linked Devices → Link a Device → QR-kan sawir</p>
+        <img src="${qrDataURL}" alt="QR Code" width="300" height="300">
+        <p class="timer">⏱️ Boggan 30 ilbiriqsi kasta ayuu is-cusbooneysiin doonaa.</p>
+        </div></body></html>`);
+    }
+
+    return res.send(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <meta http-equiv="refresh" content="5">
+    <title>WhatsApp Bot - Darkpen</title>
+    <style>body{font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:#111;color:#fff;margin:0;}
+    .box{background:#1a1a1a;padding:40px;border-radius:16px;text-align:center;border:2px solid #555;}
+    h2{color:#fff;} p{color:#aaa;} .spin{font-size:40px;animation:spin 1s linear infinite;}
+    @keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}</style></head>
+    <body><div class="box"><div class="spin">⏳</div>
+    <h2>Bot wuu kici jirayaa...</h2>
+    <p>Status: <strong>${status}</strong></p>
+    <p>Boggan 5 ilbiriqsi kasta ayuu is-cusbooneysiin doonaa. Sug...</p>
+    </div></body></html>`);
+});
+
+// WhatsApp Bot status JSON endpoint
+app.get('/api/whatsapp/status', (req, res) => {
+    const whatsappBot = require('./services/whatsappBot');
+    res.json({ status: whatsappBot.getBotStatus() });
+});
+
+
 app.get('/api/db-test', async (req, res) => {
     const db = require('./config/db');
     try {
