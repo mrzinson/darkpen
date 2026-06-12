@@ -8,6 +8,7 @@ const { askGemini, transcribeAudio } = require('./aiService');
 const { normalizePhoneNumber } = require('./verificationService');
 const { tryUseFreeAI } = require('../utils/freeUsageHelper');
 const { logAIUsage } = require('../utils/aiLogger');
+const AdmZip = require('adm-zip');
 
 // Create temp directory for voice notes if it doesn't exist
 const uploadsDir = path.join(__dirname, '../uploads');
@@ -24,10 +25,119 @@ let currentQRDataURL = null;    // Base64 QR image for the /api/whatsapp/qr endp
 exports.getBotStatus = () => botStatus;
 exports.getQRCode = () => currentQRDataURL;
 
+// Database session persistence functions
+async function restoreSessionFromDatabase() {
+    try {
+        console.log('[WHATSAPP BOT] Checking database for saved session...');
+        
+        // 1. Create table if not exists
+        await db.execute(`
+            CREATE TABLE IF NOT EXISTS whatsapp_sessions (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                session_key VARCHAR(255) UNIQUE,
+                session_data LONGBLOB,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        `);
+
+        // 2. Query session
+        const [rows] = await db.execute(
+            'SELECT session_data FROM whatsapp_sessions WHERE session_key = "default" LIMIT 1'
+        );
+
+        if (rows.length === 0) {
+            console.log('[WHATSAPP BOT] No saved session found in database.');
+            return false;
+        }
+
+        console.log('[WHATSAPP BOT] Saved session found! Restoring...');
+        const zipBuffer = rows[0].session_data;
+        
+        const authDir = path.join(__dirname, '../.wwebjs_auth');
+        
+        // Clear any existing auth directory to prevent corruption
+        if (fs.existsSync(authDir)) {
+            fs.rmSync(authDir, { recursive: true, force: true });
+        }
+        
+        fs.mkdirSync(authDir, { recursive: true });
+
+        // Save buffer to temporary file
+        const tempZipPath = path.join(__dirname, '../session_temp.zip');
+        fs.writeFileSync(tempZipPath, zipBuffer);
+
+        // Extract using adm-zip
+        const zip = new AdmZip(tempZipPath);
+        zip.extractAllTo(authDir, true);
+
+        // Delete temporary file
+        fs.unlinkSync(tempZipPath);
+
+        console.log('[WHATSAPP BOT] Session restored successfully.');
+        return true;
+    } catch (err) {
+        console.error('[WHATSAPP BOT] Failed to restore session from database:', err);
+        return false;
+    }
+}
+
+async function backupSessionToDatabase() {
+    try {
+        const authDir = path.join(__dirname, '../.wwebjs_auth');
+        if (!fs.existsSync(authDir)) {
+            console.warn('[WHATSAPP BOT] No auth directory found to backup.');
+            return;
+        }
+
+        console.log('[WHATSAPP BOT] Zipping session files...');
+        const zip = new AdmZip();
+
+        // Helper to recursively add files, skipping cache folders
+        function addFolderRecursively(localDir, zipPath) {
+            if (!fs.existsSync(localDir)) return;
+            const items = fs.readdirSync(localDir);
+            for (const item of items) {
+                const fullLocalPath = path.join(localDir, item);
+                const fullZipPath = zipPath ? `${zipPath}/${item}` : item;
+                const stat = fs.statSync(fullLocalPath);
+
+                if (stat.isDirectory()) {
+                    // Skip bulky cache directories to keep blob small and fast
+                    if (['Cache', 'Code Cache', 'GPUCache', 'CacheStorage', 'ScriptCache', 'Service Worker'].includes(item)) {
+                        continue;
+                    }
+                    addFolderRecursively(fullLocalPath, fullZipPath);
+                } else {
+                    zip.addLocalFile(fullLocalPath, zipPath);
+                }
+            }
+        }
+
+        addFolderRecursively(authDir, '');
+        
+        const zipBuffer = zip.toBuffer();
+        console.log(`[WHATSAPP BOT] Session zipped. Size: ${(zipBuffer.length / 1024 / 1024).toFixed(2)} MB`);
+
+        // Save to database
+        await db.execute(
+            `INSERT INTO whatsapp_sessions (session_key, session_data) 
+             VALUES ('default', ?) 
+             ON DUPLICATE KEY UPDATE session_data = ?, updated_at = CURRENT_TIMESTAMP`,
+            [zipBuffer, zipBuffer]
+        );
+        console.log('[WHATSAPP BOT] Session backed up to database successfully.');
+    } catch (err) {
+        console.error('[WHATSAPP BOT] Session backup to database failed:', err);
+    }
+}
+
 // Initialize function
 exports.initialize = async () => {
     try {
         console.log('[WHATSAPP BOT] Initializing...');
+
+        // Restore auth session from database if available
+        await restoreSessionFromDatabase();
 
         // 1. Create table whatsapp_cooldowns if not exists
         await db.execute(`
@@ -169,13 +279,31 @@ exports.initialize = async () => {
             botStatus = 'connected';
             currentQRDataURL = null; // clear QR once connected
             console.log('[WHATSAPP BOT] Client is ready and listening to messages!');
+            
+            // Backup session to database after 10 seconds to ensure all initial files are written
+            setTimeout(async () => {
+                try {
+                    console.log('[WHATSAPP BOT] Starting database session backup...');
+                    await backupSessionToDatabase();
+                } catch (backupErr) {
+                    console.error('[WHATSAPP BOT] Session backup failed:', backupErr.message);
+                }
+            }, 10000);
         });
 
         // Event: Disconnected
-        client.on('disconnected', (reason) => {
+        client.on('disconnected', async (reason) => {
             botStatus = 'disconnected';
             currentQRDataURL = null;
             console.log(`[WHATSAPP BOT] Disconnected: ${reason}`);
+            
+            // Delete session from database on logout
+            try {
+                await db.execute('DELETE FROM whatsapp_sessions WHERE session_key = "default"');
+                console.log('[WHATSAPP BOT] Deleted session from database due to logout.');
+            } catch (delErr) {
+                console.error('[WHATSAPP BOT] Failed to delete session from DB:', delErr.message);
+            }
         });
 
         // Event: Call handling (Missed Call rejection)
