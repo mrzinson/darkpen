@@ -68,16 +68,42 @@ exports.initialize = async () => {
         // 2. Render Puppeteer cache path (auto-installed via npm run build)
         // 3. Common local paths (Windows / Linux)
         const puppeteerCacheDir = process.env.PUPPETEER_CACHE_DIR || '/opt/render/.cache/puppeteer';
-        const renderChromePath = `${puppeteerCacheDir}/chrome/linux-146.0.7680.31/chrome-linux64/chrome`;
+        
+        // Dynamically find Chrome in the Render cache directory in case the version changed
+        let renderChromePath = null;
+        if (fs.existsSync(puppeteerCacheDir)) {
+            try {
+                const chromeDir = path.join(puppeteerCacheDir, 'chrome');
+                if (fs.existsSync(chromeDir)) {
+                    const versions = fs.readdirSync(chromeDir);
+                    for (const version of versions) {
+                        const versionPath = path.join(chromeDir, version);
+                        if (fs.statSync(versionPath).isDirectory()) {
+                            const possibleExecutable = path.join(versionPath, 'chrome-linux64', 'chrome');
+                            if (fs.existsSync(possibleExecutable)) {
+                                renderChromePath = possibleExecutable;
+                                console.log(`[WHATSAPP BOT] Found Chrome dynamically in cache: ${renderChromePath}`);
+                                break;
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('[WHATSAPP BOT] Error scanning Puppeteer cache:', err.message);
+            }
+        }
 
         const possibleChromePaths = [
-            renderChromePath,                                                         // Render cloud
             '/usr/bin/google-chrome',                                                 // Linux system
             '/usr/bin/chromium-browser',                                              // Linux Chromium
             '/usr/bin/chromium',
             'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',             // Windows
             'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
         ];
+
+        if (renderChromePath) {
+            possibleChromePaths.unshift(renderChromePath);
+        }
 
         let foundChrome = null;
         for (const p of possibleChromePaths) {
