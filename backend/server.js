@@ -156,6 +156,11 @@ app.get('/api/whatsapp/status', (req, res) => {
     res.json({ status: whatsappBot.getBotStatus() });
 });
 
+// WhatsApp Cloud API Webhook verification (GET) and receipt (POST)
+const whatsappCloudBot = require('./services/whatsappCloudBot');
+app.get('/api/whatsapp/webhook', whatsappCloudBot.handleWebhookVerify);
+app.post('/api/whatsapp/webhook', whatsappCloudBot.handleWebhookPost);
+
 
 app.get('/api/db-test', async (req, res) => {
     const db = require('./config/db');
