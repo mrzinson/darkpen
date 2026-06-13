@@ -28,8 +28,9 @@ exports.getQRCode = () => currentQRDataURL;
 // Implements the RemoteAuth store interface so whatsapp-web.js can persist
 // the session inside our existing MySQL database instead of the local filesystem.
 class MySQLRemoteAuthStore {
-    constructor(dbPool) {
+    constructor(dbPool, dataPath) {
         this.db = dbPool;
+        this.dataPath = dataPath;
     }
 
     async _ensureTable() {
@@ -58,10 +59,10 @@ class MySQLRemoteAuthStore {
         }
     }
 
-    // Called by RemoteAuth after it creates the zip at `${session}.zip` in cwd
+    // Called by RemoteAuth after it creates the zip at `${session}.zip` inside the dataPath directory
     async save({ session }) {
         try {
-            const zipPath = path.join(process.cwd(), `${session}.zip`);
+            const zipPath = path.join(this.dataPath, `${session}.zip`);
             if (!fs.existsSync(zipPath)) {
                 console.warn('[MySQL Store] Zip file not found at:', zipPath);
                 return;
@@ -213,14 +214,16 @@ exports.initialize = async () => {
             console.warn('[WHATSAPP BOT] No Chrome found! Bot may fail.');
         }
 
-        // 4. Create RemoteAuth store backed by MySQL
-        const store = new MySQLRemoteAuthStore(db);
+        // 4. Resolve dataPath and create RemoteAuth store backed by MySQL
+        const dataPath = path.resolve(process.cwd(), '.wwebjs_auth');
+        const store = new MySQLRemoteAuthStore(db, dataPath);
 
         // 5. Create WhatsApp client with RemoteAuth
         //    RemoteAuth handles session backup/restore automatically via the store
         client = new Client({
             authStrategy: new RemoteAuth({
                 clientId: 'darkpen',   // used as the session key in the DB
+                dataPath: dataPath,
                 store: store,
                 backupSyncIntervalMs: 300000,  // back up every 5 minutes while connected
             }),
