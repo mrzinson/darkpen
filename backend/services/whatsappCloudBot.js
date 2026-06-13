@@ -499,6 +499,22 @@ function formatResponseForWhatsApp(text) {
         }).join('\n');
         return `\n*Shaxda:*\n------------------\n${formattedTable}\n------------------\n`;
     });
+
+    // 1. Convert markdown headers (# Title, ## Title, etc.) to WhatsApp bold titles
+    formatted = formatted.replace(/^(#{1,6})\s+(.+)$/gm, '*$2*');
+
+    // 2. Convert markdown bold (**bold**) to WhatsApp bold (*bold*)
+    formatted = formatted.replace(/\*\*([\s\S]*?)\*\*/g, '*$1*');
+
+    // 3. Convert markdown underline/italic (__italic__) to WhatsApp italic (_italic_)
+    formatted = formatted.replace(/__([\s\S]*?)__/g, '_$1_');
+
+    // 4. Convert markdown list items (* item or - item) to bullet points (• item)
+    // This prevents WhatsApp from interpreting '* ' as the start of a bold block across lines.
+    formatted = formatted.replace(/^\s*[\*\-]\s+/gm, '• ');
+
+    // 5. Remove syntax highlighting language from code blocks (e.g. ```javascript -> ```)
+    formatted = formatted.replace(/```[a-zA-Z0-9-]+\n/g, '```\n');
     
     return formatted;
 }
