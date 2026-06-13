@@ -522,7 +522,7 @@ async function handleIncomingMessage(message) {
 
         try {
             await client.sendMessage(message.from, '_Dhegeysanaya codka..._');
-            messageText = await transcribeAudio(tempFilePath);
+            messageText = await transcribeAudio(tempFilePath, media.mimetype.split(';')[0]);
             voiceCostApplied = true;
             console.log(`[WHATSAPP BOT] Voice transcription: "${messageText}"`);
         } catch (transErr) {

@@ -39,7 +39,7 @@ async function retryWithBackoff(fn, retries = 3, delay = 600) {
  * La hadal Gemini
  */
 exports.askGemini = async (prompt, modelName = "gemini-flash-latest", attachment = null, history = [], systemInstruction = null) => {
-    const fallbackModels = Array.from(new Set([modelName, "gemini-2.5-flash", "gemini-flash-latest"]));
+    const fallbackModels = Array.from(new Set([modelName, "gemini-2.5-flash", "gemini-flash-latest", "gemini-1.5-flash", "gemini-1.5-flash-8b"]));
     let lastError = null;
 
     for (const currentModel of fallbackModels) {
@@ -92,7 +92,7 @@ exports.askGemini = async (prompt, modelName = "gemini-flash-latest", attachment
  * La hadal Gemini adigoo ku jawaabaya qaab Streaming ah
  */
 exports.askGeminiStream = async (prompt, modelName = "gemini-flash-latest", attachment = null, history = [], systemInstruction = null) => {
-    const fallbackModels = Array.from(new Set([modelName, "gemini-2.5-flash", "gemini-flash-latest"]));
+    const fallbackModels = Array.from(new Set([modelName, "gemini-2.5-flash", "gemini-flash-latest", "gemini-1.5-flash", "gemini-1.5-flash-8b"]));
     let lastError = null;
 
     for (const currentModel of fallbackModels) {
@@ -279,37 +279,52 @@ exports.generateQuestionsFromText = async (text) => {
 /**
  * Transcribe Audio using Gemini (replacing OpenAI Whisper)
  */
-exports.transcribeAudio = async (filePath) => {
-    try {
-        const fs = require('fs');
-        const audioBuffer = fs.readFileSync(filePath);
-        const base64Audio = audioBuffer.toString('base64');
-        
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        
-        const result = await model.generateContent({
-            contents: [
-                {
-                    role: "user",
-                    parts: [
-                        {
-                            inlineData: {
-                                data: base64Audio,
-                                mimeType: "audio/mp4"
-                            }
-                        },
-                        { text: "Fadlan u beddel codkan qoraal ahaan (Transcribe). Kaliya soo qor waxa lagu hadlayo adigoo isticmaalaya luuqadda lagu hadlayo." }
-                    ]
-                }
-            ]
-        });
-        
-        const response = await result.response;
-        return response.text().trim();
-    } catch (error) {
-        console.error("Gemini Transcription Error:", error);
-        throw new Error("Waan ka xunnahay, codka lama fahmin.");
+exports.transcribeAudio = async (filePath, mimeType = "audio/mp4") => {
+    const fs = require('fs');
+    if (!fs.existsSync(filePath)) {
+        throw new Error(`Audio file not found: ${filePath}`);
     }
+    const audioBuffer = fs.readFileSync(filePath);
+    const base64Audio = audioBuffer.toString('base64');
+
+    const fallbackModels = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-1.5-flash-latest"];
+    let lastError = null;
+
+    for (const currentModel of fallbackModels) {
+        try {
+            console.log(`[GEMINI SERVICE] Attempting audio transcription with model: ${currentModel}`);
+            const model = genAI.getGenerativeModel({ model: currentModel });
+            
+            const responseText = await retryWithBackoff(async () => {
+                const result = await model.generateContent({
+                    contents: [
+                        {
+                            role: "user",
+                            parts: [
+                                {
+                                    inlineData: {
+                                        data: base64Audio,
+                                        mimeType: mimeType
+                                    }
+                                },
+                                { text: "Fadlan u beddel codkan qoraal ahaan (Transcribe). Kaliya soo qor waxa lagu hadlayo adigoo isticmaalaya luuqadda lagu hadlayo." }
+                            ]
+                        }
+                    ]
+                });
+                const response = await result.response;
+                return response.text().trim();
+            });
+            
+            return responseText;
+        } catch (error) {
+            console.warn(`[GEMINI SERVICE WARNING] Transcription failed with model ${currentModel}: ${error.message}`);
+            lastError = error;
+        }
+    }
+
+    console.error("Gemini Transcription Error after all fallback models:", lastError);
+    throw new Error("Waan ka xunnahay, codka lama fahmin.");
 };
 
 const Jimp = require('jimp');
