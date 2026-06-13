@@ -93,10 +93,15 @@ class MySQLRemoteAuthStore {
                 console.log(`[MySQL Store] No session found for '${session}'.`);
                 return;
             }
+            const dir = path.dirname(zipDestPath);
+            if (!fs.existsSync(dir)) {
+                fs.mkdirSync(dir, { recursive: true });
+            }
             fs.writeFileSync(zipDestPath, rows[0].session_data);
             console.log(`[MySQL Store] Session '${session}' zip written to: ${zipDestPath}`);
         } catch (err) {
             console.error('[MySQL Store] extract error:', err.message);
+            throw err; // rethrow to prevent unCompressSession from failing silently / crashing
         }
     }
 
