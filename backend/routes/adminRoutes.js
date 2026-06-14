@@ -9,6 +9,7 @@ const jwt = require('jsonwebtoken');
 const adminAuth = require('../middleware/adminAuth');
 const { clearEmbeddingsCache } = require('../services/aiService');
 const whatsappBot = require('../services/whatsappBot');
+const whatsappCloudBot = require('../services/whatsappCloudBot');
 
 // Robustly resolve and create uploads directory inside the backend folder
 const uploadDir = path.join(__dirname, '..', 'uploads');
@@ -197,12 +198,15 @@ router.post('/users/:id/whatsapp-report', async (req, res) => {
     try {
         const { id } = req.params;
         
-        // Fetch user data with credits, messages count, and tournament points (XP)
+        // Fetch user data with credits, messages count (split by app and whatsapp), and tournament points (XP)
         const [users] = await db.execute(`
             SELECT u.*, 
-                   (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id) AS private_messages_count,
+                   (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id AND session_id IS NOT NULL) AS app_messages_count,
+                   (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id AND session_id IS NULL) AS whatsapp_messages_count,
                    (SELECT balance FROM user_wallet WHERE user_id = u.id) AS credits,
-                   (SELECT xp FROM tournament_players WHERE user_id = u.id LIMIT 1) AS xp
+                   (SELECT xp FROM tournament_players WHERE user_id = u.id LIMIT 1) AS xp,
+                   (SELECT type FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1) AS sub_type,
+                   (SELECT expiry_date FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1) AS sub_expiry
             FROM users u WHERE u.id = ?
         `, [id]);
         
@@ -218,19 +222,56 @@ router.post('/users/:id/whatsapp-report', async (req, res) => {
         const dateJoined = new Date(user.created_at).toLocaleDateString('so-SO');
         const statusText = user.is_suspended ? 'Xaniban (Suspended)' : 'Firfircoon (Active)';
         
-        const message = `*DARKPEN REPORT* 📝📚\n` +
+        let planText = 'None';
+        if (user.sub_type) {
+            const planName = user.sub_type === 'monthly_11' ? 'Premium' : 'Basic';
+            const daysLeft = Math.ceil((new Date(user.sub_expiry) - new Date()) / (1000 * 60 * 60 * 24));
+            planText = `${planName} (${daysLeft} casho ayaa u hadhay)`;
+        }
+        
+        const reportMessage = `*DARKPEN REPORT* 📝📚\n` +
           `----------------------------------\n` +
           `👤 *Magaca:* ${user.name}\n` +
           `🆔 *Username:* @${user.username || 'ma jiro'}\n` +
           `📅 *Ku biiray:* ${dateJoined}\n` +
           `💎 *Credits-ka Wallet:* ${user.credits || 0}\n` +
-          `💬 *Wada-sheekaysiga AI:* ${user.private_messages_count || 0}\n` +
+          `💬 *Wada-sheekaysiga AI:* ${user.app_messages_count || 0}\n` +
+          `💬 *Wada-sheekaysiga WhatsApp:* ${user.whatsapp_messages_count || 0}\n` +
           `🏆 *Dhibcaha Tartanka (XP):* ${user.xp || 0} XP\n` +
+          `💳 *Qorshaha (Plan):* ${planText}\n` +
           `🔒 *Status-ka:* ${statusText}\n\n` +
           `Mahadsanid, sii wad isticmaalka Darkpen! 🚀`;
           
-        // Send message using the WhatsApp bot helper
-        await whatsappBot.sendWhatsAppMessage(user.whatsapp_number, message);
+        // Send message using the WhatsApp bot helpers with fallback
+        let sent = false;
+        let sendError = null;
+
+        // Try regular local whatsappBot first
+        try {
+            if (whatsappBot.getBotStatus && whatsappBot.getBotStatus() === 'connected') {
+                await whatsappBot.sendWhatsAppMessage(user.whatsapp_number, reportMessage);
+                sent = true;
+            }
+        } catch (err) {
+            console.warn('[ADMIN REPORT] whatsappBot send failed, trying cloud bot:', err.message);
+            sendError = err;
+        }
+
+        // Try whatsappCloudBot fallback
+        if (!sent) {
+            try {
+                const cleanPhone = user.whatsapp_number.replace(/\+/g, '').trim();
+                await whatsappCloudBot.sendCloudMessage(cleanPhone, reportMessage);
+                sent = true;
+            } catch (err) {
+                console.error('[ADMIN REPORT] whatsappCloudBot send failed:', err.message);
+                sendError = err;
+            }
+        }
+
+        if (!sent) {
+            throw sendError || new Error('No active WhatsApp bot connection found.');
+        }
         
         // Log admin action
         await logAdminAction(req.user.id, 'send_whatsapp_report', `Sent report to user ${user.name} (${user.whatsapp_number})`);

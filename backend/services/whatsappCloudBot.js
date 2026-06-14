@@ -2,9 +2,14 @@ const fs = require('fs');
 const path = require('path');
 const db = require('../config/db');
 const { askGemini, transcribeAudio } = require('./aiService');
-const { normalizePhoneNumber } = require('./verificationService');
+const { normalizePhoneNumber, validatePassword } = require('./verificationService');
+const bcrypt = require('bcrypt');
 const { tryUseFreeAI } = require('../utils/freeUsageHelper');
 const { logAIUsage } = require('../utils/aiLogger');
+
+// Password reset states map (userId -> { step })
+const userStates = new Map();
+
 
 // Create temp directory for voice notes if it doesn't exist
 const uploadsDir = path.join(__dirname, '../uploads');
@@ -196,7 +201,15 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
 
     // If user not registered:
     if (users.length === 0) {
-        await sendCloudMessage(from, `numberkan ( ${from} ) kama diwaan gashana appka isa soo diwaan gali markaas igu soo noqo`);
+        await sendCloudMessage(
+            from,
+            `*Kulama hadli karo* sababtoo ah waxaa la igu amray in aan la hadlo oo kaliya dadka ka diwaan gashan app-ka *Darkpen*.\n\n` +
+            `Si aad isu diwaangeliso, fadlan raac qodobadan fudud:\n\n` +
+            `1. *Lasoo deg App-ka:* Play Store-ka ku qor *Darkpen* si aad u soo degsato, ama raac link-gan:\n` +
+            `   🔗 https://play.google.com/store/apps/details?id=com.darkpen.app\n\n` +
+            `2. *Isu-diwaangeli:* Marka uu kuusoo dego, iska diwaangeli adigoo adeegsanaya lambarkan WhatsApp-ka ah ee aad hadda igala hadlayso.\n\n` +
+            `3. *Ku shubo Credit:* Ku shubo ugu yaraan *$0.50* si aad u hesho credit, ka dibna iigu soo laabo si aan kuu caawiyo.`
+        );
         return;
     }
 
@@ -210,8 +223,212 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
 
     const userId = user.id;
 
+    // ─── Password Reset Flow ──────────────────────────────────────────────────────
+    const cleanBody = (messageText || '').toLowerCase().trim();
+    // Normalize common typos before keyword matching
+    const normalizedBody = cleanBody
+        .replace(/resset/g, 'reset')     // password resset → password reset
+        .replace(/ressett/g, 'reset')
+        .replace(/passward/g, 'password') // passward → password
+        .replace(/pasword/g, 'password')  // pasword → password
+        .replace(/passwrod/g, 'password') // passwrod → password
+        .replace(/pssword/g, 'password')  // pssword → password
+        .replace(/paswword/g, 'password') // paswword → password
+        .replace(/ilaawey/g, 'ilaaway')   // Somali typos
+        .replace(/ilaawaye/g, 'ilaaway')
+        .replace(/illaaway/g, 'ilaaway')
+        .replace(/baddal/g, 'badal')
+        .replace(/badaal/g, 'badal');
+    const state = userStates.get(userId);
+
+    if (state && state.step === 'awaiting_password') {
+        const passwordError = validatePassword(messageText);
+        if (passwordError) {
+            await sendCloudMessage(from, "Fadlan furaha sirta ah (password) ha ahaado ugu yaraan 8 xaraf. Fadlan mar kale qor furahaaga cusub:");
+            return;
+        }
+
+        try {
+            const hashedPassword = await bcrypt.hash(messageText.trim(), 12);
+            await db.execute('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId]);
+            userStates.delete(userId);
+            await sendCloudMessage(from, "Amniga: Furahaaga sirta ah (password) waa la bedelay si guul leh! Fadlan ilaasho furahaaga cusub. Hadda waad u isticmaali kartaa inaad ku gasho app-ka.");
+            
+            // Also send support contact
+            try {
+                // In Cloud API, contact sharing is not standard, we can just send support phone number as text
+                await sendCloudMessage(from, "Wixii caawinaad ah, kala xiriir Zinson: +252637930329");
+            } catch (err) {}
+        } catch (err) {
+            console.error('[WHATSAPP CLOUD] Password reset db update failed:', err.message);
+            await sendCloudMessage(from, "Waan ka xunnahay, cilad ayaa ku timid kaydinta furahaaga cusub. Fadlan mar kale isku day waxyar ka dib.");
+        }
+        return;
+    }
+
+    // Broad & natural language password reset detection (Somali + English + typo-tolerant)
+    const _checkPwReset = (body) =>
+        // English phrases
+        body.includes('password reset') ||
+        body.includes('reset password') ||
+        body.includes('forgot password') ||
+        body.includes('forget password') ||
+        body.includes('change password') ||
+        body.includes('change my password') ||
+        body.includes('lost password') ||
+        body.includes('cant login') ||
+        body.includes("can't login") ||
+        body.includes("can't log in") ||
+        body.includes('reset my password') ||
+        body.includes('update password') ||
+        // Somali phrases – natural speech
+        (body.includes('password') && (
+            body.includes('badal') ||
+            body.includes('ilaaways') ||
+            body.includes('ilaaway') ||
+            body.includes('ma galin') ||
+            body.includes('ma geli') ||
+            body.includes('iga') ||
+            body.includes('ii') ||
+            body.includes('cusub') ||
+            body.includes('waan') ||
+            body.includes('waxaan')
+        )) ||
+        (body.includes('furaha') && (
+            body.includes('badal') ||
+            body.includes('ilaaways') ||
+            body.includes('ilaaway') ||
+            body.includes('ma galin') ||
+            body.includes('cusub') ||
+            body.includes('iga') ||
+            body.includes('ii')
+        )) ||
+        // Common full phrases
+        body.includes('passwordka waan ilaaway') ||
+        body.includes('password waan ilaaway') ||
+        body.includes('furaha waan ilaaway') ||
+        body.includes('passwordka iga badal') ||
+        body.includes('password iga badal') ||
+        body.includes('furaha iga badal') ||
+        body.includes('bedel password') ||
+        body.includes('bedel furaha') ||
+        body.includes('furaha badal') ||
+        body.includes('password badal') ||
+        body.includes('ma geli karo password') ||
+        body.includes('ma galin karo') ||
+        body.includes('app lagama geli karo') ||
+        body.includes('kuma geli karo') ||
+        body.includes('password ilaaway') ||
+        body.includes('furaheygii waan ilaaway') ||
+        body.includes('furaheygii ilaaway');
+
+    const isPasswordResetRequest = _checkPwReset(cleanBody) || _checkPwReset(normalizedBody);
+
+    if (isPasswordResetRequest) {
+        userStates.set(userId, { step: 'awaiting_password' });
+        await sendCloudMessage(from, "Haye! Si aan kuugu badalo password-kaaga, fadlan ii soo qor password-ka cusub ee aad rabto (ugu yaraan 8 xaraf):");
+        return;
+    }
+
+    // ─── WhatsApp Report Request Flow ─────────────────────────────────────────────
+    const isReportRequest = 
+        cleanBody === 'report' ||
+        cleanBody.includes('xogteyda') ||
+        cleanBody.includes('xogtayda') ||
+        cleanBody.includes('my report') ||
+        cleanBody.includes('my info') ||
+        cleanBody.includes('soo dir xog') ||
+        cleanBody.includes('iisoo dir xog') ||
+        cleanBody.includes('warbixinteyda') ||
+        cleanBody.includes('warbixintayda');
+
+    if (isReportRequest) {
+        try {
+            const [userDataRows] = await db.execute(`
+                SELECT u.*, 
+                       (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id AND session_id IS NOT NULL) AS app_messages_count,
+                       (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id AND session_id IS NULL) AS whatsapp_messages_count,
+                       (SELECT balance FROM user_wallet WHERE user_id = u.id) AS credits,
+                       (SELECT xp FROM tournament_players WHERE user_id = u.id LIMIT 1) AS xp,
+                       (SELECT type FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1) AS sub_type,
+                       (SELECT expiry_date FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1) AS sub_expiry
+                FROM users u WHERE u.id = ?
+            `, [userId]);
+
+            if (userDataRows.length > 0) {
+                const userData = userDataRows[0];
+                const dateJoined = new Date(userData.created_at).toLocaleDateString('so-SO');
+                const statusText = userData.is_suspended ? 'Xaniban (Suspended)' : 'Firfircoon (Active)';
+                
+                let planText = 'None';
+                if (userData.sub_type) {
+                    const planName = userData.sub_type === 'monthly_11' ? 'Premium' : 'Basic';
+                    const daysLeft = Math.ceil((new Date(userData.sub_expiry) - new Date()) / (1000 * 60 * 60 * 24));
+                    planText = `${planName} (${daysLeft} casho ayaa u hadhay)`;
+                }
+
+                const reportMessage = `*DARKPEN REPORT* 📝📚\n` +
+                  `----------------------------------\n` +
+                  `👤 *Magaca:* ${userData.name}\n` +
+                  `🆔 *Username:* @${userData.username || 'ma jiro'}\n` +
+                  `📅 *Ku biiray:* ${dateJoined}\n` +
+                  `💎 *Credits-ka Wallet:* ${userData.credits || 0}\n` +
+                  `💬 *Wada-sheekaysiga AI:* ${userData.app_messages_count || 0}\n` +
+                  `💬 *Wada-sheekaysiga WhatsApp:* ${userData.whatsapp_messages_count || 0}\n` +
+                  `🏆 *Dhibcaha Tartanka (XP):* ${userData.xp || 0} XP\n` +
+                  `💳 *Qorshaha (Plan):* ${planText}\n` +
+                  `🔒 *Status-ka:* ${statusText}\n\n` +
+                  `Mahadsanid, sii wad isticmaalka Darkpen! 🚀`;
+
+                await sendCloudMessage(from, reportMessage);
+            } else {
+                await sendCloudMessage(from, "Waan ka xunnahay, xogtaada lama heli karo hadda.");
+            }
+        } catch (err) {
+            console.error('[WHATSAPP CLOUD] Failed to send user report:', err.message);
+            await sendCloudMessage(from, "Cilad ayaa ku timid helida xogtaada. Fadlan mar kale isku day.");
+        }
+        return;
+    }
+
+    // ─── Welcome / Greeting / Help Flow ─────────────────────────────────────────────
+    const greetings = ['hello', 'hi', 'asc', 'assalamu alaykum', 'assalamu calaykum', 'haye', 'hayow', 'yo', 'maxaad iga caawin', 'maxaa ii qaban', 'maxaad qaban', 'help', 'siduu u shaqeeyaa', 'sidee u shaqeeyaa', 'siduu ushaqeeyo', 'how it works', 'how to use'];
+    const isGreeting = greetings.some(g => cleanBody.includes(g)) || cleanBody === 'hi' || cleanBody === 'hello' || cleanBody === 'asc';
+
+    // Check if it's the very first WhatsApp message
+    const [msgCountRows] = await db.execute(
+        'SELECT COUNT(*) AS count FROM messages_private WHERE user_id = ? AND session_id IS NULL',
+        [userId]
+    );
+    const isFirstMessage = msgCountRows.length > 0 && msgCountRows[0].count === 0;
+
+    if (isGreeting || isFirstMessage) {
+        const welcomeMessage = 
+          `*Asc! Soo dhowow! Kani waa Darkpen AI WhatsApp Bot.* 🤖✍️\n\n` +
+          `Waxaan ahay caawiye AI ah oo ku shaqeeya aqoon sare, diyaar u ah inuu kuu fududeeyo waxbarashada, shaqada, iyo su'aalahaaga maalin laha ah.\n\n` +
+          `*Maxaan kuu qaban karaa?*\n` +
+          `• 📝 *Qoraal:* Waxaan kuu qori karaa maqaalo, sheekooyin, email-lo, iyo casharo.\n` +
+          `• 📊 *Xalinta Su'aalaha:* Waxaan kuu xalin karaa su'aalaha Mathematics, Physics, Chemistry, Biology, iyo dhammaan maadadaha kale.\n` +
+          `• 📷 *Turjumida & Akhrinta Sawirada:* Haddii aad ii soo dirto sawir su'aal ama qoraal ah, waan kuu akhrin karaa oo kuu sharxi karaa.\n` +
+          `• 🔑 *Bedelida Password-ka:* Haddii aad rabto inaad bedesho furahaaga sirta ah, qor kaliya *bedel password*.\n` +
+          `• 📊 *Helitaanka Xogtaada:* Si aad u ogaato hadhaagaaga credit-ka iyo warbixintaada, qor kaliya *xogteyda*.\n\n` +
+          `*Sideen u shaqeeyaa (Qiimaha & Credits)?*\n` +
+          `• *Farriin Qoraal ah (DM):* Waxay kugu kacaysaa *1 Credit* (haddii qoraalku aad u dheer yahayna wax yar ayuu kordhi karaa).\n` +
+          `• *Sawirada (Images):* Si aan sawir u akhriyo oo kuu sharxo, waxay kugu kacaysaa *10 Credits*.\n` +
+          `• *Fariimaha Codka (Voice):* Si aan codkaaga u dhageysto oo ugu jawaabo, waxay kugu kacaysaa *20 Credits*.\n` +
+          `• *Kooxaha (Groups):* Waxaan kuugu jawaabayaa lacag la'aan haddii aad igu dhex weydiiso su'aalaha maadadaha dugsiga!\n\n` +
+          `*Xusuusin Muhiim ah:*\n` +
+          `1. Hubi in credit kuugu jiro wallet-kaaga si aad adeegyada u isticmaasho.\n` +
+          `2. Haddii aad haysato Qorshe Premium ama Basic ah, wada-sheekaysiga caadiga ah iyo sawirada waa kuu lacag la'aan!\n\n` +
+          `*Sideen kuu caawiyaa hadda? Ii soo dir su'aal ama qoraal!* ✨`;
+
+        await sendCloudMessage(from, welcomeMessage);
+        return;
+    }
+
     // React with 👀 to indicate we received and are processing the message
     await sendCloudReaction(from, messageId, '👀');
+
 
     // 2. Enforce Rate Limiting
     const now = new Date();
@@ -351,7 +568,7 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
     }
 
     // If free trial not used, check and deduct wallet balance
-    if (!usedFreeAI) {
+    if (!hasActiveSub && !usedFreeAI) {
         const [wallet] = await db.execute('SELECT balance FROM user_wallet WHERE user_id = ?', [userId]);
         const balance = wallet.length > 0 ? wallet[0].balance : 0;
 
@@ -523,3 +740,5 @@ function formatResponseForWhatsApp(text) {
     
     return formatted;
 }
+
+exports.sendCloudMessage = sendCloudMessage;
