@@ -656,15 +656,23 @@ async function handleIncomingMessage(message) {
     // 2. Group chat filters
     if (isGroup) {
         const hasImage = message.hasMedia && message.type === 'image';
-        const keywords = [
-            'waa maxay', 'qeex', 'sharax', 'maxaa', 'sidee', 'ii sheeg',
-            'chemistry', 'biology', 'physics', 'math', 'xisaab', 'fiisigis',
-            'english', 'taariikh', 'juqraafi', 'solve', 'explain', 'imtixaan',
-            'cashar', 'su\'aal', 'sidee u', 'farqiga'
-        ];
-        const textClean = (message.body || '').toLowerCase().trim();
-        const matchesKeyword = keywords.some(kw => textClean.includes(kw));
-        if (!hasImage && !matchesKeyword) return;
+        if (!hasImage) return;
+
+        // Log group mention/interaction
+        try {
+            const chat = await message.getChat();
+            const groupName = chat.name || 'Unknown Group';
+            await db.execute(`
+                INSERT INTO whatsapp_group_stats (group_id, group_name, bot_mention_count, status)
+                VALUES (?, ?, 1, 'active')
+                ON DUPLICATE KEY UPDATE 
+                    group_name = VALUES(group_name),
+                    bot_mention_count = bot_mention_count + 1,
+                    status = 'active'
+            `, [message.from, groupName]);
+        } catch (groupErr) {
+            console.error('[WHATSAPP BOT] Group mention log error:', groupErr.message);
+        }
     }
 
     // React with 👀
@@ -923,8 +931,17 @@ async function handleIncomingMessage(message) {
             'gemini-1.5-flash',
             finalPrompt,
             aiResponse,
-            voiceCostApplied ? 'voice' : (hasImage ? 'image' : 'education')
+            voiceCostApplied ? 'voice' : (hasImage ? 'image' : 'education'),
+            'whatsapp'
         ).catch(err => console.error('[WHATSAPP BOT] Logging error:', err.message));
+
+        if (isGroup) {
+            db.execute(`
+                UPDATE whatsapp_group_stats 
+                SET bot_message_count = bot_message_count + 1 
+                WHERE group_id = ?
+            `, [message.from]).catch(err => console.error('[WHATSAPP BOT] Update group msg count error:', err.message));
+        }
 
     } catch (err) {
         console.error('[WHATSAPP BOT] Gemini generation error:', err);
@@ -1004,4 +1021,28 @@ exports.sendWhatsAppContact = async (to, contactJid) => {
     }
     const contact = await client.getContactById(contactJid);
     return await client.sendMessage(jid, contact);
+};
+
+exports.getBotGroups = async () => {
+    if (!client || botStatus !== 'connected') {
+        return [];
+    }
+    try {
+        const chats = await client.getChats();
+        const groups = chats.filter(chat => chat.isGroup);
+        const mapped = [];
+        for (const g of groups) {
+            mapped.push({
+                group_id: g.id._serialized,
+                group_name: g.name || 'Unnamed Group',
+                unread_count: g.unreadCount || 0,
+                timestamp: g.timestamp || 0,
+                is_read_only: g.isReadOnly || false
+            });
+        }
+        return mapped;
+    } catch (err) {
+        console.error('[WHATSAPP BOT] Failed to get chats/groups:', err.message);
+        return [];
+    }
 };

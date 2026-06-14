@@ -703,7 +703,8 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
             'gemini-1.5-flash', 
             finalPrompt, 
             aiResponse, 
-            voiceCostApplied ? 'voice' : (hasImage ? 'image' : 'education')
+            voiceCostApplied ? 'voice' : (hasImage ? 'image' : 'education'),
+            'whatsapp'
         ).catch(err => console.error('[WHATSAPP CLOUD] Logging error:', err.message));
 
     } catch (err) {

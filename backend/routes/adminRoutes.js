@@ -1285,5 +1285,165 @@ router.get('/admin-logs', async (req, res) => {
     }
 });
 
+// ─── WhatsApp Bot Admin Dashboard Endpoints ────────────────────────────────────
+
+// 1. WhatsApp Bot Overview Stats
+router.get('/whatsapp/stats', async (req, res) => {
+    try {
+        const localStatus = whatsappBot.getBotStatus ? whatsappBot.getBotStatus() : 'disabled';
+        const cloudActive = !!(process.env.META_WA_PHONE_NUMBER_ID && process.env.META_WA_ACCESS_TOKEN);
+
+        // Inta qof ee maanta lasoo hadlay (unique user_ids today)
+        const [todayUsersRow] = await db.execute(`
+            SELECT COUNT(DISTINCT user_id) as count 
+            FROM messages_private 
+            WHERE session_id IS NULL AND sender = 'user' AND created_at >= CURDATE()
+        `);
+        const todayUsers = todayUsersRow[0]?.count || 0;
+
+        // Fariimaha (24h, 2d/48h, 7d, 30d) - users/ai split
+        const [messagesRow] = await db.execute(`
+            SELECT 
+                SUM(CASE WHEN sender = 'user' AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN 1 ELSE 0 END) as user_24h,
+                SUM(CASE WHEN sender = 'ai' AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN 1 ELSE 0 END) as ai_24h,
+                SUM(CASE WHEN sender = 'user' AND created_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR) THEN 1 ELSE 0 END) as user_48h,
+                SUM(CASE WHEN sender = 'ai' AND created_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR) THEN 1 ELSE 0 END) as ai_48h,
+                SUM(CASE WHEN sender = 'user' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) as user_7d,
+                SUM(CASE WHEN sender = 'ai' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) as ai_7d,
+                SUM(CASE WHEN sender = 'user' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as user_30d,
+                SUM(CASE WHEN sender = 'ai' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as ai_30d
+            FROM messages_private
+            WHERE session_id IS NULL
+        `);
+
+        // Gemini cost
+        const [geminiCostRow] = await db.execute(`
+            SELECT SUM(cost) as total_cost 
+            FROM ai_usage_logs 
+            WHERE platform = 'whatsapp'
+        `);
+        const geminiCost = parseFloat(geminiCostRow[0]?.total_cost || 0);
+
+        // DAU, MAU, YAU (WhatsApp specific)
+        const [dauRow] = await db.execute(`
+            SELECT COUNT(DISTINCT user_id) as count 
+            FROM messages_private 
+            WHERE session_id IS NULL AND sender = 'user' AND created_at >= CURDATE()
+        `);
+        const [mauRow] = await db.execute(`
+            SELECT COUNT(DISTINCT user_id) as count 
+            FROM messages_private 
+            WHERE session_id IS NULL AND sender = 'user' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+        `);
+        const [yauRow] = await db.execute(`
+            SELECT COUNT(DISTINCT user_id) as count 
+            FROM messages_private 
+            WHERE session_id IS NULL AND sender = 'user' AND created_at >= DATE_SUB(NOW(), INTERVAL 365 DAY)
+        `);
+
+        // Groups counts
+        const [groupsCountRow] = await db.execute(`
+            SELECT COUNT(*) as total,
+                   SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_count
+            FROM whatsapp_group_stats
+        `);
+
+        res.json({
+            status: {
+                localBot: localStatus,
+                cloudBot: cloudActive ? 'active' : 'inactive'
+            },
+            todayUsersCount: todayUsers,
+            messages: messagesRow[0] || {
+                user_24h: 0, ai_24h: 0,
+                user_48h: 0, ai_48h: 0,
+                user_7d: 0, ai_7d: 0,
+                user_30d: 0, ai_30d: 0
+            },
+            geminiCost,
+            activeUsers: {
+                daily: dauRow[0]?.count || 0,
+                monthly: mauRow[0]?.count || 0,
+                yearly: yauRow[0]?.count || 0
+            },
+            groups: {
+                total: groupsCountRow[0]?.total || 0,
+                active: groupsCountRow[0]?.active_count || 0
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching WhatsApp admin stats:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday stats-ka bot-ka' });
+    }
+});
+
+// 2. WhatsApp Bot Users list with detailed counts
+router.get('/whatsapp/users', async (req, res) => {
+    try {
+        const [users] = await db.execute(`
+            SELECT 
+                u.id, 
+                u.name, 
+                u.username, 
+                u.whatsapp_number, 
+                u.role, 
+                u.is_suspended,
+                COALESCE(uw.balance, 0) as balance,
+                us.plan_type,
+                us.expiry_date,
+                (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id AND session_id IS NULL AND sender = 'user') as msg_to_bot,
+                (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id AND session_id IS NULL AND sender = 'ai') as msg_from_bot,
+                (SELECT COUNT(*) FROM ai_usage_logs WHERE user_id = u.id AND chat_type = 'image' AND platform = 'whatsapp') as img_count,
+                (SELECT COUNT(*) FROM ai_usage_logs WHERE user_id = u.id AND chat_type = 'voice' AND platform = 'whatsapp') as voice_count
+            FROM users u
+            LEFT JOIN user_wallet uw ON u.id = uw.user_id
+            LEFT JOIN user_subscriptions us ON u.id = us.user_id AND us.expiry_date > NOW()
+            WHERE u.whatsapp_number IS NOT NULL 
+               OR u.id IN (SELECT DISTINCT user_id FROM messages_private WHERE session_id IS NULL)
+            ORDER BY msg_to_bot DESC
+        `);
+        res.json(users);
+    } catch (error) {
+        console.error('Error fetching WhatsApp users:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday soo qaadista users-ka' });
+    }
+});
+
+// 3. WhatsApp Groups list
+router.get('/whatsapp/groups', async (req, res) => {
+    try {
+        // Fetch live groups if bot is connected
+        if (whatsappBot.getBotGroups) {
+            const liveGroups = await whatsappBot.getBotGroups();
+            if (liveGroups.length > 0) {
+                // Update / insert them into whatsapp_group_stats
+                for (const g of liveGroups) {
+                    await db.execute(`
+                        INSERT INTO whatsapp_group_stats (group_id, group_name, status)
+                        VALUES (?, ?, 'active')
+                        ON DUPLICATE KEY UPDATE 
+                            group_name = VALUES(group_name),
+                            status = 'active'
+                    `, [g.group_id, g.group_name]);
+                }
+                // Mark groups not in the live list as inactive (if bot is connected, groups not returned must be inactive/left)
+                const liveGroupIds = liveGroups.map(lg => lg.group_id);
+                const placeholders = liveGroupIds.map(() => '?').join(',');
+                await db.execute(`
+                    UPDATE whatsapp_group_stats 
+                    SET status = 'inactive' 
+                    WHERE group_id NOT IN (${placeholders})
+                `, liveGroupIds);
+            }
+        }
+
+        const [groups] = await db.execute('SELECT * FROM whatsapp_group_stats ORDER BY last_activity DESC');
+        res.json(groups);
+    } catch (error) {
+        console.error('Error fetching WhatsApp groups:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday soo qaadista groups' });
+    }
+});
+
 module.exports = router;
 

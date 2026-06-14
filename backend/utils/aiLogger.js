@@ -8,7 +8,7 @@ const db = require('../config/db');
  * @param {string} completionText - The completion text received from the AI
  * @param {string} chatType - The type of chat (e.g. 'education', 'shukaansi')
  */
-exports.logAIUsage = async (userId, modelName, promptText, completionText, chatType) => {
+exports.logAIUsage = async (userId, modelName, promptText, completionText, chatType, platform = 'app') => {
     try {
         if (!userId) return;
 
@@ -43,9 +43,9 @@ exports.logAIUsage = async (userId, modelName, promptText, completionText, chatT
         const totalCost = promptCost + completionCost;
 
         await db.execute(
-            `INSERT INTO ai_usage_logs (user_id, model_name, prompt_tokens, completion_tokens, cost, chat_type) 
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [userId, modelName || 'unknown', promptTokens, completionTokens, totalCost, chatType || 'general']
+            `INSERT INTO ai_usage_logs (user_id, model_name, prompt_tokens, completion_tokens, cost, chat_type, platform) 
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [userId, modelName || 'unknown', promptTokens, completionTokens, totalCost, chatType || 'general', platform]
         );
     } catch (error) {
         console.error('[AI Logger Error]: Failed to log AI usage:', error.message);
