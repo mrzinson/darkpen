@@ -777,7 +777,7 @@ exports.deductShukaansiCallCredit = async (req, res) => {
 exports.askExamAI = async (req, res) => {
     try {
         const userId = req.user.id;
-        const { question, contextText, docTitle, docType, attachment } = req.body;
+        const { question, contextText, docTitle, docType, attachment, history } = req.body;
 
         if (!question && !attachment) {
             return res.status(400).json({ message: 'Fariintu waa madhan tahay' });
@@ -819,7 +819,22 @@ exports.askExamAI = async (req, res) => {
 
         // Generate response using Gemini
         const systemInstruction = `Waxaa laguu bixiyey magaca Darkpen AI Exam Assistant. Waxaa ku horumarisay shirkada ZinsonAI oo uu leeyahay Hamze Mohamuud Ali Zinson. Hadafkaagu waa inaad ardayda Soomaaliyeed ka caawiso fahamka iyo xalinta su'aalaha imtixaanada ama casharada buugaagta.
-Ku jawaab luuqada Af-Soomaaliga. Jawaabtaadu ha ahaato mid toos ah, waxtar leh, oo si realistic ah u sharxaysa talaabo kasta ama mowduuca la weydiiyay. Waligaa ha dhihin waxaan ahay Google ama OpenAI, waxaad tahay Darkpen oo ay leedahay ZinsonAI.`;
+Ku jawaab luuqada Af-Soomaaliga. Waligaa ha dhihin waxaan ahay Google ama OpenAI, waxaad tahay Darkpen oo ay leedahay ZinsonAI.
+
+Rules for response formatting (MUHIIM - raac xeerarkan si sax ah):
+1. 'Sax ama Qald' / True-False: isticmaal <green>SAX</green> ama <red>QALD</red>. Tusaale: <green>RUN</green> ama <red>BEEN</red>.
+2. Su'aalaha MCQ (Doorashada): Jawaabta saxda ah ku dhex qor <green>A. Jawaabta</green>. Kii kale ku qor <red>B. Kii kale</red>.
+3. Shaxan (Tables) ama Isku-beeg-beeg: KALIYA adeegsoo hab-qoraalkaan:
+<table_data>
+Madaxa A|Madaxa B
+Xogta 1|Xogta 2
+</table_data>
+4. Digniinaha muhiimka ah: <callout>Fiiro gaar ah: ...</callout>
+5. Erayada muhiimka ah: <green>Erayga</green>
+6. Cinwaanada: # Cinwaan Weyn (H1), ## (H2), ### (H3)
+7. Liisaska: - Qodob kasta xariijad gaar ah
+8. Su'aalaha gaaban (MCQ, True/False): jawaabtaada ha ahaato KOOBAN. Ha ku darin sharaxaad dheer ilaa uu ardaygu ku weydiiyo "ii sharax".
+9. Marka sawir la soo diro: tallaabo-tallaabo u faahfaahi si fudud.`;
 
         let promptText = `Document: ${docTitle || 'imtixaan/buug'} (${docType || 'educational'})`;
         if (contextText) {
@@ -842,7 +857,7 @@ Ku jawaab luuqada Af-Soomaaliga. Jawaabtaadu ha ahaato mid toos ah, waxtar leh, 
         }
 
         const modelName = "gemini-flash-latest";
-        const responseText = await aiService.askGemini(promptText, modelName, geminiAttachment, [], systemInstruction);
+        const responseText = await aiService.askGemini(promptText, modelName, geminiAttachment, history || [], systemInstruction);
 
         // Log AI usage to database
         const aiLogger = require('../utils/aiLogger');
