@@ -478,21 +478,68 @@ async function handleIncomingMessage(message) {
         return;
     }
 
+    // Broad & natural language password reset detection (Somali + English)
     const isPasswordResetRequest = 
-        cleanBody === 'password reset' || 
-        cleanBody === 'reset password' || 
-        cleanBody.includes('password reset') || 
-        cleanBody.includes('passwordka iga badal') || 
-        cleanBody.includes('bedel password') || 
-        cleanBody.includes('furaha badal') || 
-        cleanBody.includes('password badal') || 
-        cleanBody.includes('bedel furaha');
+        // English phrases
+        cleanBody.includes('password reset') ||
+        cleanBody.includes('reset password') ||
+        cleanBody.includes('forgot password') ||
+        cleanBody.includes('forget password') ||
+        cleanBody.includes('change password') ||
+        cleanBody.includes('change my password') ||
+        cleanBody.includes('lost password') ||
+        cleanBody.includes('cant login') ||
+        cleanBody.includes("can't login") ||
+        cleanBody.includes("can't log in") ||
+        cleanBody.includes('reset my password') ||
+        cleanBody.includes('update password') ||
+        // Somali phrases – natural speech
+        cleanBody.includes('password') && (
+            cleanBody.includes('badal') ||
+            cleanBody.includes('ilaaways') ||
+            cleanBody.includes('ilaaway') ||
+            cleanBody.includes('ma galin') ||
+            cleanBody.includes('ma geli') ||
+            cleanBody.includes('iga') ||
+            cleanBody.includes('ii') ||
+            cleanBody.includes('cusub') ||
+            cleanBody.includes('waan') ||
+            cleanBody.includes('waxaan')
+        ) ||
+        cleanBody.includes('furaha') && (
+            cleanBody.includes('badal') ||
+            cleanBody.includes('ilaaways') ||
+            cleanBody.includes('ilaaway') ||
+            cleanBody.includes('ma galin') ||
+            cleanBody.includes('cusub') ||
+            cleanBody.includes('iga') ||
+            cleanBody.includes('ii')
+        ) ||
+        // Common full phrases
+        cleanBody.includes('passwordka waan ilaaway') ||
+        cleanBody.includes('password waan ilaaway') ||
+        cleanBody.includes('furaha waan ilaaway') ||
+        cleanBody.includes('passwordka iga badal') ||
+        cleanBody.includes('password iga badal') ||
+        cleanBody.includes('furaha iga badal') ||
+        cleanBody.includes('bedel password') ||
+        cleanBody.includes('bedel furaha') ||
+        cleanBody.includes('furaha badal') ||
+        cleanBody.includes('password badal') ||
+        cleanBody.includes('ma geli karo password') ||
+        cleanBody.includes('ma galin karo') ||
+        cleanBody.includes('app lagama geli karo') ||
+        cleanBody.includes('kuma geli karo') ||
+        cleanBody.includes('password ilaaway') ||
+        cleanBody.includes('furaheygii waan ilaaway') ||
+        cleanBody.includes('furaheygii ilaaway');
 
     if (isPasswordResetRequest) {
         userStates.set(userId, { step: 'awaiting_password' });
         await message.reply("Haye! Si aan kuugu badalo password-kaaga, fadlan ii soo qor password-ka cusub ee aad rabto (ugu yaraan 8 xaraf):");
         return;
     }
+
 
     // 2. Group chat filters
     if (isGroup) {
