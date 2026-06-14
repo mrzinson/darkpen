@@ -390,40 +390,6 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
         return;
     }
 
-    // ─── Welcome / Greeting / Help Flow ─────────────────────────────────────────────
-    const greetings = ['hello', 'hi', 'asc', 'assalamu alaykum', 'assalamu calaykum', 'haye', 'hayow', 'yo', 'maxaad iga caawin', 'maxaa ii qaban', 'maxaad qaban', 'help', 'siduu u shaqeeyaa', 'sidee u shaqeeyaa', 'siduu ushaqeeyo', 'how it works', 'how to use'];
-    const isGreeting = greetings.some(g => cleanBody.includes(g)) || cleanBody === 'hi' || cleanBody === 'hello' || cleanBody === 'asc';
-
-    // Check if it's the very first WhatsApp message
-    const [msgCountRows] = await db.execute(
-        'SELECT COUNT(*) AS count FROM messages_private WHERE user_id = ? AND session_id IS NULL',
-        [userId]
-    );
-    const isFirstMessage = msgCountRows.length > 0 && msgCountRows[0].count === 0;
-
-    if (isGreeting || isFirstMessage) {
-        const welcomeMessage = 
-          `*Asc! Soo dhowow! Kani waa Darkpen AI WhatsApp Bot.* 🤖✍️\n\n` +
-          `Waxaan ahay caawiye AI ah oo ku shaqeeya aqoon sare, diyaar u ah inuu kuu fududeeyo waxbarashada, shaqada, iyo su'aalahaaga maalin laha ah.\n\n` +
-          `*Maxaan kuu qaban karaa?*\n` +
-          `• 📝 *Qoraal:* Waxaan kuu qori karaa maqaalo, sheekooyin, email-lo, iyo casharo.\n` +
-          `• 📊 *Xalinta Su'aalaha:* Waxaan kuu xalin karaa su'aalaha Mathematics, Physics, Chemistry, Biology, iyo dhammaan maadadaha kale.\n` +
-          `• 📷 *Turjumida & Akhrinta Sawirada:* Haddii aad ii soo dirto sawir su'aal ama qoraal ah, waan kuu akhrin karaa oo kuu sharxi karaa.\n` +
-          `• 🔑 *Bedelida Password-ka:* Haddii aad rabto inaad bedesho furahaaga sirta ah, qor kaliya *bedel password*.\n` +
-          `• 📊 *Helitaanka Xogtaada:* Si aad u ogaato hadhaagaaga credit-ka iyo warbixintaada, qor kaliya *xogteyda*.\n\n` +
-          `*Sideen u shaqeeyaa (Qiimaha & Credits)?*\n` +
-          `• *Farriin Qoraal ah (DM):* Waxay kugu kacaysaa *1 Credit* (haddii qoraalku aad u dheer yahayna wax yar ayuu kordhi karaa).\n` +
-          `• *Sawirada (Images):* Si aan sawir u akhriyo oo kuu sharxo, waxay kugu kacaysaa *10 Credits*.\n` +
-          `• *Fariimaha Codka (Voice):* Si aan codkaaga u dhageysto oo ugu jawaabo, waxay kugu kacaysaa *20 Credits*.\n` +
-          `• *Kooxaha (Groups):* Waxaan kuugu jawaabayaa lacag la'aan haddii aad igu dhex weydiiso su'aalaha maadadaha dugsiga!\n\n` +
-          `*Xusuusin Muhiim ah:*\n` +
-          `1. Hubi in credit kuugu jiro wallet-kaaga si aad adeegyada u isticmaasho.\n` +
-          `2. Haddii aad haysato Qorshe Premium ama Basic ah, wada-sheekaysiga caadiga ah iyo sawirada waa kuu lacag la'aan!\n\n` +
-          `*Sideen kuu caawiyaa hadda? Ii soo dir su'aal ama qoraal!* ✨`;
-
-        await sendCloudMessage(from, welcomeMessage);
-        return;
-    }
 
     // React with 👀 to indicate we received and are processing the message
     await sendCloudReaction(from, messageId, '👀');
