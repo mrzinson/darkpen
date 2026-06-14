@@ -1,6 +1,8 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
+const whatsappBot = require('../services/whatsappBot');
+const whatsappCloudBot = require('../services/whatsappCloudBot');
 const {
     normalizePhoneNumber,
     normalizeUsername,
@@ -269,10 +271,58 @@ exports.registerStudent = async (req, res) => {
 };
 
 // 5. Lacag Bixinta (Payment Submission)
+// Helper to notify admins on new payment
+async function notifyAdminsNewPayment(user, reference_number, amount) {
+    try {
+        const [admins] = await db.execute('SELECT whatsapp_number FROM users WHERE role = "admin" AND whatsapp_number IS NOT NULL');
+        if (admins.length === 0) return;
+        
+        const message = `🔔 *DALAB LACAGEED OO CUSUB!*
+        
+👤 *Macaamilka:* ${user.name} (@${user.username})
+💰 *Lacagta:* $${amount}
+📋 *Reference:* ${reference_number}
+📅 *Taariikhda:* ${new Date().toLocaleString('en-US')}
+
+_Fadlan gal Admin Dashboard si aad u xaqiijiso ama u diido._`;
+
+        for (const admin of admins) {
+            let cleanPhone = admin.whatsapp_number.replace(/\D/g, '');
+            if (!cleanPhone) continue;
+            
+            // Try local bot first
+            try {
+                if (whatsappBot.getBotStatus && whatsappBot.getBotStatus() === 'connected') {
+                    await whatsappBot.sendWhatsAppMessage(admin.whatsapp_number, message);
+                    console.log(`[PAYMENT NOTIFICATION] Sent WhatsApp message to admin ${admin.whatsapp_number} via local bot`);
+                    continue; // Skip fallback if successful
+                }
+            } catch (err) {
+                console.warn(`[PAYMENT NOTIFICATION] Local bot failed for admin ${admin.whatsapp_number}:`, err.message);
+            }
+
+            // Fallback to cloud bot
+            try {
+                await whatsappCloudBot.sendCloudMessage(cleanPhone, message);
+                console.log(`[PAYMENT NOTIFICATION] Sent WhatsApp message to admin ${admin.whatsapp_number} via cloud bot`);
+            } catch (err) {
+                console.error(`[PAYMENT NOTIFICATION] Cloud bot failed for admin ${admin.whatsapp_number}:`, err.message);
+            }
+        }
+    } catch (e) {
+        console.error('Failed to notify admins via WhatsApp:', e.message);
+    }
+}
+
+// 5. Lacag Bixinta (Payment Submission)
 exports.submitPayment = async (req, res) => {
     try {
         const userId = req.user.id;
         const { reference_number, amount, planId, groupData, service_type } = req.body;
+
+        // Fetch user info for notification
+        const [users] = await db.execute('SELECT name, username FROM users WHERE id = ?', [userId]);
+        const user = users[0] || { name: 'Unknown User', username: 'unknown' };
 
         // 1. Samee Payment record
         await db.execute(
@@ -294,6 +344,11 @@ exports.submitPayment = async (req, res) => {
             'UPDATE users SET payment_reference = ?, payment_status = "pending" WHERE id = ?',
             [reference_number, userId]
         );
+
+        // Trigger background notification to admins
+        notifyAdminsNewPayment(user, reference_number, amount || 10000).catch(err => {
+            console.error('Background notifyAdminsNewPayment failed:', err);
+        });
 
         res.json({ message: 'Dalabkaaga waa la diray, fadlan sug inta Admin-ku ka xaqiijinayo' });
     } catch (error) {
