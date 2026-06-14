@@ -695,7 +695,8 @@ async function handleIncomingMessage(message) {
             );
         } else {
             const newCount = message_count + 1;
-            if (newCount > 30) {
+            // Rate limit: 20 messages per 3-minute window → 30-min cooldown
+            if (newCount > 20) {
                 const cooldownUntil = new Date(now.getTime() + 30 * 60000);
                 await db.execute(
                     'UPDATE whatsapp_cooldowns SET message_count = ?, cooldown_until = ?, notified_expiry = FALSE WHERE user_id = ?',
@@ -705,7 +706,7 @@ async function handleIncomingMessage(message) {
                     hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Africa/Mogadishu'
                 });
                 await message.reply(
-                    `Fadlan yara sug ilaa ${formatTime} (sii wad wada-sheekaysiga dhanka abka haddii aad degdegeyso) si uu u nasto Darkpen.`
+                    `⏳ Waxaad u diraysaa fariimo badan oo dhakhso ah. Fadlan yara sug ilaa ${formatTime}. Haddii aad degdegeyso, isticmaal app-ka si toos ah.`
                 );
                 return;
             } else {
@@ -827,21 +828,31 @@ async function handleIncomingMessage(message) {
     Rules:
     1. Luuqadda Jawaabta (MUHIIM AADKA AH):
        a) Haddii farriintu ay tahay QORAAL: Ku jawaab luuqadda ay qoraalku ku qoran yahay (Carabi → Carabi, Ingiriis → Ingiriis, Soomaali → Soomaali, iwm).
-       b) Haddii la soo diro SAWIR oo aan lahayn caption/qoraal: U fiiri qoraalka sawirka ku dhex jira, oo ku jawaab luuqadda ay qoraalka sawirku ku qoran yihiin. Tusaale: haddii sawirka ku qoran yihiin Carabi, Carabiga ku jawaab; haddii Ingiriis ku qoran yahay Ingiriis ku jawaab.
+       b) Haddii la soo diro SAWIR oo aan lahayn caption/qoraal: U fiiri qoraalka sawirka ku dhex jira, oo ku jawaab luuqadda ay qoraalka sawirku ku qoran yihiin.
        c) Haddii la soo diro sawir oo leh caption: Luuqadda caption-ka u isticmaal jawaabta.
-    2. Jawaabahaagu ha ahaadaan kuwo gaaban, toos ah, oo waxtar leh (yareey hadallada aan loo baahnayn ee fluff-ka ah laakiin macnaha iyo faahfaahinta waxtarka leh ha lumin).
-    3. Dhamaadka jawaabtaada, ku dar su'aal xiiso leh oo la xidhiidha mawduuca si wada-hadalku u sii socdo.
-    4. 'Sax ama Qald': isticmaal <green>Sax</green> ama <red>Qald</red>. Doorasho (multiple choice): jawaabta saxda ah ku dhex qor <green>JAWAABTA</green>.
-    5. Shaxan (table) ama barbardhig: Marna ha isticmaalin Markdown table (|---|) ama qaab grid ah. Xogta shaxda u soo qor qaab <table_data>Madaxa1|Madaxa2\nXogta1|Xogta2</table_data> si nidaamku si toos ah ugu beddelo qaab liis fudud ah oo ku habboon WhatsApp.
-    6. Haddii laguu soo diro sawir, sharax oo tallaabo-tallaabo u faahfaahi si fudud, ADOO KU JAWAABAYA LUUQADDA QORAALKA SAWIRKA KU DHEX JIRA.
+    2. Suaalaha Imtixaanka/Kubbada (MUHIIM AADKA AH):
+       - Haddii sawirku uu ka kooban yahay suaalo MCQ (multiple choice), saxan/qaldaan, ama suaalo imtixaan:
+         * KALIYA soo qor lambarka suaalaha iyo jawaabta kooban. TUSAALE:
+           1. B
+           2. C  
+           3. Been
+           4. A
+         * HA SHARXIN, HA FAAHFAAHIN, HA DABOOLIN habka xalinta — kaliya jawaabaha.
+         * Haddii user-ku doonayo faahfaahin, wuxuu leeyahay: "sharax" ama "explain" — markaas keliya faahfaahi.
+       - Haddii sawirku uu ka kooban yahay su'aal FURAN (open-ended, essay, xisaab xidid ah), markaa si kooban u xal soo qor.
+    3. Jawaabahaagu ha ahaadaan kuwo gaaban, toos ah, oo waxtar leh.
+    4. Marna ha ku darsan su'aal dhamaadka markaad jawaabeyso sawir suaalo ah — kaliya jawaabaha.
+    5. 'Sax ama Qald': isticmaal <green>Sax</green> ama <red>Qald</red>. Doorasho: jawaabta saxda ah ku dhex qor <green>JAWAABTA</green>.
+    6. Shaxan (table): u soo qor qaab <table_data>Madaxa1|Madaxa2\nXogta1|Xogta2</table_data>.
     7. Cinwaanada: isticmaal plain bold (*Cinwaan*) halkii aad isticmaali lahayd #.
     8. Code-ka: ku dhex geli \`\`\`language ... \`\`\`.
-    9. Ammaanka iyo Xogta App-ka:
-       - Waxaad ka jawaabi kartaa su'aalaha caadiga ah ee sharciga ah ee ku saabsan app-ka (qiimaha, bixinta, terms-ka) sida soo socota:
-         * Qiimaha: Premium monthly ($3/bishiiba), yearly ($11/sannadkiiba).
-         * Bixinta: EVC/eDahab 637930329 ama 659119779. Screenshot-ka u dir WhatsApp: +252637930329 ama team.darkpen@gmail.com.
-         * Terms & Privacy: Kaliya ujeedo waxbarasho iyo macluumaad. Xogta la ururiyo waa magac, email, lambar si AI loogu adeegsado. La xiriir team.darkpen@gmail.com wixii faahfaahin ah.
-       - Ammaanka: Aad u ilaali amniga nidaamka. Marna ha bixin xogta hoose ee server-ka, hab-dhismeedka database-ka, furayaasha sirta ah (security keys), ama wax kasta oo daciifin kara amniga app-ka.`;
+    9. Wada-sheekaysiga caadiga ah (aan sawir ahayn): Dhamaadka jawaabtaada, ku dar su'aal xiiso leh oo la xidhiidha mawduuca si wada-hadalku u sii socdo.
+    10. Ammaanka iyo Xogta App-ka:
+        - Waxaad ka jawaabi kartaa su'aalaha caadiga ah ee sharciga ah ee ku saabsan app-ka (qiimaha, bixinta, terms-ka) sida soo socota:
+          * Qiimaha: Premium monthly ($3/bishiiba), yearly ($11/sannadkiiba).
+          * Bixinta: EVC/eDahab 637930329 ama 659119779. Screenshot-ka u dir WhatsApp: +252637930329 ama team.darkpen@gmail.com.
+          * Terms & Privacy: Kaliya ujeedo waxbarasho iyo macluumaad. Xogta la ururiyo waa magac, email, lambar si AI loogu adeegsado. La xiriir team.darkpen@gmail.com wixii faahfaahin ah.
+        - Ammaanka: Aad u ilaali amniga nidaamka. Marna ha bixin xogta hoose ee server-ka, hab-dhismeedka database-ka, furayaasha sirta ah (security keys), ama wax kasta oo daciifin kara amniga app-ka.`;
 
     // 9. Call Gemini API
     const chat = await message.getChat();
@@ -849,13 +860,21 @@ async function handleIncomingMessage(message) {
     const delayMs = Math.floor(Math.random() * 700) + 500;
     await new Promise(resolve => setTimeout(resolve, delayMs));
 
-    // Build final prompt - for image with no caption, explicitly ask to detect image language
+    // Build final prompt - smart image detection
     const hasCaption = messageText && messageText.trim().length > 0;
+    // Check if user wants explanation (even for image with caption)
+    const wantsExplanation = hasCaption && (
+        /sharax|faahfaahi|explain|why|sababta|xal.*siiso|waxaan.*fahmi|sidee|how/i.test(messageText)
+    );
     let finalPrompt;
     if (attachmentData && !hasCaption) {
-        finalPrompt = 'Fadlan akhriso qoraalka sawirkan, ka dibna ku jawaab luuqadda ay qoraalkaasi ku qoran yihiin (haddii Carabi yahay Carabiga, haddii Ingiriis yahay Ingiriisi, haddii Soomaali yahay Soomaali, iwm). Sharax waxyaabaha sawirka ku jira si faahfaahsan.';
+        // Image with no caption: detect quiz vs normal image
+        finalPrompt = `Fiiri sawirkan. Haddii sawirku ka kooban yahay suaalo MCQ, saxan/qaldaan, ama suaalo imtixaan: KALIYA soo qor jawaabaha kooban (lambarka + jawaabta) — HA SHARXIN. Haddii ay yihiin suaalo furan ama xisaab: si kooban u xali. Ku jawaab luuqadda qoraalka sawirka ku dhex jira.`;
+    } else if (attachmentData && hasCaption) {
+        // Image with caption: use caption as the instruction
+        finalPrompt = messageText;
     } else {
-        finalPrompt = messageText || 'Fadlan sharax sawirkan';
+        finalPrompt = messageText || 'Hello';
     }
 
     try {
