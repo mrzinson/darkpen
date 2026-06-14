@@ -70,14 +70,36 @@ const requestNotifPermission = async () => {
 
 const sendBrowserNotif = (title: string, body: string) => {
   if ('Notification' in window && Notification.permission === 'granted') {
-    const n = new Notification(title, {
-      body,
-      icon: '/favicon.ico',
-      badge: '/favicon.ico',
-      tag: 'payment-alert',
-      requireInteraction: true,
-    });
-    n.onclick = () => { window.focus(); n.close(); };
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(registration => {
+        registration.showNotification(title, {
+          body,
+          icon: '/favicon.ico',
+          badge: '/favicon.ico',
+          tag: 'payment-alert',
+          requireInteraction: true,
+        });
+      }).catch(err => {
+        console.warn('SW notification failed, falling back:', err);
+        const n = new Notification(title, {
+          body,
+          icon: '/favicon.ico',
+          badge: '/favicon.ico',
+          tag: 'payment-alert',
+          requireInteraction: true,
+        });
+        n.onclick = () => { window.focus(); n.close(); };
+      });
+    } else {
+      const n = new Notification(title, {
+        body,
+        icon: '/favicon.ico',
+        badge: '/favicon.ico',
+        tag: 'payment-alert',
+        requireInteraction: true,
+      });
+      n.onclick = () => { window.focus(); n.close(); };
+    }
   }
 };
 
