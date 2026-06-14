@@ -12,6 +12,7 @@ import * as Sharing from 'expo-sharing';
 import * as IntentLauncher from 'expo-intent-launcher';
 import Config from '../constants/Config';
 import { isDocDownloaded, registerDownload, removeDownload } from '../utils/downloadManager';
+import * as ImagePicker from 'expo-image-picker';
 
 // Helper function to generate PDF.js viewer HTML with inline engine code to run 100% offline
 const getHtmlContent = (pdfFilename: string, isDark: boolean) => {
@@ -101,8 +102,248 @@ const getHtmlContent = (pdfFilename: string, isDark: boolean) => {
     <body>
       <div id="viewer"></div>
 
+      <!-- Crop Overlay -->
+      <div id="crop-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1000; pointer-events: none;">
+        <div id="crop-dim-top" style="position: absolute; top: 0; left: 0; right: 0; background: rgba(0,0,0,0.65); transition: all 0.05s;"></div>
+        <div id="crop-dim-left" style="position: absolute; left: 0; background: rgba(0,0,0,0.65); transition: all 0.05s;"></div>
+        <div id="crop-dim-right" style="position: absolute; right: 0; background: rgba(0,0,0,0.65); transition: all 0.05s;"></div>
+        <div id="crop-dim-bottom" style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.65); transition: all 0.05s;"></div>
+        
+        <div id="crop-box" style="position: absolute; border: 2.5px solid #3B82F6; box-shadow: 0 0 20px rgba(59,130,246,0.5); pointer-events: auto; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box;">
+          <div style="position: absolute; top: 0; bottom: 0; left: 33.33%; right: 33.33%; border-left: 1px dashed rgba(255,255,255,0.3); border-right: 1px dashed rgba(255,255,255,0.3); pointer-events: none;"></div>
+          <div style="position: absolute; left: 0; right: 0; top: 33.33%; bottom: 33.33%; border-top: 1px dashed rgba(255,255,255,0.3); border-bottom: 1px dashed rgba(255,255,255,0.3); pointer-events: none;"></div>
+          
+          <div id="handle-tl" style="position: absolute; top: -12px; left: -12px; width: 24px; height: 24px; border-top: 5px solid #3B82F6; border-left: 5px solid #3B82F6; cursor: nwse-resize; z-index: 10;"></div>
+          <div id="handle-tr" style="position: absolute; top: -12px; right: -12px; width: 24px; height: 24px; border-top: 5px solid #3B82F6; border-right: 5px solid #3B82F6; cursor: nesw-resize; z-index: 10;"></div>
+          <div id="handle-bl" style="position: absolute; bottom: -12px; left: -12px; width: 24px; height: 24px; border-bottom: 5px solid #3B82F6; border-left: 5px solid #3B82F6; cursor: nesw-resize; z-index: 10;"></div>
+          <div id="handle-br" style="position: absolute; bottom: -12px; right: -12px; width: 24px; height: 24px; border-bottom: 5px solid #3B82F6; border-right: 5px solid #3B82F6; cursor: nwse-resize; z-index: 10;"></div>
+          
+          <div style="position: absolute; bottom: -55px; left: 50%; transform: translateX(-50%); pointer-events: auto; display: flex; gap: 12px; z-index: 20;">
+            <button id="crop-done-btn" style="background: #3B82F6; color: white; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; font-size: 14px; box-shadow: 0 4px 10px rgba(0,0,0,0.35); cursor: pointer; white-space: nowrap;">
+              ✓ Done
+            </button>
+            <button id="crop-cancel-btn" style="background: #475569; color: white; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; font-size: 14px; box-shadow: 0 4px 10px rgba(0,0,0,0.35); cursor: pointer; white-space: nowrap;">
+              Ka laabo
+            </button>
+          </div>
+        </div>
+      </div>
+
       <script>
         window.penModeActive = false;
+        window.cropModeActive = false;
+
+        let cropX = window.innerWidth * 0.1;
+        let cropY = window.innerHeight * 0.25;
+        let cropW = window.innerWidth * 0.8;
+        let cropH = window.innerHeight * 0.35;
+
+        function updateCropUI() {
+          const box = document.getElementById('crop-box');
+          if (!box) return;
+          box.style.left = cropX + 'px';
+          box.style.top = cropY + 'px';
+          box.style.width = cropW + 'px';
+          box.style.height = cropH + 'px';
+
+          // Update dim panels
+          const dimTop = document.getElementById('crop-dim-top');
+          if (dimTop) dimTop.style.height = cropY + 'px';
+          
+          const dimLeft = document.getElementById('crop-dim-left');
+          if (dimLeft) {
+            dimLeft.style.top = cropY + 'px';
+            dimLeft.style.height = cropH + 'px';
+            dimLeft.style.width = cropX + 'px';
+          }
+
+          const dimRight = document.getElementById('crop-dim-right');
+          if (dimRight) {
+            dimRight.style.top = cropY + 'px';
+            dimRight.style.height = cropH + 'px';
+            dimRight.style.left = (cropX + cropW) + 'px';
+            dimRight.style.width = (window.innerWidth - cropX - cropW) + 'px';
+          }
+
+          const dimBottom = document.getElementById('crop-dim-bottom');
+          if (dimBottom) {
+            dimBottom.style.top = (cropY + cropH) + 'px';
+            dimBottom.style.height = (window.innerHeight - cropY - cropH) + 'px';
+          }
+        }
+
+        let activeHandle = null;
+        let startTouchX = 0;
+        let startTouchY = 0;
+        let startX = 0;
+        let startY = 0;
+        let startW = 0;
+        let startH = 0;
+
+        function initCropEvents() {
+          const box = document.getElementById('crop-box');
+          const handles = {
+            'tl': document.getElementById('handle-tl'),
+            'tr': document.getElementById('handle-tr'),
+            'bl': document.getElementById('handle-bl'),
+            'br': document.getElementById('handle-br'),
+            'box': box
+          };
+
+          if (!box || !handles.tl) return;
+
+          const onTouchStart = (key, e) => {
+            const touch = e.touches[0];
+            activeHandle = key;
+            startTouchX = touch.clientX;
+            startTouchY = touch.clientY;
+            startX = cropX;
+            startY = cropY;
+            startW = cropW;
+            startH = cropH;
+            e.stopPropagation();
+          };
+
+          handles.tl.addEventListener('touchstart', (e) => onTouchStart('tl', e));
+          handles.tr.addEventListener('touchstart', (e) => onTouchStart('tr', e));
+          handles.bl.addEventListener('touchstart', (e) => onTouchStart('bl', e));
+          handles.br.addEventListener('touchstart', (e) => onTouchStart('br', e));
+          
+          box.addEventListener('touchstart', (e) => {
+            if (e.target === box || e.target.parentNode === box) {
+              onTouchStart('box', e);
+            }
+          });
+
+          window.addEventListener('touchmove', (e) => {
+            if (!activeHandle) return;
+            const touch = e.touches[0];
+            const dx = touch.clientX - startTouchX;
+            const dy = touch.clientY - startTouchY;
+
+            const minSize = 60;
+
+            if (activeHandle === 'box') {
+              cropX = Math.max(0, Math.min(window.innerWidth - cropW, startX + dx));
+              cropY = Math.max(0, Math.min(window.innerHeight - cropH, startY + dy));
+            } else if (activeHandle === 'br') {
+              cropW = Math.max(minSize, Math.min(window.innerWidth - startX, startW + dx));
+              cropH = Math.max(minSize, Math.min(window.innerHeight - startY, startH + dy));
+            } else if (activeHandle === 'bl') {
+              const newX = Math.max(0, Math.min(startX + startW - minSize, startX + dx));
+              cropW = startW + (startX - newX);
+              cropX = newX;
+              cropH = Math.max(minSize, Math.min(window.innerHeight - startY, startH + dy));
+            } else if (activeHandle === 'tr') {
+              cropW = Math.max(minSize, Math.min(window.innerWidth - startX, startW + dx));
+              const newY = Math.max(0, Math.min(startY + startH - minSize, startY + dy));
+              cropH = startH + (startY - newY);
+              cropY = newY;
+            } else if (activeHandle === 'tl') {
+              const newX = Math.max(0, Math.min(startX + startW - minSize, startX + dx));
+              cropW = startW + (startX - newX);
+              cropX = newX;
+              const newY = Math.max(0, Math.min(startY + startH - minSize, startY + dy));
+              cropH = startH + (startY - newY);
+              cropY = newY;
+            }
+
+            updateCropUI();
+            e.preventDefault();
+            e.stopPropagation();
+          }, { passive: false });
+
+          window.addEventListener('touchend', () => {
+            activeHandle = null;
+          });
+
+          document.getElementById('crop-done-btn').addEventListener('click', () => {
+            doCrop();
+          });
+          document.getElementById('crop-cancel-btn').addEventListener('click', () => {
+            setCropModeActive(false);
+          });
+        }
+
+        function setCropModeActive(active) {
+          window.cropModeActive = active;
+          const overlay = document.getElementById('crop-overlay');
+          if (!overlay) return;
+
+          if (active) {
+            overlay.style.display = 'block';
+            cropX = window.innerWidth * 0.1;
+            cropY = window.innerHeight * 0.25;
+            cropW = window.innerWidth * 0.8;
+            cropH = window.innerHeight * 0.35;
+            updateCropUI();
+
+            document.body.style.overflow = 'hidden';
+            document.body.style.touchAction = 'none';
+          } else {
+            overlay.style.display = 'none';
+            document.body.style.overflow = 'auto';
+            document.body.style.touchAction = 'auto';
+            
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'CROP_CLOSED'
+            }));
+          }
+        }
+
+        function doCrop() {
+          const offscreen = document.createElement('canvas');
+          offscreen.width = cropW;
+          offscreen.height = cropH;
+          const oCtx = offscreen.getContext('2d');
+
+          const canvases = document.querySelectorAll('canvas:not(.drawing-canvas)');
+          let hasDrawn = false;
+
+          canvases.forEach(canvas => {
+            const rect = canvas.getBoundingClientRect();
+            
+            const interLeft = Math.max(cropX, rect.left);
+            const interTop = Math.max(cropY, rect.top);
+            const interRight = Math.min(cropX + cropW, rect.left + rect.width);
+            const interBottom = Math.min(cropY + cropH, rect.top + rect.height);
+            const interWidth = interRight - interLeft;
+            const interHeight = interBottom - interTop;
+
+            if (interWidth > 0 && interHeight > 0) {
+              const scaleX = canvas.width / rect.width;
+              const scaleY = canvas.height / rect.height;
+
+              const sx = (interLeft - rect.left) * scaleX;
+              const sy = (interTop - rect.top) * scaleY;
+              const sw = interWidth * scaleX;
+              const sh = interHeight * scaleY;
+
+              const dx = interLeft - cropX;
+              const dy = interTop - cropY;
+              const dw = interWidth;
+              const dh = interHeight;
+
+              oCtx.drawImage(canvas, sx, sy, sw, sh, dx, dy, dw, dh);
+              hasDrawn = true;
+            }
+          });
+
+          if (hasDrawn) {
+            const base64Data = offscreen.toDataURL('image/jpeg', 0.85);
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'DRAWING_DATA',
+              base64: base64Data
+            }));
+          } else {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'ERROR',
+              message: 'Ma jiro boq horyaala oo la goyn karo hadda.'
+            }));
+          }
+
+          setCropModeActive(false);
+        }
 
         try {
           if (window.pdfjsLib) {
@@ -286,6 +527,8 @@ const getHtmlContent = (pdfFilename: string, isDark: boolean) => {
                 document.body.style.overflow = 'auto';
                 document.body.style.touchAction = 'auto';
               }
+            } else if (cmd.type === 'SET_CROP_ACTIVE') {
+              setCropModeActive(cmd.active);
             } else if (cmd.type === 'CLEAR_DRAWINGS') {
               const drawCanvases = document.querySelectorAll('.drawing-canvas');
               drawCanvases.forEach(c => {
@@ -296,6 +539,9 @@ const getHtmlContent = (pdfFilename: string, isDark: boolean) => {
             }
           } catch (err) {}
         });
+
+        // Init events immediately
+        initCropEvents();
       </script>
     </body>
     </html>
@@ -413,57 +659,57 @@ const FormattedResponse = ({ text, colors, isDark, styles }: { text: string, col
 };
 
 const GeminiLoading = ({ styles }: { styles: any }) => {
-  const dot1 = useRef(new Animated.Value(0)).current;
-  const dot2 = useRef(new Animated.Value(0)).current;
-  const dot3 = useRef(new Animated.Value(0)).current;
-  const dot4 = useRef(new Animated.Value(0)).current;
+  const anim1 = useRef(new Animated.Value(0.3)).current;
+  const anim2 = useRef(new Animated.Value(0.3)).current;
+  const anim3 = useRef(new Animated.Value(0.3)).current;
+  const anim4 = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
-    const animateDot = (val: Animated.Value, delay: number) => {
+    const pulse = (val: Animated.Value, delay: number) => {
       return Animated.loop(
         Animated.sequence([
           Animated.delay(delay),
           Animated.timing(val, {
-            toValue: -12,
-            duration: 450,
+            toValue: 1.2,
+            duration: 600,
             useNativeDriver: true,
           }),
           Animated.timing(val, {
-            toValue: 0,
-            duration: 450,
+            toValue: 0.3,
+            duration: 600,
             useNativeDriver: true,
           }),
         ])
       );
     };
 
-    const anim1 = animateDot(dot1, 0);
-    const anim2 = animateDot(dot2, 120);
-    const anim3 = animateDot(dot3, 240);
-    const anim4 = animateDot(dot4, 360);
+    const a1 = pulse(anim1, 0);
+    const a2 = pulse(anim2, 150);
+    const a3 = pulse(anim3, 300);
+    const a4 = pulse(anim4, 450);
 
-    anim1.start();
-    anim2.start();
-    anim3.start();
-    anim4.start();
+    a1.start();
+    a2.start();
+    a3.start();
+    a4.start();
 
     return () => {
-      anim1.stop();
-      anim2.stop();
-      anim3.stop();
-      anim4.stop();
+      a1.stop();
+      a2.stop();
+      a3.stop();
+      a4.stop();
     };
   }, []);
 
   return (
     <View style={styles.geminiLoadingContainer}>
-      <View style={styles.geminiDotsRow}>
-        <Animated.View style={[styles.geminiDot, { backgroundColor: '#3B82F6', transform: [{ translateY: dot1 }] }]} />
-        <Animated.View style={[styles.geminiDot, { backgroundColor: '#8B5CF6', transform: [{ translateY: dot2 }] }]} />
-        <Animated.View style={[styles.geminiDot, { backgroundColor: '#EC4899', transform: [{ translateY: dot3 }] }]} />
-        <Animated.View style={[styles.geminiDot, { backgroundColor: '#10B981', transform: [{ translateY: dot4 }] }]} />
+      <View style={styles.geminiWaves}>
+        <Animated.View style={[styles.geminiWaveBar, { backgroundColor: '#3B82F6', transform: [{ scaleY: anim1 }] }]} />
+        <Animated.View style={[styles.geminiWaveBar, { backgroundColor: '#8B5CF6', transform: [{ scaleY: anim2 }] }]} />
+        <Animated.View style={[styles.geminiWaveBar, { backgroundColor: '#EC4899', transform: [{ scaleY: anim3 }] }]} />
+        <Animated.View style={[styles.geminiWaveBar, { backgroundColor: '#10B981', transform: [{ scaleY: anim4 }] }]} />
       </View>
-      <Text style={styles.geminiLoadingText}>Darkpen AI waa ay xisaabinaysaa...</Text>
+      <Text style={styles.geminiLoadingText}>Darkpen AI waa uu xisaabinayaa...</Text>
     </View>
   );
 };
@@ -494,6 +740,7 @@ export default function ReaderExamScreen() {
   // AI assistant states
   const [selectionText, setSelectionText] = useState<string | null>(null);
   const [scribbleActive, setScribbleActive] = useState<boolean>(false);
+  const [cropActive, setCropActive] = useState<boolean>(false);
   const [drawingImage, setDrawingImage] = useState<string | null>(null);
   const [aiInputOpen, setAiInputOpen] = useState<boolean>(false);
   const [aiInputText, setAiInputText] = useState<string>('');
@@ -502,6 +749,58 @@ export default function ReaderExamScreen() {
   const [userCredits, setUserCredits] = useState<number>(0);
   const [pageTexts, setPageTexts] = useState<Record<number, string>>({});
   const [keyboardHeight, setKeyboardHeight] = useState<number>(0);
+
+  // Image pickers
+  const handlePickImage = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert("Ogolaansho ayaa loo baahan yahay", "Fadlan u ogolaan abka inuu galo sawiradaada.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const base64Data = `data:image/jpeg;base64,${result.assets[0].base64}`;
+        setDrawingImage(base64Data);
+        setAiInputOpen(true);
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+      Alert.alert("Cilad", "Waa lagu guuldareystay in sawir la soo doorto.");
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert("Ogolaansho ayaa loo baahan yahay", "Fadlan u ogolaan abka inuu isticmaalo kamarada.");
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const base64Data = `data:image/jpeg;base64,${result.assets[0].base64}`;
+        setDrawingImage(base64Data);
+        setAiInputOpen(true);
+      }
+    } catch (error) {
+      console.error("Error taking photo:", error);
+      Alert.alert("Cilad", "Waa lagu guuldareystay in sawir laga qaado.");
+    }
+  };
 
   // Refs & Animations
   const webViewRef = useRef<any>(null);
@@ -534,6 +833,16 @@ export default function ReaderExamScreen() {
       }));
     }
   }, [scribbleActive, webViewLoaded]);
+
+  // Sync crop active mode with WebView
+  useEffect(() => {
+    if (webViewRef.current && webViewLoaded) {
+      webViewRef.current.postMessage(JSON.stringify({
+        type: 'SET_CROP_ACTIVE',
+        active: cropActive
+      }));
+    }
+  }, [cropActive, webViewLoaded]);
 
   // Voice Pulse Looping Animation
   useEffect(() => {
@@ -987,13 +1296,20 @@ export default function ReaderExamScreen() {
                   } else if (data.type === 'DRAWING_DATA') {
                     setDrawingImage(data.base64);
                     setScribbleActive(false); // Disable pen mode automatically
+                    setCropActive(false);     // Disable crop mode automatically
                     setAiInputOpen(true);     // Open the AI input bar automatically
                     if (webViewRef.current) {
                       webViewRef.current.postMessage(JSON.stringify({
                         type: 'SET_PEN_ACTIVE',
                         active: false
                       }));
+                      webViewRef.current.postMessage(JSON.stringify({
+                        type: 'SET_CROP_ACTIVE',
+                        active: false
+                      }));
                     }
+                  } else if (data.type === 'CROP_CLOSED') {
+                    setCropActive(false);
                   } else if (data.type === 'PAGE_TEXT') {
                     setPageTexts(prev => ({
                       ...prev,
@@ -1043,28 +1359,47 @@ export default function ReaderExamScreen() {
             { bottom: keyboardHeight > 0 ? keyboardHeight + 16 : 24 }
           ]}
         >
-          {/* Top Row: Pen mode, wallet badge, and close button */}
+          {/* Top Row: Crop mode, Gallery, Camera, wallet badge, and close button */}
           <View style={styles.aiInputTopRow}>
-            <TouchableOpacity 
-              style={[styles.penToggleBtn, scribbleActive && styles.penToggleBtnActive]} 
-              onPress={() => setScribbleActive(!scribbleActive)}
-            >
-              <Ionicons name={scribbleActive ? "pencil" : "pencil-outline"} size={14} color={scribbleActive ? 'white' : colors.primary} />
-              <Text style={[styles.penToggleBtnText, scribbleActive && { color: 'white' }]}>
-                {scribbleActive ? 'Qalinka (Active)' : 'Scribble Mode'}
-              </Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', flex: 1 }}>
+              <TouchableOpacity 
+                style={[styles.imagePickerBtn, cropActive && styles.imagePickerBtnActive]} 
+                onPress={() => setCropActive(!cropActive)}
+              >
+                <Ionicons name="crop" size={14} color={cropActive ? 'white' : colors.primary} />
+                <Text style={[styles.imagePickerBtnText, cropActive && { color: 'white' }]}>
+                  {cropActive ? 'Crop Active' : 'Jar Su\'aal'}
+                </Text>
+              </TouchableOpacity>
 
-            <View style={styles.aiWalletBadge}>
+              <TouchableOpacity 
+                style={styles.imagePickerBtn} 
+                onPress={handlePickImage}
+              >
+                <Ionicons name="images-outline" size={14} color={colors.primary} />
+                <Text style={styles.imagePickerBtnText}>Gallery</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.imagePickerBtn} 
+                onPress={handleTakePhoto}
+              >
+                <Ionicons name="camera-outline" size={14} color={colors.primary} />
+                <Text style={styles.imagePickerBtnText}>Kamarad</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.aiWalletBadge, { marginLeft: 8 }]}>
               <Ionicons name="wallet-outline" size={14} color={colors.neutral} />
               <Text style={styles.aiWalletText}>{userCredits} Credits</Text>
             </View>
 
             <TouchableOpacity 
-              style={styles.closeAiPanelBtn}
+              style={[styles.closeAiPanelBtn, { marginLeft: 8 }]}
               onPress={() => {
                 setAiInputOpen(false);
                 setScribbleActive(false);
+                setCropActive(false);
                 setDrawingImage(null);
                 setChatMessages([]);
               }}
@@ -1085,10 +1420,9 @@ export default function ReaderExamScreen() {
                   <Ionicons name="close" size={12} color="white" />
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity style={styles.editImagesBtn} onPress={() => setScribbleActive(true)}>
-                <Ionicons name="crop" size={12} color={colors.secondary} />
-                <Text style={styles.editImagesText}>Re-draw / Crop</Text>
-              </TouchableOpacity>
+              <Text style={{ fontSize: 12, color: colors.secondary, fontWeight: '600' }}>
+                Sawirka waa la diyaariyay
+              </Text>
             </View>
           )}
 
@@ -1126,7 +1460,10 @@ export default function ReaderExamScreen() {
               })
             }]
           },
-          { height: keyboardHeight > 0 ? 380 + keyboardHeight : 500 }
+          { 
+            bottom: Platform.OS === 'ios' ? keyboardHeight : 0,
+            height: keyboardHeight > 0 ? 380 : 500
+          }
         ]}>
           <View style={styles.sheetHeader}>
             <View style={styles.sheetHandle} />
@@ -1141,6 +1478,7 @@ export default function ReaderExamScreen() {
                   setChatMessages([]);
                   setAiInputOpen(false);
                   setScribbleActive(false);
+                  setCropActive(false);
                   setDrawingImage(null);
                   setLoadingAi(false);
                 });
@@ -1156,7 +1494,7 @@ export default function ReaderExamScreen() {
             <ScrollView 
               ref={responseScrollRef}
               style={styles.responseScroll} 
-              contentContainerStyle={{ paddingBottom: 80 }}
+              contentContainerStyle={{ paddingBottom: 140 }}
               showsVerticalScrollIndicator={false}
               onContentSizeChange={() => responseScrollRef.current?.scrollToEnd({ animated: true })}
             >
@@ -1189,19 +1527,40 @@ export default function ReaderExamScreen() {
             <BlurView 
               intensity={Platform.OS === 'ios' ? 90 : 100}
               tint={isDark ? 'dark' : 'light'}
-              style={styles.sheetInputContainer}
+              style={[
+                styles.sheetInputContainer,
+                { paddingBottom: Platform.OS === 'ios' ? (keyboardHeight > 0 ? 10 : 24) : 10 }
+              ]}
             >
-              {/* Wallet and Pen control inside sheet input */}
+              {/* Wallet and crop controls inside sheet input */}
               <View style={styles.sheetInputControls}>
-                <TouchableOpacity 
-                  style={[styles.penToggleBtn, scribbleActive && styles.penToggleBtnActive]} 
-                  onPress={() => setScribbleActive(!scribbleActive)}
-                >
-                  <Ionicons name={scribbleActive ? "pencil" : "pencil-outline"} size={12} color={scribbleActive ? 'white' : colors.primary} />
-                  <Text style={[styles.penToggleBtnText, { fontSize: 11 }, scribbleActive && { color: 'white' }]}>
-                    {scribbleActive ? 'Draw mode on' : 'Scribble'}
-                  </Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  <TouchableOpacity 
+                    style={[styles.sheetImagePickerBtn, cropActive && styles.imagePickerBtnActive]} 
+                    onPress={() => setCropActive(!cropActive)}
+                  >
+                    <Ionicons name="crop" size={12} color={cropActive ? 'white' : colors.primary} />
+                    <Text style={[styles.sheetImagePickerBtnText, cropActive && { color: 'white' }]}>
+                      {cropActive ? 'Cropping' : 'Jar Su\'aal'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={styles.sheetImagePickerBtn} 
+                    onPress={handlePickImage}
+                  >
+                    <Ionicons name="images-outline" size={12} color={colors.primary} />
+                    <Text style={styles.sheetImagePickerBtnText}>Gallery</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={styles.sheetImagePickerBtn} 
+                    onPress={handleTakePhoto}
+                  >
+                    <Ionicons name="camera-outline" size={12} color={colors.primary} />
+                    <Text style={styles.sheetImagePickerBtnText}>Kamarad</Text>
+                  </TouchableOpacity>
+                </View>
 
                 {drawingImage && (
                   <View style={styles.sheetImageIndicator}>
@@ -1245,7 +1604,7 @@ export default function ReaderExamScreen() {
           activeOpacity={0.8}
           onPress={() => {
             setAiInputOpen(true);
-            setScribbleActive(true);
+            setCropActive(true);
           }}
         >
           <Ionicons name="sparkles" size={20} color="white" />
@@ -1798,7 +2157,6 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     left: 0,
     right: 0,
     paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 10,
     backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
@@ -1824,5 +2182,54 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
     height: 24,
     borderRadius: 4,
     resizeMode: 'cover',
+  },
+  imagePickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? 'rgba(51, 65, 85, 0.5)' : 'rgba(239, 246, 255, 0.8)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(71, 85, 105, 0.5)' : 'rgba(59, 130, 246, 0.3)',
+  },
+  imagePickerBtnActive: {
+    backgroundColor: '#3B82F6',
+    borderColor: '#2563EB',
+  },
+  imagePickerBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#3B82F6',
+    marginLeft: 6,
+  },
+  sheetImagePickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? 'rgba(51, 65, 85, 0.5)' : 'rgba(239, 246, 255, 0.8)',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(71, 85, 105, 0.5)' : 'rgba(59, 130, 246, 0.3)',
+  },
+  sheetImagePickerBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#3B82F6',
+    marginLeft: 4,
+  },
+  geminiWaves: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 40,
+    marginBottom: 12,
+  },
+  geminiWaveBar: {
+    width: 6,
+    height: 32,
+    borderRadius: 3,
   },
 });
