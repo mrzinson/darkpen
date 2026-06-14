@@ -825,12 +825,15 @@ async function handleIncomingMessage(message) {
     const darkpenSystemInstruction = `Waxaa laguu bixiyey magaca Darkpen. Waxaa ku horumarisay shirkada ZinsonAI oo uu leeyahay Hamze Mohamuud Ali Zinson (Zinson). Waligaa ha dhihin waxaa ku sameeyay Google ama OpenAI, adigu waxaad tahay Darkpen oo ay leedahay ZinsonAI.
     
     Rules:
-    1. Luuqaddaada: Ku jawaab af-Soomaali, Carabi, Ingiriis, ama luuqad kasta oo uu isticmaaluhu kuula soo hadlay farriintiisa u dambaysay (haddii uu Carabi kuugu soo qoro Carabi ugu jawaab, haddii uu Ingiriis kuugu soo qoro Ingiriis ugu jawaab, iwm).
+    1. Luuqadda Jawaabta (MUHIIM AADKA AH):
+       a) Haddii farriintu ay tahay QORAAL: Ku jawaab luuqadda ay qoraalku ku qoran yahay (Carabi → Carabi, Ingiriis → Ingiriis, Soomaali → Soomaali, iwm).
+       b) Haddii la soo diro SAWIR oo aan lahayn caption/qoraal: U fiiri qoraalka sawirka ku dhex jira, oo ku jawaab luuqadda ay qoraalka sawirku ku qoran yihiin. Tusaale: haddii sawirka ku qoran yihiin Carabi, Carabiga ku jawaab; haddii Ingiriis ku qoran yahay Ingiriis ku jawaab.
+       c) Haddii la soo diro sawir oo leh caption: Luuqadda caption-ka u isticmaal jawaabta.
     2. Jawaabahaagu ha ahaadaan kuwo gaaban, toos ah, oo waxtar leh (yareey hadallada aan loo baahnayn ee fluff-ka ah laakiin macnaha iyo faahfaahinta waxtarka leh ha lumin).
     3. Dhamaadka jawaabtaada, ku dar su'aal xiiso leh oo la xidhiidha mawduuca si wada-hadalku u sii socdo.
     4. 'Sax ama Qald': isticmaal <green>Sax</green> ama <red>Qald</red>. Doorasho (multiple choice): jawaabta saxda ah ku dhex qor <green>JAWAABTA</green>.
     5. Shaxan (table) ama barbardhig: Marna ha isticmaalin Markdown table (|---|) ama qaab grid ah. Xogta shaxda u soo qor qaab <table_data>Madaxa1|Madaxa2\nXogta1|Xogta2</table_data> si nidaamku si toos ah ugu beddelo qaab liis fudud ah oo ku habboon WhatsApp.
-    6. Haddii laguu soo diro sawir, sharax oo tallaabo-tallaabo u faahfaahi si fudud.
+    6. Haddii laguu soo diro sawir, sharax oo tallaabo-tallaabo u faahfaahi si fudud, ADOO KU JAWAABAYA LUUQADDA QORAALKA SAWIRKA KU DHEX JIRA.
     7. Cinwaanada: isticmaal plain bold (*Cinwaan*) halkii aad isticmaali lahayd #.
     8. Code-ka: ku dhex geli \`\`\`language ... \`\`\`.
     9. Ammaanka iyo Xogta App-ka:
@@ -846,9 +849,17 @@ async function handleIncomingMessage(message) {
     const delayMs = Math.floor(Math.random() * 700) + 500;
     await new Promise(resolve => setTimeout(resolve, delayMs));
 
+    // Build final prompt - for image with no caption, explicitly ask to detect image language
+    const hasCaption = messageText && messageText.trim().length > 0;
+    let finalPrompt;
+    if (attachmentData && !hasCaption) {
+        finalPrompt = 'Fadlan akhriso qoraalka sawirkan, ka dibna ku jawaab luuqadda ay qoraalkaasi ku qoran yihiin (haddii Carabi yahay Carabiga, haddii Ingiriis yahay Ingiriisi, haddii Soomaali yahay Soomaali, iwm). Sharax waxyaabaha sawirka ku jira si faahfaahsan.';
+    } else {
+        finalPrompt = messageText || 'Fadlan sharax sawirkan';
+    }
+
     try {
-        const finalPrompt = messageText || 'Fadlan sharax sawirkan';
-        const aiResponse = await askGemini(finalPrompt, "gemini-flash-latest", attachmentData, history, darkpenSystemInstruction);
+        const aiResponse = await askGemini(finalPrompt, "gemini-2.5-flash", attachmentData, history, darkpenSystemInstruction);
 
         const formattedResponse = formatResponseForWhatsApp(aiResponse);
         await message.reply(formattedResponse);
