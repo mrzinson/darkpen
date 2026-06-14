@@ -1,6 +1,54 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, X, Bell, RefreshCw, DollarSign, Clock, User, Hash } from 'lucide-react';
+import { Check, X, Bell, RefreshCw, DollarSign, Clock, User, Hash, Copy } from 'lucide-react';
 import { API_URL } from '../config';
+
+// Pleasant sound alert on new payments using Web Audio API
+const playNotifSound = () => {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    osc.start();
+    
+    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1); // A5
+    gain.gain.setValueAtTime(0.15, ctx.currentTime + 0.1);
+    
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.stop(ctx.currentTime + 0.4);
+  } catch (e) {
+    console.error('Failed to play sound', e);
+  }
+};
+
+// Copy button helper component
+const CopyButton = ({ text }: { text: string }) => {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      style={{
+        background: 'none', border: 'none', color: copied ? 'var(--success)' : 'var(--text-muted)',
+        cursor: 'pointer', padding: '2px', display: 'inline-flex', alignItems: 'center',
+        marginLeft: '6px', transition: 'color 0.2s', verticalAlign: 'middle'
+      }}
+      title="Koobi garee Reference-ka"
+    >
+      {copied ? <Check size={13} /> : <Copy size={13} />}
+    </button>
+  );
+};
 
 interface Payment {
   id: number;
@@ -43,6 +91,7 @@ export default function PaymentsPanel() {
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
 
   const prevPendingIds = useRef<Set<number>>(new Set());
+  const isInitialLoad = useRef(true);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const token = localStorage.getItem('adminToken');
@@ -62,20 +111,24 @@ export default function PaymentsPanel() {
 
       // Detect NEW pending payments since last fetch
       const currentPendingIds = new Set(arr.filter(p => p.status === 'pending').map(p => p.id));
-      const newOnes = arr.filter(p => p.status === 'pending' && !prevPendingIds.current.has(p.id));
-
-      if (newOnes.length > 0 && prevPendingIds.current.size > 0) {
-        // Show browser notification
-        newOnes.forEach(p => {
-          sendBrowserNotif(
-            `💰 New Payment Request!`,
-            `${p.user_name} sent $${p.amount} — Ref: ${p.reference_number}`
-          );
-        });
-        setNewBadge(prev => prev + newOnes.length);
+      
+      // If it is not the initial page load, alert the user about any new pending payments
+      if (!isInitialLoad.current) {
+        const newOnes = arr.filter(p => p.status === 'pending' && !prevPendingIds.current.has(p.id));
+        if (newOnes.length > 0) {
+          newOnes.forEach(p => {
+            sendBrowserNotif(
+              `💰 New Payment Request!`,
+              `${p.user_name} sent $${p.amount} — Ref: ${p.reference_number}`
+            );
+          });
+          playNotifSound();
+          setNewBadge(prev => prev + newOnes.length);
+        }
       }
 
       prevPendingIds.current = currentPendingIds;
+      isInitialLoad.current = false;
       setPayments(arr);
     } catch (err) {
       console.error(err);
@@ -308,7 +361,13 @@ export default function PaymentsPanel() {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '13px', marginBottom: '12px' }}>
                   <div><span style={{ color: 'var(--text-muted)', fontSize: '11px', display: 'block' }}>Amount</span><strong>${p.amount}</strong></div>
-                  <div><span style={{ color: 'var(--text-muted)', fontSize: '11px', display: 'block' }}>Ref</span><span style={{ fontFamily: 'monospace', fontSize: '11px' }}>{p.reference_number}</span></div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '11px', display: 'block' }}>Ref</span>
+                    <span style={{ fontFamily: 'monospace', fontSize: '11px', display: 'inline-flex', alignItems: 'center' }}>
+                      {p.reference_number}
+                      <CopyButton text={p.reference_number} />
+                    </span>
+                  </div>
                 </div>
                 {p.status === 'pending' && (
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -375,8 +434,9 @@ export default function PaymentsPanel() {
                         </div>
                       </td>
                       <td>
-                        <span style={{ fontFamily: 'monospace', fontSize: '12px', color: 'var(--text-muted)' }}>
+                        <span style={{ fontFamily: 'monospace', fontSize: '12px', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }}>
                           {p.reference_number}
+                          <CopyButton text={p.reference_number} />
                         </span>
                       </td>
                       <td>
