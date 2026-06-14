@@ -8,6 +8,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const adminAuth = require('../middleware/adminAuth');
 const { clearEmbeddingsCache } = require('../services/aiService');
+const whatsappBot = require('../services/whatsappBot');
 
 // Robustly resolve and create uploads directory inside the backend folder
 const uploadDir = path.join(__dirname, '..', 'uploads');
@@ -188,6 +189,58 @@ router.post('/users/:id/suspend', async (req, res) => {
     } catch (error) {
         console.error('Error suspending user:', error);
         res.status(500).json({ message: 'Cilad ayaa dhacday laalida user-ka' });
+    }
+});
+
+// 2a-2. Send WhatsApp Report to User
+router.post('/users/:id/whatsapp-report', async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // Fetch user data with credits, messages count, and tournament points (XP)
+        const [users] = await db.execute(`
+            SELECT u.*, 
+                   (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id) AS private_messages_count,
+                   (SELECT balance FROM user_wallet WHERE user_id = u.id) AS credits,
+                   (SELECT xp FROM tournament_players WHERE user_id = u.id LIMIT 1) AS xp
+            FROM users u WHERE u.id = ?
+        `, [id]);
+        
+        if (users.length === 0) {
+            return res.status(404).json({ message: 'User-ka lama helin' });
+        }
+        
+        const user = users[0];
+        if (!user.whatsapp_number) {
+            return res.status(400).json({ message: 'User-ka ma laha lambar WhatsApp ah!' });
+        }
+        
+        const dateJoined = new Date(user.created_at).toLocaleDateString('so-SO');
+        const statusText = user.is_suspended ? 'Xaniban (Suspended)' : 'Firfircoon (Active)';
+        
+        const message = `*DARKPEN REPORT* 📝📚\n` +
+          `----------------------------------\n` +
+          `👤 *Magaca:* ${user.name}\n` +
+          `🆔 *Username:* @${user.username || 'ma jiro'}\n` +
+          `📅 *Ku biiray:* ${dateJoined}\n` +
+          `💎 *Credits-ka Wallet:* ${user.credits || 0}\n` +
+          `💬 *Wada-sheekaysiga AI:* ${user.private_messages_count || 0}\n` +
+          `🏆 *Dhibcaha Tartanka (XP):* ${user.xp || 0} XP\n` +
+          `🔒 *Status-ka:* ${statusText}\n\n` +
+          `Mahadsanid, sii wad isticmaalka Darkpen! 🚀`;
+          
+        // Send message using the WhatsApp bot helper
+        await whatsappBot.sendWhatsAppMessage(user.whatsapp_number, message);
+        
+        // Log admin action
+        await logAdminAction(req.user.id, 'send_whatsapp_report', `Sent report to user ${user.name} (${user.whatsapp_number})`);
+        
+        res.json({ status: 'success', message: 'Report-ka waa loo diray user-ka WhatsApp-kiisa!' });
+    } catch (error) {
+        console.error('Error sending WhatsApp report:', error);
+        res.status(500).json({ 
+            message: 'WhatsApp bot-ku ma xirna ama cilad ayaa ku timid dirista report-ka.' 
+        });
     }
 });
 

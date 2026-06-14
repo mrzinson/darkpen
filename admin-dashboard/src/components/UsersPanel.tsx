@@ -80,28 +80,31 @@ export default function UsersPanel() {
     }
   };
 
-  const sendWhatsAppReport = (user: any) => {
+  const sendWhatsAppReport = async (user: any) => {
     if (!user.whatsapp_number) {
       showToast("User-ku ma laha lambar WhatsApp ah!", "danger");
       return;
     }
-    const cleanNumber = user.whatsapp_number.replace(/[^0-9]/g, '');
-    const dateJoined = new Date(user.created_at).toLocaleDateString();
-    const statusText = user.is_suspended ? 'Xaniban (Suspended)' : 'Firfircoon (Active)';
     
-    const message = `*DARKPEN REPORT* 📝📚\n` +
-      `----------------------------------\n` +
-      `👤 *Magaca:* ${user.name}\n` +
-      `🆔 *Username:* @${user.username || 'ma jiro'}\n` +
-      `📅 *Ku biiray:* ${dateJoined}\n` +
-      `💎 *Credits-ka Wallet:* ${user.credits || 0}\n` +
-      `💬 *Wada-sheekaysiga AI:* ${user.private_messages_count || 0}\n` +
-      `🏆 *Dhibcaha Tartanka (XP):* ${user.xp || 0} XP\n` +
-      `🔒 *Status-ka:* ${statusText}\n\n` +
-      `Mahadsanid, sii wad isticmaalka Darkpen! 🚀`;
-      
-    const url = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`;
-    window.open(url, '_blank');
+    try {
+      showToast("Report-ka waa la dirayaa...", "info");
+      const res = await fetch(`${API_URL}/admin/users/${user.id}/whatsapp-report`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await res.json();
+      if (res.ok && data.status === 'success') {
+        showToast(data.message, "success");
+      } else {
+        showToast(data.message || "Cilad ayaa dhacday dirista report-ka", "danger");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Cilad ayaa dhacday xiriirka server-ka", "danger");
+    }
   };
 
   const handleCopy = (e: React.MouseEvent, text: string, id: string) => {

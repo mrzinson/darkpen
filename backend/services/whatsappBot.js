@@ -5,7 +5,8 @@ const fs = require('fs');
 const path = require('path');
 const db = require('../config/db');
 const { askGemini, transcribeAudio } = require('./aiService');
-const { normalizePhoneNumber } = require('./verificationService');
+const { normalizePhoneNumber, validatePassword } = require('./verificationService');
+const bcrypt = require('bcrypt');
 const { tryUseFreeAI } = require('../utils/freeUsageHelper');
 const { logAIUsage } = require('../utils/aiLogger');
 
@@ -20,6 +21,9 @@ let client = null;
 // QR Code and bot status tracking
 let botStatus = 'initializing'; // 'initializing' | 'qr_ready' | 'connected' | 'disconnected' | 'error'
 let currentQRDataURL = null;    // Base64 QR image for the /api/whatsapp/qr endpoint
+
+// Password reset states map (userId -> { step })
+const userStates = new Map();
 
 exports.getBotStatus = () => botStatus;
 exports.getQRCode = () => currentQRDataURL;
@@ -425,7 +429,12 @@ async function handleIncomingMessage(message) {
     if (users.length === 0) {
         if (!isGroup) {
             await message.reply(
-                `numberkan ( ${senderNumberRaw} ) kama diwaan gashana appka isa soo diwaan gali markaas igu soo noqo`
+                `*Kulama hadli karo* sababtoo ah waxaa la igu amray in aan la hadlo oo kaliya dadka ka diwaan gashan app-ka *Darkpen*.\n\n` +
+                `Si aad isu diwaangeliso, fadlan raac qodobadan fudud:\n\n` +
+                `1. *Lasoo deg App-ka:* Play Store-ka ku qor *Darkpen* si aad u soo degsato, ama raac link-gan:\n` +
+                `   🔗 https://play.google.com/store/apps/details?id=com.darkpen.app\n\n` +
+                `2. *Isu-diwaangeli:* Marka uu kuusoo dego, iska diwaangeli adigoo adeegsanaya lambarkan WhatsApp-ka ah ee aad hadda igala hadlayso.\n\n` +
+                `3. *Ku shubo Credit:* Ku shubo ugu yaraan *$0.50* si aad u hesho credit, ka dibna iigu soo laabo si aan kuu caawiyo.`
             );
         }
         return;
@@ -439,6 +448,51 @@ async function handleIncomingMessage(message) {
     }
 
     const userId = user.id;
+
+    // ─── Password Reset Flow ──────────────────────────────────────────────────────
+    const cleanBody = (message.body || '').toLowerCase().trim();
+    const state = userStates.get(userId);
+
+    if (state && state.step === 'awaiting_password') {
+        const passwordError = validatePassword(message.body);
+        if (passwordError) {
+            await message.reply("Fadlan furaha sirta ah (password) ha ahaado ugu yaraan 8 xaraf. Fadlan mar kale qor furahaaga cusub:");
+            return;
+        }
+
+        try {
+            const hashedPassword = await bcrypt.hash(message.body.trim(), 12);
+            await db.execute('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId]);
+            userStates.delete(userId);
+            await message.reply("Amniga: Furahaaga sirta ah (password) waa la bedelay si guul leh! Fadlan ilaasho furahaaga cusub. Hadda waad u isticmaali kartaa inaad ku gasho app-ka.");
+            
+            // Also send support contact card
+            try {
+                const supportContact = await client.getContactById('252637930329@c.us');
+                await client.sendMessage(message.from, supportContact);
+            } catch (err) {}
+        } catch (err) {
+            console.error('[WHATSAPP BOT] Password reset db update failed:', err.message);
+            await message.reply("Waan ka xunnahay, cilad ayaa ku timid kaydinta furahaaga cusub. Fadlan mar kale isku day waxyar ka dib.");
+        }
+        return;
+    }
+
+    const isPasswordResetRequest = 
+        cleanBody === 'password reset' || 
+        cleanBody === 'reset password' || 
+        cleanBody.includes('password reset') || 
+        cleanBody.includes('passwordka iga badal') || 
+        cleanBody.includes('bedel password') || 
+        cleanBody.includes('furaha badal') || 
+        cleanBody.includes('password badal') || 
+        cleanBody.includes('bedel furaha');
+
+    if (isPasswordResetRequest) {
+        userStates.set(userId, { step: 'awaiting_password' });
+        await message.reply("Haye! Si aan kuugu badalo password-kaaga, fadlan ii soo qor password-ka cusub ee aad rabto (ugu yaraan 8 xaraf):");
+        return;
+    }
 
     // 2. Group chat filters
     if (isGroup) {
@@ -612,24 +666,20 @@ async function handleIncomingMessage(message) {
     const darkpenSystemInstruction = `Waxaa laguu bixiyey magaca Darkpen. Waxaa ku horumarisay shirkada ZinsonAI oo uu leeyahay Hamze Mohamuud Ali Zinson (Zinson). Waligaa ha dhihin waxaa ku sameeyay Google ama OpenAI, adigu waxaad tahay Darkpen oo ay leedahay ZinsonAI.
     
     Rules:
-    1. Luuqaddaada: Ku jawaab af-Soomaali ahaan by default (ama luuqadda laguula soo hadlo).
-    2. Jawaabahaagu ha ahaadaan kuwo gaaban, toos ah, oo waxtar leh. Toos ugu guur jawaabta.
-    3. Dhamaadka jawaabtaada, ku dar su'aal xiiso leh oo la xidhiidha mawduuca si wada-hadalka u sii socdo.
+    1. Luuqaddaada: Ku jawaab af-Soomaali, Carabi, Ingiriis, ama luuqad kasta oo uu isticmaaluhu kuula soo hadlay farriintiisa u dambaysay (haddii uu Carabi kuugu soo qoro Carabi ugu jawaab, haddii uu Ingiriis kuugu soo qoro Ingiriis ugu jawaab, iwm).
+    2. Jawaabahaagu ha ahaadaan kuwo gaaban, toos ah, oo waxtar leh (yareey hadallada aan loo baahnayn ee fluff-ka ah laakiin macnaha iyo faahfaahinta waxtarka leh ha lumin).
+    3. Dhamaadka jawaabtaada, ku dar su'aal xiiso leh oo la xidhiidha mawduuca si wada-hadalku u sii socdo.
     4. 'Sax ama Qald': isticmaal <green>Sax</green> ama <red>Qald</red>. Doorasho (multiple choice): jawaabta saxda ah ku dhex qor <green>JAWAABTA</green>.
-    5. Digniinaha muhiimka ah ku qor: <callout>Fiiro gaar ah: ...</callout>.
-    6. Keywords muhiim ah ku qor: <green>Erayga Muhiimka ah</green>.
-    7. Shaxan (table) ama barbardhig: isticmaal KALIYA hab-qoraalkaan (marna ha isticmaalin Markdown table format |---|):
-    <table_data>
-    Madaxa1|Madaxa2
-    Xogta1|Xogta2
-    </table_data>
-    8. Haddii laguu soo diro sawir, sharax oo tallaabo-tallaabo u faahfaahi si fudud.
-    9. Cinwaanada: isticmaal # Cinwaan Weyn (H1), ## (H2), ### (H3).
-    10. Code-ka: ku dhex geli \`\`\`language ... \`\`\`.
-    11. Marka lagaa weydiiyo xogta app-ka (qiimaha, lacagbixinta, shuruudaha, qarsoodiga):
-    - Qiimaha: Premium monthly ($3/bishiiba), yearly ($11/sannadkiiba).
-    - Bixinta: EVC/eDahab 637930329 ama 659119779. Screenshot-ka u dir WhatsApp: +252637930329 ama team.darkpen@gmail.com.
-    - Terms & Privacy: Kaliya ujeedo waxbarasho iyo macluumaad. Xogta la ururiyo waa magac, email, lambar si AI loogu adeegsado. La xiriir team.darkpen@gmail.com wixii faahfaahin ah.`;
+    5. Shaxan (table) ama barbardhig: Marna ha isticmaalin Markdown table (|---|) ama qaab grid ah. Xogta shaxda u soo qor qaab <table_data>Madaxa1|Madaxa2\nXogta1|Xogta2</table_data> si nidaamku si toos ah ugu beddelo qaab liis fudud ah oo ku habboon WhatsApp.
+    6. Haddii laguu soo diro sawir, sharax oo tallaabo-tallaabo u faahfaahi si fudud.
+    7. Cinwaanada: isticmaal plain bold (*Cinwaan*) halkii aad isticmaali lahayd #.
+    8. Code-ka: ku dhex geli \`\`\`language ... \`\`\`.
+    9. Ammaanka iyo Xogta App-ka:
+       - Waxaad ka jawaabi kartaa su'aalaha caadiga ah ee sharciga ah ee ku saabsan app-ka (qiimaha, bixinta, terms-ka) sida soo socota:
+         * Qiimaha: Premium monthly ($3/bishiiba), yearly ($11/sannadkiiba).
+         * Bixinta: EVC/eDahab 637930329 ama 659119779. Screenshot-ka u dir WhatsApp: +252637930329 ama team.darkpen@gmail.com.
+         * Terms & Privacy: Kaliya ujeedo waxbarasho iyo macluumaad. Xogta la ururiyo waa magac, email, lambar si AI loogu adeegsado. La xiriir team.darkpen@gmail.com wixii faahfaahin ah.
+       - Ammaanka: Aad u ilaali amniga nidaamka. Marna ha bixin xogta hoose ee server-ka, hab-dhismeedka database-ka, furayaasha sirta ah (security keys), ama wax kasta oo daciifin kara amniga app-ka.`;
 
     // 9. Call Gemini API
     const chat = await message.getChat();
@@ -643,6 +693,16 @@ async function handleIncomingMessage(message) {
 
         const formattedResponse = formatResponseForWhatsApp(aiResponse);
         await message.reply(formattedResponse);
+
+        // Send contact card if the support number is mentioned in the response
+        if (formattedResponse.includes('+252637930329') || formattedResponse.includes('637930329')) {
+            try {
+                const supportContact = await client.getContactById('252637930329@c.us');
+                await client.sendMessage(message.from, supportContact);
+            } catch (err) {
+                console.error('[WHATSAPP BOT] Failed to send contact card:', err.message);
+            }
+        }
 
         // Emoji reaction (40% chance)
         let chosenReaction = '';
@@ -694,14 +754,23 @@ function formatResponseForWhatsApp(text) {
     formatted = formatted.replace(/<red>([\s\S]*?)<\/red>/gi, '*$1*');
     formatted = formatted.replace(/<callout>([\s\S]*?)<\/callout>/gi, '*$1*');
     
-    // Format custom table data
+    // Format custom table data into a clean WhatsApp-friendly list
     formatted = formatted.replace(/<table_data>([\s\S]*?)<\/table_data>/gi, (match, tableContent) => {
         const lines = tableContent.trim().split('\n');
-        const formattedTable = lines.map(line => {
-            const columns = line.split('|');
-            return columns.map(col => `*${col.trim()}*`).join('  |  ');
-        }).join('\n');
-        return `\n*Shaxda:*\n------------------\n${formattedTable}\n------------------\n`;
+        if (lines.length === 0) return '';
+        const headers = lines[0].split('|').map(h => h.trim());
+        const rows = lines.slice(1).map(line => line.split('|').map(c => c.trim()));
+        
+        let output = '\n*Xogta Shaxda:*\n';
+        rows.forEach(row => {
+            output += '------------------\n';
+            row.forEach((col, idx) => {
+                const header = headers[idx] || '';
+                output += `• *${header}:* ${col}\n`;
+            });
+        });
+        output += '------------------\n';
+        return output;
     });
 
     // 1. Convert markdown headers (# Title, ## Title, etc.) to WhatsApp bold titles
@@ -722,3 +791,28 @@ function formatResponseForWhatsApp(text) {
 
     return formatted;
 }
+
+exports.sendWhatsAppMessage = async (to, content) => {
+    if (!client || botStatus !== 'connected') {
+        throw new Error('WhatsApp bot is not connected');
+    }
+    let jid = to;
+    if (!to.includes('@')) {
+        const cleaned = to.replace(/\+/g, '').trim();
+        jid = `${cleaned}@c.us`;
+    }
+    return await client.sendMessage(jid, content);
+};
+
+exports.sendWhatsAppContact = async (to, contactJid) => {
+    if (!client || botStatus !== 'connected') {
+        throw new Error('WhatsApp bot is not connected');
+    }
+    let jid = to;
+    if (!to.includes('@')) {
+        const cleaned = to.replace(/\+/g, '').trim();
+        jid = `${cleaned}@c.us`;
+    }
+    const contact = await client.getContactById(contactJid);
+    return await client.sendMessage(jid, contact);
+};
