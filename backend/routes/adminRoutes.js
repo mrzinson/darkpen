@@ -204,7 +204,6 @@ router.post('/users/:id/whatsapp-report', async (req, res) => {
                    (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id AND session_id IS NOT NULL) AS app_messages_count,
                    (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id AND session_id IS NULL) AS whatsapp_messages_count,
                    (SELECT balance FROM user_wallet WHERE user_id = u.id) AS credits,
-                   (SELECT xp FROM tournament_players WHERE user_id = u.id LIMIT 1) AS xp,
                    (SELECT type FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1) AS sub_type,
                    (SELECT expiry_date FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1) AS sub_expiry
             FROM users u WHERE u.id = ?
