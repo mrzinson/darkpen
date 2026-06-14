@@ -451,6 +451,20 @@ async function handleIncomingMessage(message) {
 
     // ─── Password Reset Flow ──────────────────────────────────────────────────────
     const cleanBody = (message.body || '').toLowerCase().trim();
+    // Normalize common typos before keyword matching
+    const normalizedBody = cleanBody
+        .replace(/resset/g, 'reset')     // password resset → password reset
+        .replace(/ressett/g, 'reset')
+        .replace(/passward/g, 'password') // passward → password
+        .replace(/pasword/g, 'password')  // pasword → password
+        .replace(/passwrod/g, 'password') // passwrod → password
+        .replace(/pssword/g, 'password')  // pssword → password
+        .replace(/paswword/g, 'password') // paswword → password
+        .replace(/ilaawey/g, 'ilaaway')   // Somali typos
+        .replace(/ilaawaye/g, 'ilaaway')
+        .replace(/illaaway/g, 'ilaaway')
+        .replace(/baddal/g, 'badal')
+        .replace(/badaal/g, 'badal');
     const state = userStates.get(userId);
 
     if (state && state.step === 'awaiting_password') {
@@ -478,61 +492,64 @@ async function handleIncomingMessage(message) {
         return;
     }
 
-    // Broad & natural language password reset detection (Somali + English)
-    const isPasswordResetRequest = 
+    // Broad & natural language password reset detection (Somali + English + typo-tolerant)
+    // Check against both the raw cleanBody and the typo-normalized version
+    const _checkPwReset = (body) =>
         // English phrases
-        cleanBody.includes('password reset') ||
-        cleanBody.includes('reset password') ||
-        cleanBody.includes('forgot password') ||
-        cleanBody.includes('forget password') ||
-        cleanBody.includes('change password') ||
-        cleanBody.includes('change my password') ||
-        cleanBody.includes('lost password') ||
-        cleanBody.includes('cant login') ||
-        cleanBody.includes("can't login") ||
-        cleanBody.includes("can't log in") ||
-        cleanBody.includes('reset my password') ||
-        cleanBody.includes('update password') ||
+        body.includes('password reset') ||
+        body.includes('reset password') ||
+        body.includes('forgot password') ||
+        body.includes('forget password') ||
+        body.includes('change password') ||
+        body.includes('change my password') ||
+        body.includes('lost password') ||
+        body.includes('cant login') ||
+        body.includes("can't login") ||
+        body.includes("can't log in") ||
+        body.includes('reset my password') ||
+        body.includes('update password') ||
         // Somali phrases – natural speech
-        cleanBody.includes('password') && (
-            cleanBody.includes('badal') ||
-            cleanBody.includes('ilaaways') ||
-            cleanBody.includes('ilaaway') ||
-            cleanBody.includes('ma galin') ||
-            cleanBody.includes('ma geli') ||
-            cleanBody.includes('iga') ||
-            cleanBody.includes('ii') ||
-            cleanBody.includes('cusub') ||
-            cleanBody.includes('waan') ||
-            cleanBody.includes('waxaan')
-        ) ||
-        cleanBody.includes('furaha') && (
-            cleanBody.includes('badal') ||
-            cleanBody.includes('ilaaways') ||
-            cleanBody.includes('ilaaway') ||
-            cleanBody.includes('ma galin') ||
-            cleanBody.includes('cusub') ||
-            cleanBody.includes('iga') ||
-            cleanBody.includes('ii')
-        ) ||
+        (body.includes('password') && (
+            body.includes('badal') ||
+            body.includes('ilaaways') ||
+            body.includes('ilaaway') ||
+            body.includes('ma galin') ||
+            body.includes('ma geli') ||
+            body.includes('iga') ||
+            body.includes('ii') ||
+            body.includes('cusub') ||
+            body.includes('waan') ||
+            body.includes('waxaan')
+        )) ||
+        (body.includes('furaha') && (
+            body.includes('badal') ||
+            body.includes('ilaaways') ||
+            body.includes('ilaaway') ||
+            body.includes('ma galin') ||
+            body.includes('cusub') ||
+            body.includes('iga') ||
+            body.includes('ii')
+        )) ||
         // Common full phrases
-        cleanBody.includes('passwordka waan ilaaway') ||
-        cleanBody.includes('password waan ilaaway') ||
-        cleanBody.includes('furaha waan ilaaway') ||
-        cleanBody.includes('passwordka iga badal') ||
-        cleanBody.includes('password iga badal') ||
-        cleanBody.includes('furaha iga badal') ||
-        cleanBody.includes('bedel password') ||
-        cleanBody.includes('bedel furaha') ||
-        cleanBody.includes('furaha badal') ||
-        cleanBody.includes('password badal') ||
-        cleanBody.includes('ma geli karo password') ||
-        cleanBody.includes('ma galin karo') ||
-        cleanBody.includes('app lagama geli karo') ||
-        cleanBody.includes('kuma geli karo') ||
-        cleanBody.includes('password ilaaway') ||
-        cleanBody.includes('furaheygii waan ilaaway') ||
-        cleanBody.includes('furaheygii ilaaway');
+        body.includes('passwordka waan ilaaway') ||
+        body.includes('password waan ilaaway') ||
+        body.includes('furaha waan ilaaway') ||
+        body.includes('passwordka iga badal') ||
+        body.includes('password iga badal') ||
+        body.includes('furaha iga badal') ||
+        body.includes('bedel password') ||
+        body.includes('bedel furaha') ||
+        body.includes('furaha badal') ||
+        body.includes('password badal') ||
+        body.includes('ma geli karo password') ||
+        body.includes('ma galin karo') ||
+        body.includes('app lagama geli karo') ||
+        body.includes('kuma geli karo') ||
+        body.includes('password ilaaway') ||
+        body.includes('furaheygii waan ilaaway') ||
+        body.includes('furaheygii ilaaway');
+
+    const isPasswordResetRequest = _checkPwReset(cleanBody) || _checkPwReset(normalizedBody);
 
     if (isPasswordResetRequest) {
         userStates.set(userId, { step: 'awaiting_password' });

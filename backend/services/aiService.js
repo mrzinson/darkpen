@@ -38,8 +38,8 @@ async function retryWithBackoff(fn, retries = 3, delay = 600) {
 /**
  * La hadal Gemini
  */
-exports.askGemini = async (prompt, modelName = "gemini-flash-latest", attachment = null, history = [], systemInstruction = null) => {
-    const fallbackModels = Array.from(new Set([modelName, "gemini-2.5-flash", "gemini-flash-latest", "gemini-1.5-flash", "gemini-1.5-flash-8b"]));
+exports.askGemini = async (prompt, modelName = "gemini-2.5-flash", attachment = null, history = [], systemInstruction = null) => {
+    const fallbackModels = Array.from(new Set([modelName, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-flash-latest"]));
     let lastError = null;
 
     for (const currentModel of fallbackModels) {
@@ -91,8 +91,8 @@ exports.askGemini = async (prompt, modelName = "gemini-flash-latest", attachment
 /**
  * La hadal Gemini adigoo ku jawaabaya qaab Streaming ah
  */
-exports.askGeminiStream = async (prompt, modelName = "gemini-flash-latest", attachment = null, history = [], systemInstruction = null) => {
-    const fallbackModels = Array.from(new Set([modelName, "gemini-2.5-flash", "gemini-flash-latest", "gemini-1.5-flash", "gemini-1.5-flash-8b"]));
+exports.askGeminiStream = async (prompt, modelName = "gemini-2.5-flash", attachment = null, history = [], systemInstruction = null) => {
+    const fallbackModels = Array.from(new Set([modelName, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-flash-latest"]));
     let lastError = null;
 
     for (const currentModel of fallbackModels) {
@@ -287,7 +287,7 @@ exports.transcribeAudio = async (filePath, mimeType = "audio/mp4") => {
     const audioBuffer = fs.readFileSync(filePath);
     const base64Audio = audioBuffer.toString('base64');
 
-    const fallbackModels = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-1.5-flash-latest"];
+    const fallbackModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-flash-latest"];
     let lastError = null;
 
     for (const currentModel of fallbackModels) {
