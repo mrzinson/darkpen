@@ -277,7 +277,7 @@ export default function WhatsAppBotPanel() {
         display: 'flex', gap: '4px', marginBottom: '24px',
         background: 'rgba(255,255,255,0.02)', padding: '4px',
         borderRadius: '10px', border: '1px solid rgba(255,255,255,0.05)',
-        width: 'fit-content'
+        width: 'fit-content', maxWidth: '100%', overflowX: 'auto', whiteSpace: 'nowrap'
       }}>
         {[
           { key: 'overview', label: 'Overview', icon: <Activity size={15} /> },
@@ -316,7 +316,7 @@ export default function WhatsAppBotPanel() {
           {activeTab === 'overview' && stats && (
             <div>
               {/* Bot Status Cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+              <div className="wabp-status-grid" style={{ marginBottom: '20px' }}>
                 {[
                   { name: 'Local Bot', sub: 'Puppeteer Engine', status: stats.status.localBot },
                   { name: 'Cloud Bot', sub: 'Meta API Webhook', status: stats.status.cloudBot },
@@ -353,7 +353,7 @@ export default function WhatsAppBotPanel() {
               </div>
 
               {/* Key Metrics Row */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '20px' }}>
+              <div className="wabp-metrics-grid" style={{ marginBottom: '20px' }}>
                 {[
                   {
                     icon: <UserCheck size={20} />, label: 'Users Today',
@@ -415,7 +415,7 @@ export default function WhatsAppBotPanel() {
                   <MessageSquare size={18} color="var(--primary)" />
                   <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>Message Volume</h3>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+                <div className="wabp-volume-grid">
                   {[
                     {
                       period: 'Last 24h', in: stats.messages.user_24h || 0,
@@ -479,7 +479,7 @@ export default function WhatsAppBotPanel() {
                   <Globe size={18} color="var(--success)" />
                   <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>User Engagement (WhatsApp)</h3>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+                <div className="wabp-engagement-grid">
                   {[
                     { label: 'Daily Active (DAU)', value: stats.activeUsers.daily, sub: 'Active today', color: 'var(--primary)' },
                     { label: 'Monthly Active (MAU)', value: stats.activeUsers.monthly, sub: 'Active this month', color: 'var(--success)' },
@@ -534,10 +534,7 @@ export default function WhatsAppBotPanel() {
               </div>
 
               {/* Summary bar */}
-              <div style={{
-                display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: '12px', marginBottom: '16px'
-              }}>
+              <div className="wabp-users-summary-grid" style={{ marginBottom: '16px' }}>
                 <div style={{
                   padding: '14px 18px', borderRadius: '10px',
                   background: 'rgba(10,132,255,0.08)', border: '1px solid rgba(10,132,255,0.15)',
@@ -720,7 +717,7 @@ export default function WhatsAppBotPanel() {
               </div>
 
               {/* Groups summary */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginBottom: '16px' }}>
+              <div className="wabp-groups-summary-grid" style={{ marginBottom: '16px' }}>
                 <div style={{
                   padding: '14px 18px', borderRadius: '10px',
                   background: 'rgba(37,211,102,0.08)', border: '1px solid rgba(37,211,102,0.15)',
@@ -912,7 +909,7 @@ export default function WhatsAppBotPanel() {
                 <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   Bot Interactions
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="wabp-interactions-grid">
                   {[
                     { icon: <MessageSquare size={16} />, label: 'Sent to Bot', value: selectedUser.msg_to_bot, color: 'var(--primary)' },
                     { icon: <MessageSquare size={16} />, label: 'Received from Bot', value: selectedUser.msg_from_bot, color: '#25D366' },
@@ -1043,7 +1040,7 @@ export default function WhatsAppBotPanel() {
               </div>
 
               {/* Stats Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '20px' }}>
+              <div className="wabp-group-stats-grid" style={{ marginBottom: '20px' }}>
                 {[
                   { label: 'Times Mentioned', value: selectedGroup.bot_mention_count, icon: <AlertTriangle size={18} />, color: 'var(--warning)', sub: '@mention count' },
                   { label: 'Bot Messages', value: selectedGroup.bot_message_count, icon: <MessageSquare size={18} />, color: 'var(--primary)', sub: 'Messages sent by bot' },
@@ -1133,6 +1130,84 @@ export default function WhatsAppBotPanel() {
         }
         .animate-spin {
           animation: spin 1s linear infinite;
+        }
+
+        /* Responsive Grid layouts */
+        .wabp-status-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px;
+        }
+        .wabp-metrics-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 16px;
+        }
+        .wabp-volume-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 16px;
+        }
+        .wabp-engagement-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 16px;
+        }
+        .wabp-users-summary-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 12px;
+        }
+        .wabp-groups-summary-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 12px;
+        }
+        .wabp-interactions-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+        .wabp-group-stats-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 14px;
+        }
+
+        @media (max-width: 768px) {
+          .wabp-status-grid {
+            grid-template-columns: 1fr;
+          }
+          .wabp-metrics-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+          .wabp-volume-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+          .wabp-engagement-grid {
+            grid-template-columns: 1fr;
+          }
+          .wabp-users-summary-grid {
+            grid-template-columns: 1fr;
+          }
+          .wabp-groups-summary-grid {
+            grid-template-columns: 1fr;
+          }
+          .wabp-group-stats-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .wabp-metrics-grid {
+            grid-template-columns: 1fr;
+          }
+          .wabp-volume-grid {
+            grid-template-columns: 1fr;
+          }
+          .wabp-interactions-grid {
+            grid-template-columns: 1fr;
+          }
         }
       `}</style>
     </div>

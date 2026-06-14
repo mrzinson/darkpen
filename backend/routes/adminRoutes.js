@@ -1389,7 +1389,7 @@ router.get('/whatsapp/users', async (req, res) => {
                 u.role, 
                 u.is_suspended,
                 COALESCE(uw.balance, 0) as balance,
-                us.plan_type,
+                us.type as plan_type,
                 us.expiry_date,
                 (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id AND session_id IS NULL AND sender = 'user') as msg_to_bot,
                 (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id AND session_id IS NULL AND sender = 'ai') as msg_from_bot,
@@ -1400,7 +1400,7 @@ router.get('/whatsapp/users', async (req, res) => {
             LEFT JOIN user_subscriptions us ON u.id = us.user_id AND us.expiry_date > NOW()
             WHERE u.whatsapp_number IS NOT NULL 
                OR u.id IN (SELECT DISTINCT user_id FROM messages_private WHERE session_id IS NULL)
-            ORDER BY msg_to_bot DESC
+            ORDER BY u.id DESC
         `);
         res.json(users);
     } catch (error) {
