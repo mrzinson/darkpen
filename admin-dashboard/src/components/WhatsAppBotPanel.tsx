@@ -434,8 +434,10 @@ export default function WhatsAppBotPanel() {
                       out: stats.messages.ai_30d || 0
                     },
                   ].map(p => {
-                    const total = p.in + p.out;
-                    const inPct = total > 0 ? Math.round((p.in / total) * 100) : 50;
+                    const numIn = Number(p.in) || 0;
+                    const numOut = Number(p.out) || 0;
+                    const total = numIn + numOut;
+                    const inPct = total > 0 ? Math.round((numIn / total) * 100) : 50;
                     return (
                       <div key={p.period} style={{
                         padding: '16px', borderRadius: '10px',
