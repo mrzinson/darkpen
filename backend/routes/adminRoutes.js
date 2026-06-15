@@ -10,6 +10,7 @@ const adminAuth = require('../middleware/adminAuth');
 const { clearEmbeddingsCache } = require('../services/aiService');
 const whatsappBot = require('../services/whatsappBot');
 const whatsappCloudBot = require('../services/whatsappCloudBot');
+const cloudinaryService = require('../services/cloudinaryService');
 
 // Robustly resolve and create uploads directory inside the backend folder
 const uploadDir = path.join(__dirname, '..', 'uploads');
@@ -417,8 +418,28 @@ const ingestionService = require('../services/ingestionService');
 router.post('/exams', upload.fields([{ name: 'image', maxCount: 1 }, { name: 'pdf', maxCount: 1 }]), async (req, res) => {
     try {
         const { title, description, category, grade, year, country } = req.body;
-        const imageUrl = req.files['image'] ? `/uploads/${req.files['image'][0].filename}` : null;
-        const pdfUrl = req.files['pdf'] ? `/uploads/${req.files['pdf'][0].filename}` : null;
+        let imageUrl = null;
+        let pdfUrl = null;
+        let pdfPath = null;
+        let deletePDFLocallyAfterIngestion = false;
+
+        if (req.files) {
+            if (req.files['image']) {
+                const localImagePath = path.join(__dirname, '..', 'uploads', req.files['image'][0].filename);
+                imageUrl = await cloudinaryService.uploadLocalFile(localImagePath, 'exams_images', true);
+            } else {
+                imageUrl = null;
+            }
+            if (req.files['pdf']) {
+                pdfPath = path.join(__dirname, '..', 'uploads', req.files['pdf'][0].filename);
+                pdfUrl = await cloudinaryService.uploadLocalFile(pdfPath, 'exams_pdfs', false);
+                if (cloudinaryService.isConfigured) {
+                    deletePDFLocallyAfterIngestion = true;
+                }
+            } else {
+                pdfUrl = null;
+            }
+        }
 
         const [result] = await db.execute(
             'INSERT INTO exams (title, description, category, grade, year, image_url, pdf_url, country) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
@@ -426,9 +447,8 @@ router.post('/exams', upload.fields([{ name: 'image', maxCount: 1 }, { name: 'pd
         );
 
         // Ingest into RAG in background
-        if (pdfUrl) {
-            const pdfPath = path.join(__dirname, '..', 'uploads', path.basename(pdfUrl));
-            ingestionService.ingestPDF(result.insertId, 'exam', title, category, pdfPath);
+        if (pdfPath) {
+            ingestionService.ingestPDF(result.insertId, 'exam', title, category, pdfPath, deletePDFLocallyAfterIngestion);
         }
 
         res.json({ message: 'Imtixaanka si guul leh ayaa loo soo geliyay! AI-duna hadda ayay bilaabaysaa barashada.' });
@@ -459,14 +479,23 @@ router.patch('/exams/:id', upload.fields([{ name: 'image', maxCount: 1 }, { name
         
         let imageUrl = exams[0].image_url;
         let pdfUrl = exams[0].pdf_url;
+        let pdfPath = null;
         let pdfChanged = false;
+        let deletePDFLocallyAfterIngestion = false;
 
-        if (req.files && req.files['image']) {
-            imageUrl = `/uploads/${req.files['image'][0].filename}`;
-        }
-        if (req.files && req.files['pdf']) {
-            pdfUrl = `/uploads/${req.files['pdf'][0].filename}`;
-            pdfChanged = true;
+        if (req.files) {
+            if (req.files['image']) {
+                const localImagePath = path.join(__dirname, '..', 'uploads', req.files['image'][0].filename);
+                imageUrl = await cloudinaryService.uploadLocalFile(localImagePath, 'exams_images', true);
+            }
+            if (req.files['pdf']) {
+                pdfPath = path.join(__dirname, '..', 'uploads', req.files['pdf'][0].filename);
+                pdfUrl = await cloudinaryService.uploadLocalFile(pdfPath, 'exams_pdfs', false);
+                pdfChanged = true;
+                if (cloudinaryService.isConfigured) {
+                    deletePDFLocallyAfterIngestion = true;
+                }
+            }
         }
 
         await db.execute(
@@ -484,11 +513,10 @@ router.patch('/exams/:id', upload.fields([{ name: 'image', maxCount: 1 }, { name
             ]
         );
 
-        if (pdfChanged) {
+        if (pdfChanged && pdfPath) {
             await db.execute('DELETE FROM book_embeddings WHERE source_id = ? AND source_type = "exam"', [id]);
             clearEmbeddingsCache();
-            const pdfPath = path.join(__dirname, '..', 'uploads', path.basename(pdfUrl));
-            ingestionService.ingestPDF(id, 'exam', title || exams[0].title, category || exams[0].category, pdfPath);
+            ingestionService.ingestPDF(id, 'exam', title || exams[0].title, category || exams[0].category, pdfPath, deletePDFLocallyAfterIngestion);
         }
 
         res.json({ message: 'Imtixaanka si guul leh ayaa loo cusboonaysiayey!' });
@@ -511,8 +539,24 @@ router.get('/books', async (req, res) => {
 router.post('/books', upload.fields([{ name: 'image', maxCount: 1 }, { name: 'pdf', maxCount: 1 }]), async (req, res) => {
     try {
         const { title, author, category, grade, country } = req.body;
-        const imageUrl = req.files['image'] ? `/uploads/${req.files['image'][0].filename}` : null;
-        const pdfUrl = req.files['pdf'] ? `/uploads/${req.files['pdf'][0].filename}` : null;
+        let imageUrl = null;
+        let pdfUrl = null;
+        let pdfPath = null;
+        let deletePDFLocallyAfterIngestion = false;
+
+        if (req.files) {
+            if (req.files['image']) {
+                const localImagePath = path.join(__dirname, '..', 'uploads', req.files['image'][0].filename);
+                imageUrl = await cloudinaryService.uploadLocalFile(localImagePath, 'books_images', true);
+            }
+            if (req.files['pdf']) {
+                pdfPath = path.join(__dirname, '..', 'uploads', req.files['pdf'][0].filename);
+                pdfUrl = await cloudinaryService.uploadLocalFile(pdfPath, 'books_pdfs', false);
+                if (cloudinaryService.isConfigured) {
+                    deletePDFLocallyAfterIngestion = true;
+                }
+            }
+        }
 
         const [result] = await db.execute(
             'INSERT INTO books (title, author, category, grade, image_url, pdf_url, country) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -520,9 +564,8 @@ router.post('/books', upload.fields([{ name: 'image', maxCount: 1 }, { name: 'pd
         );
 
         // Ingest into RAG in background
-        if (pdfUrl) {
-            const pdfPath = path.join(__dirname, '..', 'uploads', path.basename(pdfUrl));
-            ingestionService.ingestPDF(result.insertId, 'book', title, category, pdfPath);
+        if (pdfPath) {
+            ingestionService.ingestPDF(result.insertId, 'book', title, category, pdfPath, deletePDFLocallyAfterIngestion);
         }
 
         res.json({ message: 'Buugga si guul leh ayaa loo soo geliyay! AI-duna hadda ayay bilaabaysaa barashada.' });
@@ -553,14 +596,23 @@ router.patch('/books/:id', upload.fields([{ name: 'image', maxCount: 1 }, { name
         
         let imageUrl = books[0].image_url;
         let pdfUrl = books[0].pdf_url;
+        let pdfPath = null;
         let pdfChanged = false;
+        let deletePDFLocallyAfterIngestion = false;
 
-        if (req.files && req.files['image']) {
-            imageUrl = `/uploads/${req.files['image'][0].filename}`;
-        }
-        if (req.files && req.files['pdf']) {
-            pdfUrl = `/uploads/${req.files['pdf'][0].filename}`;
-            pdfChanged = true;
+        if (req.files) {
+            if (req.files['image']) {
+                const localImagePath = path.join(__dirname, '..', 'uploads', req.files['image'][0].filename);
+                imageUrl = await cloudinaryService.uploadLocalFile(localImagePath, 'books_images', true);
+            }
+            if (req.files['pdf']) {
+                pdfPath = path.join(__dirname, '..', 'uploads', req.files['pdf'][0].filename);
+                pdfUrl = await cloudinaryService.uploadLocalFile(pdfPath, 'books_pdfs', false);
+                pdfChanged = true;
+                if (cloudinaryService.isConfigured) {
+                    deletePDFLocallyAfterIngestion = true;
+                }
+            }
         }
 
         await db.execute(
@@ -577,11 +629,10 @@ router.patch('/books/:id', upload.fields([{ name: 'image', maxCount: 1 }, { name
             ]
         );
 
-        if (pdfChanged) {
+        if (pdfChanged && pdfPath) {
             await db.execute('DELETE FROM book_embeddings WHERE source_id = ? AND source_type = "book"', [id]);
             clearEmbeddingsCache();
-            const pdfPath = path.join(__dirname, '..', 'uploads', path.basename(pdfUrl));
-            ingestionService.ingestPDF(id, 'book', title || books[0].title, category || books[0].category, pdfPath);
+            ingestionService.ingestPDF(id, 'book', title || books[0].title, category || books[0].category, pdfPath, deletePDFLocallyAfterIngestion);
         }
 
         res.json({ message: 'Buugga si guul leh ayaa loo cusboonaysiayey!' });
@@ -644,7 +695,12 @@ router.get('/promo-cards', async (req, res) => {
 router.post('/promo-cards', upload.single('image'), async (req, res) => {
     try {
         const { title_en, title_so, desc_en, desc_so, button_text_en, button_text_so, route, overlay_color_light, overlay_color_dark, reward_credits, reward_type, promo_type } = req.body;
-        const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
+        let imageUrl = null;
+
+        if (req.file) {
+            const localImagePath = path.join(__dirname, '..', 'uploads', req.file.filename);
+            imageUrl = await cloudinaryService.uploadLocalFile(localImagePath, 'promo_images', true);
+        }
 
         if (!imageUrl) {
             return res.status(400).json({ message: 'Fadlan soo geli sawirka xayaysiiska.' });
@@ -680,7 +736,8 @@ router.put('/promo-cards/:id', upload.single('image'), async (req, res) => {
         let params = [title_en, title_so, desc_en, desc_so, button_text_en, button_text_so, route, overlay_color_light, overlay_color_dark, parseInt(reward_credits) || 0, reward_type || null, promo_type || 'normal'];
 
         if (req.file) {
-            const imageUrl = `/uploads/${req.file.filename}`;
+            const localImagePath = path.join(__dirname, '..', 'uploads', req.file.filename);
+            const imageUrl = await cloudinaryService.uploadLocalFile(localImagePath, 'promo_images', true);
             query += `, image_url = ?`;
             params.push(imageUrl);
         }

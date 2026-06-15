@@ -6,6 +6,7 @@ const userController = require('../controllers/userController');
 const { checkAndExpireWallet } = require('../utils/walletHelper');
 const multer = require('multer');
 const path = require('path');
+const cloudinaryService = require('../services/cloudinaryService');
 
 const fs = require('fs');
 
@@ -241,7 +242,8 @@ router.post('/promo-cards/:id/claim', auth, upload.single('screenshot'), async (
             return res.status(400).json({ message: 'Fadlan soo gali sawirka screenshot-ka si loo xaqiijiyo!' });
         }
 
-        const screenshotUrl = `/uploads/${req.file.filename}`;
+        const localImagePath = path.join(__dirname, '..', 'uploads', req.file.filename);
+        const screenshotUrl = await cloudinaryService.uploadLocalFile(localImagePath, 'screenshots', true);
 
         // Insert new claim request with 'pending' status
         await db.execute(

@@ -83,7 +83,7 @@ exports.updateProfile = async (req, res) => {
         if (profile_picture) {
             let finalPic = profile_picture;
             if (profile_picture.startsWith('data:image')) {
-                finalPic = saveBase64Image(profile_picture, 'profiles') || profile_picture;
+                finalPic = await saveBase64Image(profile_picture, 'profiles') || profile_picture;
             }
             await db.execute('UPDATE users SET profile_picture = ? WHERE id = ?', [finalPic, userId]);
         }

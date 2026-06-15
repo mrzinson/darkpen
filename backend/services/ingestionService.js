@@ -87,10 +87,20 @@ async function extractTextWithGemini(filePath, fileName) {
 /**
  * Main Ingestion Function
  */
-exports.ingestPDF = async (sourceId, sourceType, title, category, pdfPath) => {
+exports.ingestPDF = async (sourceId, sourceType, title, category, pdfPath, deleteAfterIngestion = false) => {
+    const cleanUp = () => {
+        if (deleteAfterIngestion && fs.existsSync(pdfPath)) {
+            fs.unlink(pdfPath, (err) => {
+                if (err) console.error(`[Ingestion Cleanup Error] Failed to delete temp file: ${pdfPath}`, err.message);
+                else console.log(`[Ingestion Cleanup] Deleted local temp file: ${pdfPath}`);
+            });
+        }
+    };
+
     try {
         if (!fs.existsSync(pdfPath)) {
             console.error(`Faylka lama helin: ${pdfPath}`);
+            cleanUp();
             return;
         }
 
@@ -110,6 +120,7 @@ exports.ingestPDF = async (sourceId, sourceType, title, category, pdfPath) => {
 
         if (!text || text.length < 50) {
             console.error(`[Ingestion Failed] Qoraal lagama soo saari karo: ${title}`);
+            cleanUp();
             return;
         }
 
@@ -141,7 +152,9 @@ exports.ingestPDF = async (sourceId, sourceType, title, category, pdfPath) => {
 
         console.log(`[Ingestion Success] ${title} waa la tababaray! 🎉`);
         clearEmbeddingsCache();
+        cleanUp();
     } catch (error) {
         console.error(`[Ingestion Error] ${title}:`, error);
+        cleanUp();
     }
 };

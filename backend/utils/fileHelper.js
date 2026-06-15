@@ -1,19 +1,29 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const cloudinaryService = require('../services/cloudinaryService');
 
 /**
- * Saves a base64 image string to the uploads directory.
+ * Saves a base64 image string to the uploads directory or uploads to Cloudinary.
  * @param {string} base64String - The base64 string (e.g., "data:image/jpeg;base64,...")
  * @param {string} folder - The subfolder in uploads (e.g., "groups", "profiles", "chats")
- * @returns {string|null} - The relative URL path or null if invalid.
+ * @returns {Promise<string|null>} - The Cloudinary URL, relative URL path, or null if invalid.
  */
-const saveBase64Image = (base64String, folder = 'general') => {
+const saveBase64Image = async (base64String, folder = 'general') => {
     if (!base64String || !base64String.startsWith('data:image')) {
         return base64String; // Return as is if it's already a URL or invalid
     }
 
     try {
+        // 1. Try Cloudinary first if configured
+        if (cloudinaryService.isConfigured) {
+            const cloudUrl = await cloudinaryService.uploadBase64(base64String, folder);
+            if (cloudUrl) {
+                return cloudUrl;
+            }
+        }
+
+        // 2. Fallback to Local Storage
         const parts = base64String.split(';base64,');
         if (parts.length !== 2) {
             return null;

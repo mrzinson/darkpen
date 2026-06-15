@@ -175,7 +175,7 @@ exports.createGroup = async (req, res) => {
 
     let finalImageUrl = image_url;
     if (image_url && image_url.startsWith('data:image')) {
-        finalImageUrl = saveBase64Image(image_url, 'groups');
+        finalImageUrl = await saveBase64Image(image_url, 'groups');
     }
 
     try {
@@ -425,7 +425,7 @@ exports.sendGroupMessage = async (req, res) => {
         // Save base64 image if type is image
         let finalMessage = message;
         if (type === 'image' && message && message.startsWith('data:image')) {
-            finalMessage = saveBase64Image(message, 'chats');
+            finalMessage = await saveBase64Image(message, 'chats');
         }
 
         // Deduct credit from sender's wallet
@@ -518,7 +518,7 @@ exports.updateGroup = async (req, res) => {
         
         let finalImage = image_url || current[0].image_url;
         if (image_url && image_url.startsWith('data:image')) {
-            finalImage = saveBase64Image(image_url, 'groups');
+            finalImage = await saveBase64Image(image_url, 'groups');
         }
 
         // 3. Update with final values

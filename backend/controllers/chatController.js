@@ -328,8 +328,10 @@ exports.askAI = async (req, res) => {
                     console.log(`[IMAGE GEN] Starting Gemini Imagen generation for user ${userId}...`);
                     const base64Image = await aiService.generateAIImage(message.trim());
                     
-                    const savedImageUrl = saveBase64Image(`data:image/jpeg;base64,${base64Image}`, 'chats');
-                    const relativeUrl = `/uploads/chats/${path.basename(savedImageUrl)}`;
+                    const savedImageUrl = await saveBase64Image(`data:image/jpeg;base64,${base64Image}`, 'chats');
+                    const relativeUrl = (savedImageUrl && (savedImageUrl.startsWith('http://') || savedImageUrl.startsWith('https://')))
+                        ? savedImageUrl
+                        : `/uploads/chats/${path.basename(savedImageUrl)}`;
                     
                     const responseText = "Waa kan sawirkaagii qaaliga ahaa!";
                     
@@ -424,7 +426,7 @@ exports.askAI = async (req, res) => {
             const firstAttachment = Array.isArray(attachment) ? attachment[0] : attachment;
             if (firstAttachment && firstAttachment.base64) {
                 const base64Str = firstAttachment.base64.startsWith('data:') ? firstAttachment.base64 : `data:${firstAttachment.mimeType};base64,${firstAttachment.base64}`;
-                savedImageUrl = saveBase64Image(base64Str, 'chats');
+                savedImageUrl = await saveBase64Image(base64Str, 'chats');
             }
         }
 

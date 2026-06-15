@@ -15,9 +15,10 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "adm-zip": "^0.5.12",
     "@google/generative-ai": "^0.24.1",
+    "adm-zip": "^0.5.12",
     "bcrypt": "^6.0.0",
+    "cloudinary": "^2.10.0",
     "cors": "^2.8.6",
     "docx": "^9.6.1",
     "dotenv": "^17.4.2",
