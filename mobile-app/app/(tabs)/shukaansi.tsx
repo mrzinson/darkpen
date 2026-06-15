@@ -494,7 +494,8 @@ export default function ShukaansiScreen() {
       {/* CHAT AREA WITH KEYBOARD AVOIDING */}
       <KeyboardAvoidingView 
         style={styles.chatArea} 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        enabled={Platform.OS === 'ios'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <ScrollView 
