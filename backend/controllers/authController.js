@@ -403,7 +403,8 @@ exports.forgotPassword = async (req, res) => {
         const user = users[0];
         if (!user.email) {
             return res.status(400).json({
-                message: 'Koontadan email recovery kuma xirna. Fadlan WhatsApp Support kala xiriir password reset: +252637930329.'
+                error_type: 'no_email',
+                message: 'Koontadan email recovery kuma xirna. Fadlan kala xiriir WhatsApp Bot si lagugu caawiyo.'
             });
         }
 

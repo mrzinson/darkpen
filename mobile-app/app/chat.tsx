@@ -852,7 +852,7 @@ export default function ChatScreen() {
 
   return (
     <AuthGuard>
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
 
         {/* HEADER */}
         <View style={styles.header}>
@@ -902,8 +902,8 @@ export default function ChatScreen() {
         {/* CHAT AREA */}
         <KeyboardAvoidingView
           style={styles.chatArea}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 80}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
           {/* Pending Payment Notice Banner */}
           {paymentStatus === 'pending' && (
@@ -933,6 +933,7 @@ export default function ChatScreen() {
             style={{ flex: 1 }}
             contentContainerStyle={styles.scrollContent}
             onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+            onLayout={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
             onScroll={handleScroll}
             scrollEventThrottle={16}
             showsVerticalScrollIndicator={false}
@@ -1351,7 +1352,7 @@ export default function ChatScreen() {
             </View>
           </View>
         </Modal>
-      </SafeAreaView>
+      </View>
     </AuthGuard>
   );
 }

@@ -143,7 +143,7 @@ export default function BillingScreen() {
         {plans.map((plan) => (
           <TouchableOpacity 
             key={plan.id} 
-            style={[styles.planCard, { borderLeftColor: plan.color }]}
+            style={styles.planCard}
             onPress={() => handleSelect(plan)}
             activeOpacity={0.8}
           >
@@ -249,7 +249,6 @@ const getStyles = (colors: any) => StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     flexDirection: 'column',
-    borderLeftWidth: 6,
     marginBottom: 8,
     ...Platform.select({
       ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 },

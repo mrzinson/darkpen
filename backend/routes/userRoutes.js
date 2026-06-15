@@ -123,7 +123,7 @@ router.get('/profile', auth, async (req, res) => {
                    u.payment_status, u.payment_reference, u.is_verified, u.terms_accepted_at,
                    u.gender, u.country, u.region_state,
                    (SELECT balance FROM user_wallet WHERE user_id = u.id) as balance,
-                   (SELECT type FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() LIMIT 1) as subscription_type
+                   (SELECT type FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() AND (SELECT balance FROM user_wallet WHERE user_id = u.id) > 0 LIMIT 1) as subscription_type
             FROM users u WHERE u.id = ?
         `, [userId]);
 
@@ -400,16 +400,26 @@ router.get('/usage', auth, async (req, res) => {
 
         // Fetch Active Subscriptions
         const [subRows] = await db.execute(
-            'SELECT type, expiry_date FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1',
+            'SELECT type, expiry_date FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW() AND (SELECT balance FROM user_wallet WHERE user_id = user_subscriptions.user_id) > 0 ORDER BY expiry_date DESC LIMIT 1',
             [userId]
         );
         const [shukaansiSubRows] = await db.execute(
+            'SELECT type, expiry_date FROM shukaansi_subscriptions WHERE user_id = ? AND expiry_date > NOW() AND (SELECT balance FROM shukaansi_wallet WHERE user_id = shukaansi_subscriptions.user_id) > 0 ORDER BY expiry_date DESC LIMIT 1',
+            [userId]
+        );
+        const [allSubRows] = await db.execute(
+            'SELECT type, expiry_date FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1',
+            [userId]
+        );
+        const [allShukaansiSubRows] = await db.execute(
             'SELECT type, expiry_date FROM shukaansi_subscriptions WHERE user_id = ? AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1',
             [userId]
         );
 
         const standardSub = subRows.length > 0 ? subRows[0] : null;
         const shukaansiSub = shukaansiSubRows.length > 0 ? shukaansiSubRows[0] : null;
+        const hasChronologicalSub = allSubRows.length > 0 ? allSubRows[0] : null;
+        const hasChronologicalShukaansiSub = allShukaansiSubRows.length > 0 ? allShukaansiSubRows[0] : null;
 
         // Calculate Standard Plan Details
         let standardPlanName = 'Pay as you go';
@@ -420,6 +430,10 @@ router.get('/usage', auth, async (req, res) => {
             standardPlanName = standardSub.type === 'monthly_11' ? 'Bille (Premium)' : 'Bille (Basic)';
             standardLimit = standardSub.type === 'monthly_11' ? 5000 : 1000;
             standardExpiry = standardSub.expiry_date;
+        } else if (hasChronologicalSub && standardBalance <= 0) {
+            standardPlanName = hasChronologicalSub.type === 'monthly_11' ? 'Premium (Wuu dhammaaday)' : 'Basic (Wuu dhammaaday)';
+            standardLimit = hasChronologicalSub.type === 'monthly_11' ? 5000 : 1000;
+            standardExpiry = null; // No expiry date shown
         } else {
             // Pay as you go limit is 100, or the current balance if it exceeds 100 (e.g. user bought multiple packages)
             standardLimit = Math.max(100, Math.ceil(standardBalance / 100) * 100);
@@ -442,6 +456,10 @@ router.get('/usage', auth, async (req, res) => {
             shukaansiPlanName = shukaansiSub.type === 'monthly_11' ? 'Bille Premium (Shukaansi)' : 'Bille Basic (Shukaansi)';
             shukaansiLimit = shukaansiSub.type === 'monthly_11' ? 5000 : 1000;
             shukaansiExpiry = shukaansiSub.expiry_date;
+        } else if (hasChronologicalShukaansiSub && shukaansiBalance <= 0) {
+            shukaansiPlanName = hasChronologicalShukaansiSub.type === 'monthly_11' ? 'Premium (Wuu dhammaaday) (Shukaansi)' : 'Basic (Wuu dhammaaday) (Shukaansi)';
+            shukaansiLimit = hasChronologicalShukaansiSub.type === 'monthly_11' ? 5000 : 1000;
+            shukaansiExpiry = null;
         } else {
             shukaansiLimit = Math.max(100, Math.ceil(shukaansiBalance / 100) * 100);
             // Shukaansi wallet does not expire, so shukaansiExpiry remains null!

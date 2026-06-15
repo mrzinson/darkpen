@@ -70,7 +70,7 @@ exports.generateQuiz = async (req, res) => {
         if (totalAttempts >= 5) {
             // Get user's active plan to determine cost
             const [subRes] = await db.execute(
-                'SELECT type FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1',
+                'SELECT type FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW() AND (SELECT balance FROM user_wallet WHERE user_id = user_subscriptions.user_id) > 0 ORDER BY expiry_date DESC LIMIT 1',
                 [userId]
             );
             const planType = subRes.length > 0 ? subRes[0].type : 'credits';
@@ -378,7 +378,7 @@ exports.getQuizStatus = async (req, res) => {
         // 1. Get user details and active plan in parallel
         const [[userRow], [subRes]] = await Promise.all([
             db.execute('SELECT is_suspended_from_tournament, tournament_opt_in FROM users WHERE id = ?', [userId]),
-            db.execute('SELECT type FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1', [userId])
+            db.execute('SELECT type FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW() AND (SELECT balance FROM user_wallet WHERE user_id = user_subscriptions.user_id) > 0 ORDER BY expiry_date DESC LIMIT 1', [userId])
         ]);
 
         if (userRow.length === 0) {

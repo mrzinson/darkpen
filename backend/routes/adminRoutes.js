@@ -204,8 +204,8 @@ router.post('/users/:id/whatsapp-report', async (req, res) => {
                    (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id AND session_id IS NOT NULL) AS app_messages_count,
                    (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id AND session_id IS NULL) AS whatsapp_messages_count,
                    (SELECT balance FROM user_wallet WHERE user_id = u.id) AS credits,
-                   (SELECT type FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1) AS sub_type,
-                   (SELECT expiry_date FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1) AS sub_expiry
+                    (SELECT type FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() AND (SELECT balance FROM user_wallet WHERE user_id = u.id) > 0 ORDER BY expiry_date DESC LIMIT 1) AS sub_type,
+                    (SELECT expiry_date FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() AND (SELECT balance FROM user_wallet WHERE user_id = u.id) > 0 ORDER BY expiry_date DESC LIMIT 1) AS sub_expiry
             FROM users u WHERE u.id = ?
         `, [id]);
         
@@ -1397,7 +1397,7 @@ router.get('/whatsapp/users', async (req, res) => {
                 (SELECT COUNT(*) FROM ai_usage_logs WHERE user_id = u.id AND chat_type = 'voice' AND platform = 'whatsapp') as voice_count
             FROM users u
             LEFT JOIN user_wallet uw ON u.id = uw.user_id
-            LEFT JOIN user_subscriptions us ON u.id = us.user_id AND us.expiry_date > NOW()
+            LEFT JOIN user_subscriptions us ON u.id = us.user_id AND us.expiry_date > NOW() AND COALESCE(uw.balance, 0) > 0
             WHERE u.whatsapp_number IS NOT NULL 
                OR u.id IN (SELECT DISTINCT user_id FROM messages_private WHERE session_id IS NULL)
             ORDER BY u.id DESC

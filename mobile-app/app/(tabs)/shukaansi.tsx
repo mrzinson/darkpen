@@ -461,7 +461,7 @@ export default function ShukaansiScreen() {
 
   return (
     <AuthGuard>
-    <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
       
       {/* HEADER */}
       <View style={styles.header}>
@@ -493,14 +493,15 @@ export default function ShukaansiScreen() {
       {/* CHAT AREA WITH KEYBOARD AVOIDING */}
       <KeyboardAvoidingView 
         style={styles.chatArea} 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 60}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <ScrollView 
           ref={scrollViewRef}
           style={{ flex: 1 }} 
           contentContainerStyle={styles.scrollContent}
           onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+          onLayout={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
           onScroll={handleScroll}
           scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
@@ -956,7 +957,7 @@ export default function ShukaansiScreen() {
         </View>
       </Modal>
 
-    </SafeAreaView>
+    </View>
     </AuthGuard>
   );
 }

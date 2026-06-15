@@ -258,7 +258,7 @@ export default function AdminsPanel() {
                   type="text" 
                   value={phone} 
                   onChange={(e) => setPhone(e.target.value)} 
-                  placeholder="Tusaale +252637930329" 
+                  placeholder="Tusaale +252659119779" 
                 />
               </div>
             </div>

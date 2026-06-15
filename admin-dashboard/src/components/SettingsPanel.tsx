@@ -199,7 +199,7 @@ export default function SettingsPanel() {
                   type="text" 
                   value={settings.payment_contact_whatsapp}
                   onChange={(e) => setSettings({ ...settings, payment_contact_whatsapp: e.target.value })}
-                  placeholder="Tusaale +252637930329" 
+                  placeholder="Tusaale +252659119779" 
                 />
               </div>
               <div className="input-group">

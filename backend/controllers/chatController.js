@@ -192,9 +192,13 @@ exports.askAI = async (req, res) => {
             ? `SELECT balance FROM ${walletTable} WHERE user_id = ?` 
             : `SELECT balance, last_updated FROM ${walletTable} WHERE user_id = ?`;
 
+        const subQuery = chatType === 'shukaansi'
+            ? `SELECT * FROM ${subTable} WHERE user_id = ? AND expiry_date > NOW() AND (SELECT balance FROM shukaansi_wallet WHERE user_id = ${subTable}.user_id) > 0`
+            : `SELECT * FROM ${subTable} WHERE user_id = ? AND expiry_date > NOW() AND (SELECT balance FROM user_wallet WHERE user_id = ${subTable}.user_id) > 0`;
+
         const [walletRes, subRes] = await Promise.all([
             db.execute(walletQuery, [userId]),
-            db.execute(`SELECT * FROM ${subTable} WHERE user_id = ? AND expiry_date > NOW()`, [userId])
+            db.execute(subQuery, [userId])
         ]);
 
         let wallet = walletRes[0];
@@ -652,7 +656,7 @@ exports.processVoice = async (req, res) => {
 
         // Credit Deduction for Voice (20 Credits)
         const userId = req.user.id;
-        const [sub] = await db.execute('SELECT * FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW()', [userId]);
+        const [sub] = await db.execute('SELECT * FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW() AND (SELECT balance FROM user_wallet WHERE user_id = user_subscriptions.user_id) > 0', [userId]);
         const hasActiveSub = sub.length > 0;
 
         const walletTable = chatType === 'shukaansi' ? 'shukaansi_wallet' : 'user_wallet';

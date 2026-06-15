@@ -55,7 +55,7 @@ exports.generateExamPdf = async (req, res) => {
         // --- CREDIT CHECK & DEDUCTION ---
         // 1. Check if user has active subscription
         const [sub] = await db.execute(
-            'SELECT * FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW()',
+            'SELECT * FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW() AND (SELECT balance FROM user_wallet WHERE user_id = user_subscriptions.user_id) > 0',
             [userId]
         );
         const hasActiveSub = sub.length > 0;
@@ -160,13 +160,10 @@ exports.generateExamPdf = async (req, res) => {
         const response = await result.response;
         let responseText = response.text().trim();
 
-        // Clean up markdown block if model accidentally included it
-        if (responseText.startsWith('```json')) {
-            responseText = responseText.substring(7);
-        }
-        if (responseText.endsWith('```')) {
-            responseText = responseText.substring(0, responseText.length - 3);
-        }
+        // Strip out any markdown code block wrappers
+        responseText = responseText.replace(/^```json\s*/i, '');
+        responseText = responseText.replace(/^```\s*/, '');
+        responseText = responseText.replace(/\s*```$/, '');
         responseText = responseText.trim();
 
         let examData;
@@ -529,7 +526,7 @@ exports.generateExamPdf = async (req, res) => {
         fs.writeFileSync(docxPath, docxBuffer);
 
         // --- DEDUCT CREDITS IN WALLET ---
-        await db.execute('UPDATE user_wallet SET balance = balance - ? WHERE user_id = ?', [cost, userId]);
+        await db.execute('UPDATE user_wallet SET balance = GREATEST(0, balance - ?) WHERE user_id = ?', [cost, userId]);
 
         // Log exam generation to ai_usage_logs
         try {

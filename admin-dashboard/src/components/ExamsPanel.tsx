@@ -38,6 +38,7 @@ export default function ExamsPanel() {
     formData.append('title', form.title);
     formData.append('description', form.description);
     formData.append('category', form.category);
+    formData.append('grade', form.grade);
     formData.append('year', form.year);
     formData.append('country', form.country);
     formData.append('region_state', '');

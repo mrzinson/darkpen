@@ -20,6 +20,7 @@ export default function ForgotPasswordScreen() {
   const [phoneFocused, setPhoneFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [noEmailLinked, setNoEmailLinked] = useState(false);
 
   const buttonScale = useRef(new Animated.Value(1)).current;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -61,6 +62,9 @@ export default function ForgotPasswordScreen() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (data.error_type === 'no_email') {
+          setNoEmailLinked(true);
+        }
         throw new Error(data.message || 'Something went wrong');
       }
 
@@ -73,7 +77,8 @@ export default function ForgotPasswordScreen() {
   };
 
   const handleSupport = () => {
-    const message = encodeURIComponent(`Salaan Darkpen, waxaan rabaa password reset. Number-kaygu waa: ${whatsappNumber}`);
+    const normalizedPhone = normalizePhoneInput(whatsappNumber) || whatsappNumber;
+    const message = encodeURIComponent(`Salaan Darkpen, waxaan rabaa password reset. Number-kaygu waa: ${normalizedPhone}`);
     Linking.openURL(`https://wa.me/252659119779?text=${message}`).catch(() => {
       setErrorMsg('Ma awoodno inaan furno WhatsApp Support.');
     });
@@ -111,7 +116,10 @@ export default function ForgotPasswordScreen() {
                 keyboardType="phone-pad"
                 autoCapitalize="none"
                 value={whatsappNumber}
-                onChangeText={setWhatsappNumber}
+                onChangeText={(val) => {
+                  setWhatsappNumber(val);
+                  if (noEmailLinked) setNoEmailLinked(false);
+                }}
                 onFocus={() => setPhoneFocused(true)}
                 onBlur={() => setPhoneFocused(false)}
               />
@@ -123,12 +131,18 @@ export default function ForgotPasswordScreen() {
             {/* Send Button */}
             <Animated.View style={{ transform: [{ scale: buttonScale }], width: '100%' }}>
               <TouchableOpacity
-                style={[styles.button, loading && styles.buttonDisabled]}
-                onPress={handleRequestCode}
+                style={[
+                  styles.button, 
+                  loading && styles.buttonDisabled,
+                  noEmailLinked && { backgroundColor: '#10B981' }
+                ]}
+                onPress={noEmailLinked ? handleSupport : handleRequestCode}
                 activeOpacity={0.8}
                 disabled={loading}
               >
-                <Text style={styles.buttonText}>{loading ? 'SENDING...' : 'Send Reset Code'}</Text>
+                <Text style={styles.buttonText}>
+                  {loading ? 'SENDING...' : noEmailLinked ? 'La xiriir WhatsApp Bot' : 'Send Reset Code'}
+                </Text>
               </TouchableOpacity>
             </Animated.View>
 
@@ -136,12 +150,6 @@ export default function ForgotPasswordScreen() {
             <View style={styles.loginContainer}>
               <TouchableOpacity onPress={() => router.push('/login')}>
                 <Text style={styles.loginText}>Back to Login</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.loginContainer}>
-              <TouchableOpacity onPress={handleSupport}>
-                <Text style={styles.supportText}>No email? Contact WhatsApp Support</Text>
               </TouchableOpacity>
             </View>
 

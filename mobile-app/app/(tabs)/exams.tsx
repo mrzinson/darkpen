@@ -279,7 +279,6 @@ export default function ExamsScreen() {
                   }
                 }}
               >
-                <View style={[styles.accentBar, { backgroundColor: colors.primary }]} />
                 <View style={styles.cardContent}>
                   <Image
                     source={{ uri: exam.image_url ? `${Config.API_URL}${exam.image_url}` : 'https://images.unsplash.com/photo-1546410531-df4cb71576bd?w=400&q=80' }}
