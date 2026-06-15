@@ -1262,15 +1262,17 @@ export default function ChatScreen() {
                   <Ionicons name="flash" size={20} color={colors.primary} />
                 </View>
                 <View style={styles.creditsInfo}>
-                  <Text style={styles.creditsLabel}>{subscriptionType ? t('your_plan') : t('your_credits')}</Text>
+                  <Text style={styles.creditsLabel}>{subscriptionType && credits !== null && credits > 0 ? t('your_plan') : t('your_credits')}</Text>
                   <Text style={styles.creditsValue}>
-                    {subscriptionType === 'monthly_11' ? t('premium_unlimited') :
-                      subscriptionType === 'monthly_3' ? t('basic_unlimited') :
-                        credits !== null ? `${credits} ${t('credits')}` : t('loading')}
+                    {credits !== null && credits <= 0
+                      ? 'Wuu dhammaaday'
+                      : subscriptionType === 'monthly_11' ? t('premium_unlimited')
+                      : subscriptionType === 'monthly_3' ? t('basic_unlimited')
+                      : credits !== null ? `${credits} ${t('credits')}` : t('loading')}
                   </Text>
                 </View>
               </View>
-              {!subscriptionType && (
+              {(!subscriptionType || (credits !== null && credits <= 0)) && (
                 <TouchableOpacity
                   style={styles.topupBtn}
                   onPress={() => {
@@ -1289,13 +1291,9 @@ export default function ChatScreen() {
             </ScrollView>
 
             <View style={styles.sidebarFooter}>
-              <TouchableOpacity style={styles.footerItem} onPress={() => { closeOverlays(); router.push('/downloaded'); }}>
-                <Ionicons name="cloud-download-outline" size={20} color={colors.primary} />
-                <Text style={StyleSheet.flatten([styles.footerItemText, { color: colors.primary }])}>Downloaded (Offline)</Text>
-              </TouchableOpacity>
               <TouchableOpacity style={styles.footerItem} onPress={() => router.push('/profile')}>
                 <Ionicons name="person-outline" size={20} color={colors.primary} />
-                 <Text style={StyleSheet.flatten([styles.footerItemText, { color: colors.primary }])}>{t('profile_settings')}</Text>
+                <Text style={StyleSheet.flatten([styles.footerItemText, { color: colors.primary }])}>{t('profile_settings')}</Text>
               </TouchableOpacity>
             </View>
           </View>

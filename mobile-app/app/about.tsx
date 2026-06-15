@@ -72,7 +72,7 @@ export default function AboutScreen() {
             <AppLogo size={86} />
           </View>
           <Text style={styles.appName}>Darkpen </Text>
-          <Text style={styles.versionText}>Version 1.0.0 </Text>
+          <Text style={styles.versionText}>Version 1.0.1 </Text>
         </Animated.View>
 
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
