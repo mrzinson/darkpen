@@ -43,25 +43,35 @@ export default function SplashScreen() {
 
     Animated.timing(barWidth, {
       toValue: 1,
-      duration: 2000,
-      delay: 300,
+      duration: 1400,
+      delay: 200,
       easing: Easing.bezier(0.4, 0, 0.2, 1),
       useNativeDriver: false,
     }).start();
 
     Animated.timing(glowAnim, {
       toValue: 2,
-      duration: 2000,
-      delay: 300,
+      duration: 1400,
+      delay: 200,
       easing: Easing.linear,
       useNativeDriver: true,
     }).start();
 
-    const checkAuthAndRedirect = async () => {
+    let navigated = false;
+    let redirectTarget: string | null = null;
+
+    const doNavigate = () => {
+      if (navigated || !redirectTarget) return;
+      navigated = true;
+      router.replace(redirectTarget as any);
+    };
+
+    const checkAuth = async () => {
       try {
         const token = await AsyncStorage.getItem('userToken');
         if (!token) {
-          router.replace('/login');
+          redirectTarget = '/login';
+          doNavigate();
           return;
         }
 
@@ -72,7 +82,8 @@ export default function SplashScreen() {
         if (!response.ok) {
           await AsyncStorage.removeItem('userToken');
           await AsyncStorage.removeItem('userData');
-          router.replace('/login');
+          redirectTarget = '/login';
+          doNavigate();
           return;
         }
 
@@ -81,43 +92,46 @@ export default function SplashScreen() {
           await AsyncStorage.setItem('userData', JSON.stringify(data.user));
 
           if (!data.user.terms_accepted_at) {
-            router.replace('/terms');
+            redirectTarget = '/terms';
           } else if (!data.user.country || !data.user.gender) {
-            router.replace('/onboarding');
+            redirectTarget = '/onboarding';
           } else {
-            router.replace('/(tabs)');
+            redirectTarget = '/(tabs)';
           }
         } else {
-          router.replace('/login');
+          redirectTarget = '/login';
         }
       } catch (err) {
-        const token = await AsyncStorage.getItem('userToken');
-        if (!token) {
-          router.replace('/login');
-          return;
-        }
-
-        const cached = await AsyncStorage.getItem('userData');
-        if (cached) {
-          const user = JSON.parse(cached);
-          if (!user.terms_accepted_at) {
-            router.replace('/terms');
-          } else if (!user.country || !user.gender) {
-            router.replace('/onboarding');
+        try {
+          const token = await AsyncStorage.getItem('userToken');
+          if (!token) { redirectTarget = '/login'; doNavigate(); return; }
+          const cached = await AsyncStorage.getItem('userData');
+          if (cached) {
+            const user = JSON.parse(cached);
+            if (!user.terms_accepted_at) {
+              redirectTarget = '/terms';
+            } else if (!user.country || !user.gender) {
+              redirectTarget = '/onboarding';
+            } else {
+              redirectTarget = '/(tabs)';
+            }
           } else {
-            router.replace('/(tabs)');
+            redirectTarget = '/(tabs)';
           }
-        } else {
-          router.replace('/(tabs)');
+        } catch {
+          redirectTarget = '/login';
         }
       }
+      doNavigate();
     };
 
-    const timer = setTimeout(() => {
-      checkAuthAndRedirect();
-    }, 2800);
+    // Start auth check immediately in parallel with the splash animation.
+    // Also enforce a MINIMUM display time of 1400ms so the splash does not
+    // flash away too fast on fast devices / cached auth.
+    checkAuth();
+    const minTimer = setTimeout(doNavigate, 1400);
 
-    return () => clearTimeout(timer);
+    return () => clearTimeout(minTimer);
   }, []);
 
   const barInterpolated = barWidth.interpolate({
