@@ -71,6 +71,8 @@ export default function ChatScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isClearModalVisible, setIsClearModalVisible] = useState(false);
+  const [selectedMsgId, setSelectedMsgId] = useState<string | null>(null);
+  const [selectedMsgText, setSelectedMsgText] = useState<string>('');
 
   // Spin Animation for thinking state AppLogo
   const spinAnim = useRef(new Animated.Value(0)).current;
@@ -1008,8 +1010,46 @@ export default function ChatScreen() {
 
                     {isUser ? (
                       msg.text ? (
-                        <View style={styles.messageBubbleUser}>
-                          <Text style={styles.messageTextUser}>{msg.text}</Text>
+                        <View style={{ alignItems: 'flex-end', width: '100%' }}>
+                          <Pressable
+                            onLongPress={() => {
+                              setSelectedMsgId(selectedMsgId === msg.id ? null : msg.id);
+                              setSelectedMsgText(msg.text);
+                            }}
+                            delayLongPress={400}
+                            style={styles.messageBubbleUser}
+                          >
+                            <Text style={styles.messageTextUser}>{msg.text}</Text>
+                          </Pressable>
+                          {selectedMsgId === msg.id && (
+                            <TouchableOpacity
+                              style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 6,
+                                backgroundColor: colors.primary,
+                                paddingVertical: 8,
+                                paddingHorizontal: 16,
+                                borderRadius: 16,
+                                marginTop: 6,
+                                shadowColor: '#000',
+                                shadowOffset: { width: 0, height: 2 },
+                                shadowOpacity: 0.15,
+                                shadowRadius: 4,
+                                elevation: 3
+                              }}
+                              onPress={async () => {
+                                await Clipboard.setStringAsync(selectedMsgText);
+                                Alert.alert('✅ Copied', 'Farriinta waa la koobiyeeyay');
+                                setSelectedMsgId(null);
+                                setSelectedMsgText('');
+                              }}
+                              activeOpacity={0.8}
+                            >
+                              <Ionicons name="copy-outline" size={14} color="#FFF" />
+                              <Text style={{ color: '#FFF', fontSize: 13, fontWeight: 'bold' }}>Copy</Text>
+                            </TouchableOpacity>
+                          )}
                         </View>
                       ) : null
                     ) : (

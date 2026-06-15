@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView, Platform, ScrollView, Animated, Dimensions, Pressable, Keyboard,
   Modal, Vibration, Alert, Image
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CustomBlurView as BlurView } from '../../components/CustomBlurView';
@@ -936,6 +937,20 @@ export default function ShukaansiScreen() {
             >
               <Ionicons name="arrow-undo-outline" size={18} color="white" />
               <Text style={styles.replySelectText}>U Reply-garee Fariintan</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.replySelectBtn, { marginTop: 10, backgroundColor: 'rgba(59, 130, 246, 0.8)' }]} 
+              onPress={async () => {
+                const msg = messages.find(m => m.id === activeReactionMsgId);
+                if (msg && msg.text) {
+                  await Clipboard.setStringAsync(msg.text);
+                  Alert.alert('✅ Copied', 'Farriinta waa la koobiyeeyay');
+                }
+                setActiveReactionMsgId(null);
+              }}
+            >
+              <Ionicons name="copy-outline" size={18} color="white" />
+              <Text style={styles.replySelectText}>Copy garee fariinta</Text>
             </TouchableOpacity>
           </BlurView>
         </Pressable>

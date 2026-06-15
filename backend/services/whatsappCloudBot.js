@@ -621,9 +621,9 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
     
     Rules:
     1. Luuqadda Jawaabta (MUHIIM AADKA AH):
-       a) Haddii farriintu ay tahay QORAAL: Ku jawaab luuqadda ay qoraalku ku qoran yahay (Carabi → Carabi, Ingiriis → Ingiriis, Soomaali → Soomaali, iwm).
+      a) Haddii farriintu ay tahay QORAAL: Ku jawaab luuqadda ay qoraalku ku qoran yahay (Carabi → Carabi, Ingiriis → Ingiriis, Soomaali → Soomaali, iwm).
        b) Haddii la soo diro SAWIR oo aan lahayn caption/qoraal: U fiiri qoraalka sawirka ku dhex jira, oo ku jawaab luuqadda ay qoraalka sawirku ku qoran yihiin.
-       c) Haddii la soo diro sawir oo leh caption: Luuqadda caption-ka u isticmaal jawaabta.
+       c) Haddii la soo diro sawir oo leh caption: Luuqadda caption-ka u isticmaal jawaabta.s
     2. Suaalaha Imtixaanka/Kubbada (MUHIIM AADKA AH):
        - Haddii sawirku uu ka kooban yahay suaalo MCQ (multiple choice), saxan/qaldaan, ama suaalo imtixaan:
          * KALIYA soo qor lambarka suaalaha iyo jawaabta kooban. TUSAALE:

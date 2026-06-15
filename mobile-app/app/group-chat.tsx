@@ -1,6 +1,6 @@
 import { useTheme } from '../context/ThemeContext';
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Image, Modal, Alert } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Image, Modal, Alert, Pressable } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { renderFormattedText } from '../utils/markdown';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -33,6 +33,8 @@ export default function GroupChatScreen() {
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const socket = useRef<any>(null);
+  const [selectedMsgId, setSelectedMsgId] = useState<string | null>(null);
+  const [selectedMsgText, setSelectedMsgText] = useState<string>('');
 
   // Credits & Block States
   const [credits, setCredits] = useState<number | null>(null);
@@ -360,40 +362,82 @@ export default function GroupChatScreen() {
                 {renderDateSeparator(msg, messages[index-1])}
                 <View style={StyleSheet.flatten([styles.messageRow, isMe ? styles.myRow : styles.otherRow])}>
                   {!isMe && isAi && <AppLogo size={28} style={styles.aiAvatar} />}
-                  <View style={StyleSheet.flatten([
-                    styles.bubble, 
-                    isMe ? styles.myBubble : (isAi ? { backgroundColor: 'transparent', borderWidth: 0, shadowOpacity: 0, elevation: 0, maxWidth: '95%', paddingHorizontal: 4 } : styles.otherBubble),
-                    msg.type === 'image' ? { padding: 4, borderRadius: 12 } : {}
-                  ])}>
-                    {showSender && (
-                      <Text style={StyleSheet.flatten([
-                        styles.senderName, 
-                        { color: isAi ? colors.primary : getUserColor(msg.sender_name) }
-                      ])}>
-                        {msg.sender_name} {isAi ? '🤖' : ''}
+                  <View style={{ flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', maxWidth: '82%' }}>
+                    <Pressable
+                      onLongPress={() => {
+                        if (msg.type !== 'image' && isMe) {
+                          setSelectedMsgId(selectedMsgId === msg.id ? null : msg.id);
+                          setSelectedMsgText(msg.message);
+                        }
+                      }}
+                      delayLongPress={400}
+                      style={StyleSheet.flatten([
+                        styles.bubble, 
+                        isMe ? styles.myBubble : (isAi ? { backgroundColor: 'transparent', borderWidth: 0, shadowOpacity: 0, elevation: 0, maxWidth: '95%', paddingHorizontal: 4 } : styles.otherBubble),
+                        msg.type === 'image' ? { padding: 4, borderRadius: 12 } : {},
+                        { maxWidth: '100%' }
+                      ])}
+                    >
+                      {showSender && (
+                        <Text style={StyleSheet.flatten([
+                          styles.senderName, 
+                          { color: isAi ? colors.primary : getUserColor(msg.sender_name) }
+                        ])}>
+                          {msg.sender_name} {isAi ? '🤖' : ''}
+                        </Text>
+                      )}
+                      
+                      {msg.type === 'image' ? (
+                        <TouchableOpacity
+                          activeOpacity={0.9}
+                          onPress={() => {
+                            const imgUri = msg.message.startsWith('http') || msg.message.startsWith('data:image') 
+                              ? msg.message 
+                              : `${Config.API_URL.endsWith('/') ? Config.API_URL.slice(0, -1) : Config.API_URL}${msg.message.startsWith('/') ? msg.message : '/' + msg.message}`;
+                            setViewerUrl(imgUri);
+                            setViewerVisible(true);
+                          }}
+                        >
+                          <Image source={{ uri: msg.message.startsWith('http') || msg.message.startsWith('data:image') ? msg.message : `${Config.API_URL.endsWith('/') ? Config.API_URL.slice(0, -1) : Config.API_URL}${msg.message.startsWith('/') ? msg.message : '/' + msg.message}` }} style={styles.messageImage} resizeMode="cover" />
+                        </TouchableOpacity>
+                      ) : (
+                        renderFormattedText(msg.message, isDark, colors, isMe ? '#FFFFFF' : (isDark ? '#FFFFFF' : '#1F2937'))
+                      )}
+                      
+                      <Text style={StyleSheet.flatten([styles.time, isMe ? { color: 'rgba(255,255,255,0.7)' } : { color: isDark ? 'rgba(255,255,255,0.6)' : '#64748B' }])}>
+                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
                       </Text>
-                    )}
-                    
-                    {msg.type === 'image' ? (
+                    </Pressable>
+                    {selectedMsgId === msg.id && (
                       <TouchableOpacity
-                        activeOpacity={0.9}
-                        onPress={() => {
-                          const imgUri = msg.message.startsWith('http') || msg.message.startsWith('data:image') 
-                            ? msg.message 
-                            : `${Config.API_URL.endsWith('/') ? Config.API_URL.slice(0, -1) : Config.API_URL}${msg.message.startsWith('/') ? msg.message : '/' + msg.message}`;
-                          setViewerUrl(imgUri);
-                          setViewerVisible(true);
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 6,
+                          backgroundColor: colors.primary,
+                          paddingVertical: 6,
+                          paddingHorizontal: 12,
+                          borderRadius: 12,
+                          marginTop: 4,
+                          alignSelf: 'flex-end',
+                          shadowColor: '#000',
+                          shadowOffset: { width: 0, height: 2 },
+                          shadowOpacity: 0.15,
+                          shadowRadius: 4,
+                          elevation: 3
                         }}
+                        onPress={async () => {
+                          await Clipboard.setStringAsync(selectedMsgText);
+                          Alert.alert('✅ Copied', 'Farriinta waa la koobiyeeyay');
+                          setSelectedMsgId(null);
+                          setSelectedMsgText('');
+                        }}
+                        activeOpacity={0.8}
                       >
-                        <Image source={{ uri: msg.message.startsWith('http') || msg.message.startsWith('data:image') ? msg.message : `${Config.API_URL.endsWith('/') ? Config.API_URL.slice(0, -1) : Config.API_URL}${msg.message.startsWith('/') ? msg.message : '/' + msg.message}` }} style={styles.messageImage} resizeMode="cover" />
+                        <Ionicons name="copy-outline" size={12} color="#FFF" />
+                        <Text style={{ color: '#FFF', fontSize: 11, fontWeight: 'bold' }}>Copy</Text>
                       </TouchableOpacity>
-                    ) : (
-                      renderFormattedText(msg.message, isDark, colors, isMe ? '#FFFFFF' : (isDark ? '#FFFFFF' : '#1F2937'))
                     )}
-                    
-                    <Text style={StyleSheet.flatten([styles.time, isMe ? { color: 'rgba(255,255,255,0.7)' } : { color: isDark ? 'rgba(255,255,255,0.6)' : '#64748B' }])}>
-                      {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
-                    </Text>
                   </View>
                 </View>
               </React.Fragment>

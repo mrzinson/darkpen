@@ -449,6 +449,55 @@ router.delete('/exams/:id', async (req, res) => {
     }
 });
 
+router.patch('/exams/:id', upload.fields([{ name: 'image', maxCount: 1 }, { name: 'pdf', maxCount: 1 }]), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title, description, category, grade, year, country } = req.body;
+        
+        const [exams] = await db.execute('SELECT * FROM exams WHERE id = ?', [id]);
+        if (!exams.length) return res.status(404).json({ message: 'Imtixaanka lama helin' });
+        
+        let imageUrl = exams[0].image_url;
+        let pdfUrl = exams[0].pdf_url;
+        let pdfChanged = false;
+
+        if (req.files && req.files['image']) {
+            imageUrl = `/uploads/${req.files['image'][0].filename}`;
+        }
+        if (req.files && req.files['pdf']) {
+            pdfUrl = `/uploads/${req.files['pdf'][0].filename}`;
+            pdfChanged = true;
+        }
+
+        await db.execute(
+            'UPDATE exams SET title = ?, description = ?, category = ?, grade = ?, year = ?, image_url = ?, pdf_url = ?, country = ? WHERE id = ?',
+            [
+                title !== undefined ? title : exams[0].title,
+                description !== undefined ? description : exams[0].description,
+                category !== undefined ? category : exams[0].category,
+                grade !== undefined ? grade : exams[0].grade,
+                year !== undefined ? year : exams[0].year,
+                imageUrl,
+                pdfUrl,
+                country !== undefined ? country : exams[0].country,
+                id
+            ]
+        );
+
+        if (pdfChanged) {
+            await db.execute('DELETE FROM book_embeddings WHERE source_id = ? AND source_type = "exam"', [id]);
+            clearEmbeddingsCache();
+            const pdfPath = path.join(__dirname, '..', 'uploads', path.basename(pdfUrl));
+            ingestionService.ingestPDF(id, 'exam', title || exams[0].title, category || exams[0].category, pdfPath);
+        }
+
+        res.json({ message: 'Imtixaanka si guul leh ayaa loo cusboonaysiayey!' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday cusboonaysiinta imtixaanka' });
+    }
+});
+
 // 5. Books Management
 router.get('/books', async (req, res) => {
     try {
@@ -491,6 +540,54 @@ router.delete('/books/:id', async (req, res) => {
         res.json({ message: 'Buugga waa la tirtiray' });
     } catch (error) {
         res.status(500).json({ message: 'Cilad ayaa dhacday tirtirista' });
+    }
+});
+
+router.patch('/books/:id', upload.fields([{ name: 'image', maxCount: 1 }, { name: 'pdf', maxCount: 1 }]), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title, author, category, grade, country } = req.body;
+        
+        const [books] = await db.execute('SELECT * FROM books WHERE id = ?', [id]);
+        if (!books.length) return res.status(404).json({ message: 'Buugga lama helin' });
+        
+        let imageUrl = books[0].image_url;
+        let pdfUrl = books[0].pdf_url;
+        let pdfChanged = false;
+
+        if (req.files && req.files['image']) {
+            imageUrl = `/uploads/${req.files['image'][0].filename}`;
+        }
+        if (req.files && req.files['pdf']) {
+            pdfUrl = `/uploads/${req.files['pdf'][0].filename}`;
+            pdfChanged = true;
+        }
+
+        await db.execute(
+            'UPDATE books SET title = ?, author = ?, category = ?, grade = ?, image_url = ?, pdf_url = ?, country = ? WHERE id = ?',
+            [
+                title !== undefined ? title : books[0].title,
+                author !== undefined ? author : books[0].author,
+                category !== undefined ? category : books[0].category,
+                grade !== undefined ? grade : books[0].grade,
+                imageUrl,
+                pdfUrl,
+                country !== undefined ? country : books[0].country,
+                id
+            ]
+        );
+
+        if (pdfChanged) {
+            await db.execute('DELETE FROM book_embeddings WHERE source_id = ? AND source_type = "book"', [id]);
+            clearEmbeddingsCache();
+            const pdfPath = path.join(__dirname, '..', 'uploads', path.basename(pdfUrl));
+            ingestionService.ingestPDF(id, 'book', title || books[0].title, category || books[0].category, pdfPath);
+        }
+
+        res.json({ message: 'Buugga si guul leh ayaa loo cusboonaysiayey!' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday cusboonaysiinta buugga' });
     }
 });
 
