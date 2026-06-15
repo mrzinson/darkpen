@@ -16,7 +16,7 @@
     "android": {
       "package": "com.zinson.darkpen",
       "versionCode": 3,
-      "softwareKeyboardLayoutMode": "pan",
+      "softwareKeyboardLayoutMode": "adjustResize",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
