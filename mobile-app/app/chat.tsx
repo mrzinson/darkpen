@@ -904,9 +904,8 @@ export default function ChatScreen() {
         {/* CHAT AREA */}
         <KeyboardAvoidingView
           style={styles.chatArea}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          enabled={Platform.OS === 'ios'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+          behavior="padding"
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 50 : 0}
         >
           {/* Pending Payment Notice Banner */}
           {paymentStatus === 'pending' && (
@@ -937,10 +936,17 @@ export default function ChatScreen() {
             contentContainerStyle={styles.scrollContent}
             onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
             onLayout={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
-            onScroll={handleScroll}
+            onScroll={(e) => {
+              handleScroll(e);
+              // Dismiss keyboard when user scrolls up (like WhatsApp)
+              if (e.nativeEvent.velocity && e.nativeEvent.velocity.y < -0.5) {
+                Keyboard.dismiss();
+              }
+            }}
             scrollEventThrottle={16}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
           >
             {messages.map((msg, index) => {
               const isUser = msg.sender === 'user';
@@ -1685,7 +1691,8 @@ const getStyles = (colors: any, isDark: boolean) => StyleSheet.create({
   inputContainer: {
     backgroundColor: colors.card,
     borderTopWidth: 0,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+    // No paddingBottom here — KeyboardAvoidingView handles it
+    paddingBottom: 8,
   },
   inputWrapper: {
     flexDirection: 'row',
