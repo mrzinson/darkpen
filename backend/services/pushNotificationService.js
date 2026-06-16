@@ -9,7 +9,7 @@ exports.sendPushNotification = async (userId, title, body) => {
         }
 
         const pushToken = rows[0].push_token;
-        if (!pushToken.startsWith('ExponentPushToken')) {
+        if (!pushToken.startsWith('ExponentPushToken') && !pushToken.startsWith('ExpoPushToken')) {
             console.log(`[PUSH] Invalid or non-expo push token for user ${userId}: ${pushToken}`);
             return;
         }

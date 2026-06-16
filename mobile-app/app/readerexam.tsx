@@ -11,7 +11,8 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as IntentLauncher from 'expo-intent-launcher';
 import Config from '../constants/Config';
-import { isDocDownloaded, registerDownload, removeDownload } from '../utils/downloadManager';
+import { isDocDownloaded, registerDownload, removeDownload, getDownloadedDocs } from '../utils/downloadManager';
+import { backgroundDownloader } from '../utils/backgroundDownloader';
 import * as ImagePicker from 'expo-image-picker';
 
 // Helper function to generate PDF.js viewer HTML with inline engine code to run 100% offline
@@ -1051,74 +1052,98 @@ export default function ReaderExamScreen() {
   useEffect(() => {
     if (!formattedPdfUrl) return;
 
-    // Check if it's already registered as downloaded
-    isDocDownloaded(formattedPdfUrl).then(setIsSavedOffline);
+    let isMounted = true;
+    let unsubscribe: (() => void) | null = null;
 
-    if (formattedPdfUrl.startsWith('file://') || passedLocalPath) {
-      const activeLocalPath = formattedPdfUrl.startsWith('file://') ? formattedPdfUrl : (passedLocalPath as string);
-      setLocalPath(activeLocalPath);
-      setIsCached(true);
-      setIsSavedOffline(true);
-      return;
-    }
-
-    const checkAndDownload = async () => {
+    const initDownload = async () => {
       try {
-        const urlStr = formattedPdfUrl;
-        const filename = urlStr.split('/').pop() || 'document.pdf';
-        const targetPath = `${FileSystem.documentDirectory}${filename}`;
-        setLocalPath(targetPath);
+        const downloaded = await isDocDownloaded(formattedPdfUrl);
+        if (!isMounted) return;
 
-        const fileInfo = await FileSystem.getInfoAsync(targetPath);
-        if (fileInfo.exists) {
-          setIsCached(true);
+        setIsSavedOffline(downloaded);
+
+        if (downloaded || formattedPdfUrl.startsWith('file://') || passedLocalPath) {
+          if (downloaded) {
+            const list = await getDownloadedDocs();
+            const doc = list.find(item => item.pdfUrl === formattedPdfUrl);
+            if (doc && isMounted) {
+              setLocalPath(doc.localPath);
+              setIsCached(true);
+            }
+          } else {
+            const activeLocalPath = formattedPdfUrl.startsWith('file://') ? formattedPdfUrl : (passedLocalPath as string);
+            setLocalPath(activeLocalPath);
+            setIsCached(true);
+          }
+          return;
+        }
+
+        // Hook into backgroundDownloader progress updates
+        const handleProgress = (info: any) => {
+          if (!isMounted) return;
+          if (info.status === 'downloading') {
+            setDownloading(true);
+            setDownloadProgress(info.progress);
+          } else if (info.status === 'completed') {
+            setLocalPath(info.localPath);
+            setIsCached(true);
+            setIsSavedOffline(true);
+            setDownloading(false);
+          } else if (info.status === 'failed') {
+            setErrorMessage(info.error || "Faylka waa la soo dejin waayey.");
+            setDownloading(false);
+          }
+        };
+
+        if (backgroundDownloader.isDownloading(formattedPdfUrl)) {
+          setDownloading(true);
+          setDownloadProgress(backgroundDownloader.getProgress(formattedPdfUrl));
+          unsubscribe = backgroundDownloader.subscribe(formattedPdfUrl, handleProgress);
         } else {
-          // Download with progress callback
           setDownloading(true);
           setDownloadProgress(0);
-
-          const downloadResumable = FileSystem.createDownloadResumable(
-            urlStr,
-            targetPath,
-            {},
-            (downloadProgress) => {
-              const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
-              setDownloadProgress(progress || 0);
-            }
-          );
-
-          const result = await downloadResumable.downloadAsync();
-          if (result && result.status === 200) {
-            setIsCached(true);
-            // Save automatically as offline document
-            let finalType: 'book' | 'exam' = 'book';
-            if (type) {
-              finalType = type as 'book' | 'exam';
-            } else {
-              const isExam = formattedPdfUrl.toLowerCase().includes('exam') || (title && (title as string).toLowerCase().includes('imtixaan'));
-              finalType = isExam ? 'exam' : 'book';
-            }
-            await registerDownload({
-              pdfUrl: formattedPdfUrl,
-              title: (title as string) || 'Document',
-              type: finalType,
-              localPath: targetPath,
-              grade: 'Form 4',
-            });
-            setIsSavedOffline(true);
+          
+          let finalType: 'book' | 'exam' = 'book';
+          if (type) {
+            finalType = type as 'book' | 'exam';
           } else {
-            throw new Error("Failed to download PDF document from server.");
+            const isExam = formattedPdfUrl.toLowerCase().includes('exam') || (title && (title as string).toLowerCase().includes('imtixaan'));
+            finalType = isExam ? 'exam' : 'book';
           }
+
+          backgroundDownloader.startDownload(formattedPdfUrl, (title as string) || 'Document', finalType)
+            .then((path) => {
+              if (isMounted) {
+                setLocalPath(path);
+                setIsCached(true);
+                setIsSavedOffline(true);
+                setDownloading(false);
+              }
+            })
+            .catch((err) => {
+              if (isMounted) {
+                setErrorMessage(err.message || "Faylka waa la soo dejin waayey.");
+                setDownloading(false);
+              }
+            });
+
+          unsubscribe = backgroundDownloader.subscribe(formattedPdfUrl, handleProgress);
         }
       } catch (err: any) {
-        console.error('Error checking/downloading PDF:', err);
-        setErrorMessage(err.message || "Faylka waa la soo dejin waayey.");
-      } finally {
-        setDownloading(false);
+        console.error('Error starting download flow:', err);
+        if (isMounted) {
+          setErrorMessage(err.message || "Faylka waa la soo dejin waayey.");
+          setDownloading(false);
+        }
       }
     };
 
-    checkAndDownload();
+    initDownload();
+
+    return () => {
+      isMounted = false;
+      if (unsubscribe) unsubscribe();
+    };
   }, [formattedPdfUrl, passedLocalPath]);
 
   // Load local file into PDF.js Webview viewer
@@ -1211,19 +1236,34 @@ export default function ReaderExamScreen() {
 
   if (downloading) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
-        <View style={styles.downloadCard}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.downloadTitle}>{title || 'Document'}</Text>
-          <Text style={styles.downloadSubtitle}>
-            Faylka waa la soo dejinayaa, fadlan sug...
-          </Text>
-          <View style={styles.progressBarBg}>
-            <View style={[styles.progressBarFill, { width: `${Math.round(downloadProgress * 100)}%` }]} />
+      <SafeAreaView style={[styles.container, { padding: 24 }]}>
+        <TouchableOpacity 
+          style={{ position: 'absolute', top: Platform.OS === 'ios' ? 60 : 30, left: 24, zIndex: 10, padding: 8 }}
+          onPress={() => router.back()}
+        >
+          <Ionicons name="arrow-back" size={26} color={colors.secondary} />
+        </TouchableOpacity>
+        
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <View style={styles.downloadCard}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.downloadTitle}>{title || 'Document'}</Text>
+            <Text style={styles.downloadSubtitle}>
+              Faylka waa la soo dejinayaa, fadlan sug...
+            </Text>
+            <View style={styles.progressBarBg}>
+              <View style={[styles.progressBarFill, { width: `${Math.round(downloadProgress * 100)}%` }]} />
+            </View>
+            <Text style={styles.downloadPercent}>
+              {Math.round(downloadProgress * 100)}%
+            </Text>
+            <TouchableOpacity 
+              style={{ marginTop: 24, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 20, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border || '#ccc' }}
+              onPress={() => router.back()}
+            >
+              <Text style={{ color: colors.secondary, fontWeight: '600', fontSize: 14 }}>Background ku daa</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.downloadPercent}>
-            {Math.round(downloadProgress * 100)}%
-          </Text>
         </View>
       </SafeAreaView>
     );

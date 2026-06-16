@@ -244,6 +244,26 @@ io.on('connection', (socket) => {
     });
 });
 
+// Tijaabinta Push Notifications
+app.post('/api/test-push', async (req, res) => {
+    try {
+        const { userId, title, body } = req.body;
+        if (!userId) {
+            return res.status(400).json({ message: 'userId is required' });
+        }
+        const pushService = require('./services/pushNotificationService');
+        await pushService.sendPushNotification(
+            userId,
+            title || 'Tijaabo Notification',
+            body || 'Haddii aad aragto farriintan, push notification-ku wuu shaqaynayaa! 🚀'
+        );
+        res.json({ message: 'Push notification triggered successfully!' });
+    } catch (error) {
+        console.error('Error triggering test push:', error);
+        res.status(500).json({ message: 'Error triggering push', error: error.message });
+    }
+});
+
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {

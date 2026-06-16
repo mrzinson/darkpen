@@ -1,16 +1,17 @@
-import { Stack, useSegments } from 'expo-router';
+import { Stack, useSegments, useRouter } from 'expo-router';
 import { useFonts } from 'expo-font';
 import { Ionicons, Feather, FontAwesome, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as SplashScreen from 'expo-splash-screen';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
-import { Text, TextInput, StyleSheet, Alert } from 'react-native';
+import { Text, TextInput, StyleSheet, Alert, Platform, View, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { showCustomAlert } from '../utils/customAlert';
 import { CustomAlert } from '../components/CustomAlert';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import Config from '../constants/Config';
+import { backgroundDownloader } from '../utils/backgroundDownloader';
 
 
 // Monkey patch AsyncStorage to securely encrypt JWT token using expo-secure-store
@@ -163,6 +164,8 @@ function RootStack() {
 export default function RootLayout() {
   const { expoPushToken } = usePushNotifications();
   const segments = useSegments();
+  const router = useRouter();
+  const [activeDownloads, setActiveDownloads] = useState<any[]>([]);
 
   useEffect(() => {
     async function saveToken() {
@@ -187,6 +190,15 @@ export default function RootLayout() {
     saveToken();
   }, [expoPushToken, segments]);
 
+  // Subscribe to background downloader
+  useEffect(() => {
+    setActiveDownloads(backgroundDownloader.getActiveDownloads());
+    const unsubscribe = backgroundDownloader.subscribeGlobal(() => {
+      setActiveDownloads(backgroundDownloader.getActiveDownloads());
+    });
+    return unsubscribe;
+  }, []);
+
   const [loaded, error] = useFonts({
     'Inter_400Regular': require('../assets/fonts/Inter-Regular.ttf'),
     'Inter_500Medium': require('../assets/fonts/Inter-Medium.ttf'),
@@ -210,10 +222,82 @@ export default function RootLayout() {
     return null;
   }
 
+  const showFloatingBanner = activeDownloads.length > 0 && !segments.includes('readerexam');
+
   return (
     <ThemeProvider>
       <RootStack />
       <CustomAlert />
+      
+      {showFloatingBanner && activeDownloads.map((dl) => (
+        <TouchableOpacity 
+          key={dl.pdfUrl}
+          style={layoutStyles.floatingBanner}
+          activeOpacity={0.85}
+          onPress={() => {
+            router.push({
+              pathname: '/readerexam',
+              params: { pdfUrl: dl.pdfUrl, title: dl.title, type: dl.type }
+            });
+          }}
+        >
+          <Ionicons name="cloud-download" size={20} color="white" style={{ marginRight: 10 }} />
+          <View style={{ flex: 1 }}>
+            <Text style={layoutStyles.floatingBannerTitle} numberOfLines={1}>
+              Dejinaya: {dl.title}
+            </Text>
+            <View style={layoutStyles.floatingBannerBarBg}>
+              <View style={[layoutStyles.floatingBannerBarFill, { width: `${Math.round(dl.progress * 100)}%` }]} />
+            </View>
+          </View>
+          <Text style={layoutStyles.floatingBannerPercent}>
+            {Math.round(dl.progress * 100)}%
+          </Text>
+        </TouchableOpacity>
+      ))}
     </ThemeProvider>
   );
 }
+
+const layoutStyles = StyleSheet.create({
+  floatingBanner: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 90 : 70, // Positioned right above standard Expo navigation tabs
+    left: 16,
+    right: 16,
+    backgroundColor: '#3B82F6', // Sleek premium blue accent
+    padding: 12,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+    zIndex: 9999,
+  },
+  floatingBannerTitle: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 5,
+  },
+  floatingBannerBarBg: {
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 2,
+    width: '100%',
+    overflow: 'hidden',
+  },
+  floatingBannerBarFill: {
+    height: '100%',
+    backgroundColor: '#ffffff',
+  },
+  floatingBannerPercent: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800',
+    marginLeft: 12,
+  }
+});
