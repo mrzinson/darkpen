@@ -6,7 +6,7 @@ const userController = require('../controllers/userController');
 const { checkAndExpireWallet } = require('../utils/walletHelper');
 const multer = require('multer');
 const path = require('path');
-const cloudinaryService = require('../services/cloudinaryService');
+const storageService = require('../services/storageService');
 
 const fs = require('fs');
 
@@ -243,7 +243,7 @@ router.post('/promo-cards/:id/claim', auth, upload.single('screenshot'), async (
         }
 
         const localImagePath = path.join(__dirname, '..', 'uploads', req.file.filename);
-        const screenshotUrl = await cloudinaryService.uploadLocalFile(localImagePath, 'screenshots', true);
+        const screenshotUrl = await storageService.uploadFile(localImagePath, 'screenshots', true);
 
         // Insert new claim request with 'pending' status
         await db.execute(

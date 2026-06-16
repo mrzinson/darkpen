@@ -10,7 +10,7 @@ const adminAuth = require('../middleware/adminAuth');
 const { clearEmbeddingsCache } = require('../services/aiService');
 const whatsappBot = require('../services/whatsappBot');
 const whatsappCloudBot = require('../services/whatsappCloudBot');
-const cloudinaryService = require('../services/cloudinaryService');
+const storageService = require('../services/storageService');
 
 // Robustly resolve and create uploads directory inside the backend folder
 const uploadDir = path.join(__dirname, '..', 'uploads');
@@ -426,14 +426,14 @@ router.post('/exams', upload.fields([{ name: 'image', maxCount: 1 }, { name: 'pd
         if (req.files) {
             if (req.files['image']) {
                 const localImagePath = path.join(__dirname, '..', 'uploads', req.files['image'][0].filename);
-                imageUrl = await cloudinaryService.uploadLocalFile(localImagePath, 'exams_images', true);
+                imageUrl = await storageService.uploadFile(localImagePath, 'exams_images', true);
             } else {
                 imageUrl = null;
             }
             if (req.files['pdf']) {
                 pdfPath = path.join(__dirname, '..', 'uploads', req.files['pdf'][0].filename);
-                pdfUrl = await cloudinaryService.uploadLocalFile(pdfPath, 'exams_pdfs', false);
-                if (cloudinaryService.isConfigured) {
+                pdfUrl = await storageService.uploadFile(pdfPath, 'exams_pdfs', false);
+                if (pdfUrl && pdfUrl.startsWith('http')) {
                     deletePDFLocallyAfterIngestion = true;
                 }
             } else {
@@ -486,13 +486,13 @@ router.patch('/exams/:id', upload.fields([{ name: 'image', maxCount: 1 }, { name
         if (req.files) {
             if (req.files['image']) {
                 const localImagePath = path.join(__dirname, '..', 'uploads', req.files['image'][0].filename);
-                imageUrl = await cloudinaryService.uploadLocalFile(localImagePath, 'exams_images', true);
+                imageUrl = await storageService.uploadFile(localImagePath, 'exams_images', true);
             }
             if (req.files['pdf']) {
                 pdfPath = path.join(__dirname, '..', 'uploads', req.files['pdf'][0].filename);
-                pdfUrl = await cloudinaryService.uploadLocalFile(pdfPath, 'exams_pdfs', false);
+                pdfUrl = await storageService.uploadFile(pdfPath, 'exams_pdfs', false);
                 pdfChanged = true;
-                if (cloudinaryService.isConfigured) {
+                if (pdfUrl && pdfUrl.startsWith('http')) {
                     deletePDFLocallyAfterIngestion = true;
                 }
             }
@@ -547,12 +547,12 @@ router.post('/books', upload.fields([{ name: 'image', maxCount: 1 }, { name: 'pd
         if (req.files) {
             if (req.files['image']) {
                 const localImagePath = path.join(__dirname, '..', 'uploads', req.files['image'][0].filename);
-                imageUrl = await cloudinaryService.uploadLocalFile(localImagePath, 'books_images', true);
+                imageUrl = await storageService.uploadFile(localImagePath, 'books_images', true);
             }
             if (req.files['pdf']) {
                 pdfPath = path.join(__dirname, '..', 'uploads', req.files['pdf'][0].filename);
-                pdfUrl = await cloudinaryService.uploadLocalFile(pdfPath, 'books_pdfs', false);
-                if (cloudinaryService.isConfigured) {
+                pdfUrl = await storageService.uploadFile(pdfPath, 'books_pdfs', false);
+                if (pdfUrl && pdfUrl.startsWith('http')) {
                     deletePDFLocallyAfterIngestion = true;
                 }
             }
@@ -603,13 +603,13 @@ router.patch('/books/:id', upload.fields([{ name: 'image', maxCount: 1 }, { name
         if (req.files) {
             if (req.files['image']) {
                 const localImagePath = path.join(__dirname, '..', 'uploads', req.files['image'][0].filename);
-                imageUrl = await cloudinaryService.uploadLocalFile(localImagePath, 'books_images', true);
+                imageUrl = await storageService.uploadFile(localImagePath, 'books_images', true);
             }
             if (req.files['pdf']) {
                 pdfPath = path.join(__dirname, '..', 'uploads', req.files['pdf'][0].filename);
-                pdfUrl = await cloudinaryService.uploadLocalFile(pdfPath, 'books_pdfs', false);
+                pdfUrl = await storageService.uploadFile(pdfPath, 'books_pdfs', false);
                 pdfChanged = true;
-                if (cloudinaryService.isConfigured) {
+                if (pdfUrl && pdfUrl.startsWith('http')) {
                     deletePDFLocallyAfterIngestion = true;
                 }
             }
@@ -699,7 +699,7 @@ router.post('/promo-cards', upload.single('image'), async (req, res) => {
 
         if (req.file) {
             const localImagePath = path.join(__dirname, '..', 'uploads', req.file.filename);
-            imageUrl = await cloudinaryService.uploadLocalFile(localImagePath, 'promo_images', true);
+            imageUrl = await storageService.uploadFile(localImagePath, 'promo_images', true);
         }
 
         if (!imageUrl) {
@@ -737,7 +737,7 @@ router.put('/promo-cards/:id', upload.single('image'), async (req, res) => {
 
         if (req.file) {
             const localImagePath = path.join(__dirname, '..', 'uploads', req.file.filename);
-            const imageUrl = await cloudinaryService.uploadLocalFile(localImagePath, 'promo_images', true);
+            const imageUrl = await storageService.uploadFile(localImagePath, 'promo_images', true);
             query += `, image_url = ?`;
             params.push(imageUrl);
         }
