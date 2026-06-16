@@ -320,7 +320,7 @@ export default function ShukaansiScreen() {
             id: String(m.id || idx),
             text: m.message,
             sender: m.sender,
-            image: m.image ? `${Config.API_URL}${m.image}` : undefined,
+            image: Config.getMediaUrl(m.image) || undefined,
             reaction: m.reaction || undefined,
             ai_reaction: m.ai_reaction || undefined,
             reply_to_id: m.reply_to_id || undefined,

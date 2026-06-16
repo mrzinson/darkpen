@@ -269,7 +269,7 @@ export default function ExamsScreen() {
                     router.push({
                       pathname: '/readerexam',
                       params: {
-                        pdfUrl: `${Config.API_URL}${exam.pdf_url}`,
+                        pdfUrl: Config.getMediaUrl(exam.pdf_url) || '',
                         title: exam.title,
                         type: 'exam' // Explicitly pass 'exam' type
                       }
@@ -281,7 +281,7 @@ export default function ExamsScreen() {
               >
                 <View style={styles.cardContent}>
                   <Image
-                    source={{ uri: exam.image_url ? `${Config.API_URL}${exam.image_url}` : 'https://images.unsplash.com/photo-1546410531-df4cb71576bd?w=400&q=80' }}
+                    source={{ uri: Config.getMediaUrl(exam.image_url) || 'https://images.unsplash.com/photo-1546410531-df4cb71576bd?w=400&q=80' }}
                     style={styles.examImage}
                   />
                   <View style={styles.cardInfo}>

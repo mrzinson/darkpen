@@ -522,7 +522,7 @@ export default function HomeScreen() {
                     router.push({
                       pathname: '/readerexam',
                       params: {
-                        pdfUrl: `${Config.API_URL}${book.pdf_url}`,
+                        pdfUrl: Config.getMediaUrl(book.pdf_url) || '',
                         title: book.title,
                         type: 'book' // Explicitly pass 'book' type
                       }
@@ -533,7 +533,7 @@ export default function HomeScreen() {
                 }}
               >
                 <ImageBackground
-                  source={{ uri: book.image_url ? `${Config.API_URL}${book.image_url}` : 'https://images.unsplash.com/photo-1596495578065-6e0763fa1178?q=80&w=200&auto=format&fit=crop' }}
+                  source={{ uri: Config.getMediaUrl(book.image_url) || 'https://images.unsplash.com/photo-1596495578065-6e0763fa1178?q=80&w=200&auto=format&fit=crop' }}
                   style={styles.bookImage}
                   imageStyle={{ borderRadius: 16 }}
                 >
@@ -590,7 +590,7 @@ export default function HomeScreen() {
                     router.push({
                       pathname: '/readerexam',
                       params: {
-                        pdfUrl: `${Config.API_URL}${exam.pdf_url}`,
+                        pdfUrl: Config.getMediaUrl(exam.pdf_url) || '',
                         title: exam.title,
                         type: 'exam' // Explicitly pass 'exam' type
                       }
@@ -601,7 +601,7 @@ export default function HomeScreen() {
                 }}
               >
                 <ImageBackground
-                  source={{ uri: exam.image_url ? `${Config.API_URL}${exam.image_url}` : 'https://images.unsplash.com/photo-1546410531-df4cb71576bd?w=200&auto=format&fit=crop' }}
+                  source={{ uri: Config.getMediaUrl(exam.image_url) || 'https://images.unsplash.com/photo-1546410531-df4cb71576bd?w=200&auto=format&fit=crop' }}
                   style={styles.bookImage}
                   imageStyle={{ borderRadius: 16 }}
                 >

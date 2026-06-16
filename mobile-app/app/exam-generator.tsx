@@ -342,7 +342,7 @@ export default function ExamGeneratorScreen() {
                 router.push({
                   pathname: '/readerexam',
                   params: {
-                    pdfUrl: `${Config.API_URL}${data.pdfUrl}`,
+                    pdfUrl: Config.getMediaUrl(data.pdfUrl) || '',
                     title: data.title || topic
                   }
                 });
