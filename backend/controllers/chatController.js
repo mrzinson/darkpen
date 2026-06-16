@@ -458,7 +458,7 @@ exports.askAI = async (req, res) => {
         if (chatType === 'shukaansi' && aiName) {
             systemInstruction = `Magacaaga waa "${aiName}". Isticmaaluhu wuxuu kuu bixiyay magacan, fadlan u dhaqan sidii magacaaga rasmiga ah markaad la hadlayso.\n\n${shukaansiSystemInstruction}`;
         }
-        const modelName = "gemini-flash-latest";
+        const modelName = "gemini-2.5-flash";
 
         // Handle streaming response if requested and not shukaansi
         if (stream === true && chatType !== 'shukaansi') {
@@ -864,7 +864,7 @@ Rules for response formatting:
             };
         }
 
-        const modelName = "gemini-flash-latest";
+        const modelName = "gemini-2.5-flash";
         const responseText = await aiService.askGemini(promptText, modelName, geminiAttachment, history || [], systemInstruction);
 
         // Log AI usage to database

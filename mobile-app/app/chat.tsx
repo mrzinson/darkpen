@@ -51,6 +51,7 @@ export default function ChatScreen() {
 
   const [inputHeight, setInputHeight] = useState(40);
   const isHistoryLoaded = useRef(false);
+  const activeXhr = useRef<XMLHttpRequest | null>(null);
 
   // ALL STATE DECLARATIONS — must be before any useEffect that references them
   const [inputText, setInputText] = useState('');
@@ -148,6 +149,9 @@ export default function ChatScreen() {
             const fiveDaysAgo = Date.now() - 5 * 24 * 60 * 60 * 1000;
             localMsgs = parsed.filter(m => {
               if (!m.timestamp) return true;
+              if (m.status === 'thinking' || m.status === 'streaming' || m.status === 'generating_image') {
+                return false; // Filter out stuck/interrupted messages
+              }
               return new Date(m.timestamp).getTime() > fiveDaysAgo;
             });
           }
@@ -391,6 +395,12 @@ export default function ChatScreen() {
 
   useEffect(() => {
     fetchCredits();
+    return () => {
+      if (activeXhr.current) {
+        activeXhr.current.abort();
+        activeXhr.current = null;
+      }
+    };
   }, []);
 
   // Smooth scroll to bottom when messages change or typing state updates
@@ -680,6 +690,7 @@ export default function ChatScreen() {
       const token = await AsyncStorage.getItem('userToken');
 
       const xhr = new XMLHttpRequest();
+      activeXhr.current = xhr;
       xhr.open('POST', `${Config.API_URL}/api/chat/ask`);
       xhr.setRequestHeader('Content-Type', 'application/json');
       xhr.setRequestHeader('Authorization', `Bearer ${token}`);
@@ -745,6 +756,7 @@ export default function ChatScreen() {
           }
 
           if (xhr.readyState === 4) {
+            activeXhr.current = null;
             clearTimeout(statusTimeout);
             if (xhr.status >= 400 && !accumulatedText) {
               let errorMsg = "Waan ka xunnahay, darkpen cilad ayaa ku timid. Fadlan isku day mar kale waxyar ka dib.";
@@ -783,6 +795,7 @@ export default function ChatScreen() {
       };
 
       xhr.onerror = () => {
+        activeXhr.current = null;
         clearTimeout(statusTimeout);
         setMessages(prev => prev.map(m => m.id === aiMsgId ? {
           ...m,

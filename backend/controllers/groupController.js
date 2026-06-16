@@ -108,7 +108,7 @@ Waligaa ha dhihin Google ama OpenAI ayaa ku sameeyay. Adigu waxaad tahay Darkpen
         const startGroupGemini = Date.now();
         const aiReply = await aiService.askGemini(
             promptText,
-            "gemini-flash-latest",
+            "gemini-2.5-flash",
             attachment,
             history,
             groupSystemInstruction
