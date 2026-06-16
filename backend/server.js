@@ -92,11 +92,36 @@ const chatRoutes = require('./routes/chatRoutes');
 const userRoutes = require('./routes/userRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const groupRoutes = require('./routes/groupRoutes');
+const s3Service = require('./services/s3Service');
+
 app.use('/api/auth', authRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/groups', groupRoutes);
+
+// Private S3 File Download Proxy/Redirect Endpoint
+const handleDownload = async (req, res) => {
+    try {
+        const { key } = req.query;
+        if (!key) {
+            return res.status(400).send('Fayl-ka lama helin (Key is required)');
+        }
+        
+        // Generate pre-signed GET URL for S3 (expiring in 1 hour)
+        const presignedUrl = await s3Service.getDownloadUrl(decodeURIComponent(key));
+        if (presignedUrl) {
+            return res.redirect(presignedUrl);
+        }
+        return res.status(404).send('Faylka lama helin ama adeegga kaydka ma shaqaynayo.');
+    } catch (error) {
+        console.error('[Download Redirect Error]:', error.message);
+        return res.status(500).send('Cilad ayaa ku dhacday soo dejinta faylka.');
+    }
+};
+
+app.get('/download', handleDownload);
+app.get('/api/download', handleDownload);
 
 // Tijaabinta API
 app.get('/api/health', (req, res) => {

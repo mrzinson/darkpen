@@ -1,4 +1,5 @@
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { Upload } = require('@aws-sdk/lib-storage');
 const fs = require('fs');
 const path = require('path');
@@ -108,8 +109,8 @@ async function uploadLocalFile(localPath, folder = 'general', deleteLocal = true
             return `${publicBase}/${fileKey}`;
         }
 
-        const endpointBase = process.env.S3_ENDPOINT.replace(/\/$/, '');
-        return `${endpointBase}/${process.env.S3_BUCKET_NAME}/${fileKey}`;
+        // For private buckets, return a relative backend proxy download path
+        return `/download?key=${encodeURIComponent(fileKey)}`;
     } catch (error) {
         console.error('[S3 Service Upload Error] Failed to upload, falling back to local path:', error);
         return relativeUrl;
@@ -154,10 +155,33 @@ async function uploadBase64(base64String, folder = 'general') {
             return `${publicBase}/${fileKey}`;
         }
 
-        const endpointBase = process.env.S3_ENDPOINT.replace(/\/$/, '');
-        return `${endpointBase}/${process.env.S3_BUCKET_NAME}/${fileKey}`;
+        // For private buckets, return a relative backend proxy download path
+        return `/download?key=${encodeURIComponent(fileKey)}`;
     } catch (error) {
         console.error('[S3 Service Base64 Upload Error]:', error);
+        return null;
+    }
+}
+
+/**
+ * Generates a pre-signed GET URL for a private file key.
+ * @param {string} fileKey - The key of the file in the bucket
+ * @param {number} expiresIn - Expiration time in seconds (default: 1 hour)
+ * @returns {Promise<string|null>} - Pre-signed URL or null
+ */
+async function getDownloadUrl(fileKey, expiresIn = 3600) {
+    if (!isConfigured || !s3Client) {
+        return null;
+    }
+    try {
+        const command = new GetObjectCommand({
+            Bucket: process.env.S3_BUCKET_NAME,
+            Key: fileKey
+        });
+        const url = await getSignedUrl(s3Client, command, { expiresIn });
+        return url;
+    } catch (error) {
+        console.error('[S3 Service Get Download URL Error]:', error);
         return null;
     }
 }
@@ -165,5 +189,6 @@ async function uploadBase64(base64String, folder = 'general') {
 module.exports = {
     isConfigured,
     uploadLocalFile,
-    uploadBase64
+    uploadBase64,
+    getDownloadUrl
 };
