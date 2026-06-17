@@ -1276,7 +1276,7 @@ export default function ReaderExamScreen() {
         <Ionicons name="alert-circle-outline" size={64} color="#EF4444" />
         <Text style={[styles.downloadTitle, { color: '#EF4444', marginTop: 16 }]}>Cilad Farsamo</Text>
         <Text style={[styles.downloadSubtitle, { textAlign: 'center', marginTop: 8 }]}>
-          {errorMessage}
+          Cilad farsamo ayaa dhacday sorry
         </Text>
         <View style={{ flexDirection: 'row', gap: 12, marginTop: 24 }}>
           <TouchableOpacity 
