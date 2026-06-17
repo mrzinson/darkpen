@@ -43,50 +43,50 @@ export default function BillingScreen() {
   const plans = [
     {
       id: 'pay_as_you_go',
-      title: 'Pay as you go',
+      title: 'Pay As You Go',
       price: '$0.5',
       somaliland: userCountry === 'Somaliland' ? '5,000 SL Shilling' : '',
-      description: 'Ku hel credits si aad u tijaabiso awoodda AI-da.',
+      description: 'Get credits to try out Darkpen AI features.',
       color: '#0A84FF',
       icon: 'flash',
-      expiry: 'Weligii ma dhacayo (No expiry)',
-      benefits: '100 Credits (Dhibcood)',
+      expiry: 'Expires in 10 days',
+      benefits: '100 Credits',
       features: [
-        'Ku weydii su\'aalo caadi ah chat-ka',
-        'Ka jarista credit-ka ku xiran isticmaalkaaga',
-        'Ku habboon tijaabada iyo adeegsiga yar yar'
+        'Ask general questions in the chat',
+        'Credits are deducted based on your usage',
+        'Perfect for testing and light use'
       ]
     },
     {
       id: 'monthly_basic',
-      title: 'Bille (Basic)',
+      title: 'Monthly (Basic)',
       price: '$3',
       somaliland: userCountry === 'Somaliland' ? '30,000 SL Shilling' : '',
-      description: 'Qorshe aan xadidnayn oo wada-hadalka AI ah.',
+      description: 'Unlimited AI chat plan for everyday use.',
       color: '#32D74B',
       icon: 'calendar',
-      expiry: '30 Maalmood ka dib (Expires in 30 days)',
-      benefits: 'Hal bil oo chat aan xaddidnayn ah',
+      expiry: 'Expires in 30 days',
+      benefits: 'One month of unlimited chat',
       features: [
-        'Wada-hadal iyo caawinaad aan xaddidnayn',
-        'Ku shaqeeya moodelka caadiga ah (Basic model)',
-        'Kuma habboona xallinta xisaabaadka aadka u adag'
+        'Unlimited conversations and assistance',
+        'Uses the standard AI model (Basic)',
+        'Not suitable for complex math or science problems'
       ]
     },
     {
       id: 'monthly_premium',
-      title: 'Bille (Premium)',
+      title: 'Monthly (Premium)',
       price: '$11',
       somaliland: userCountry === 'Somaliland' ? '110,000 SL Shilling' : '',
-      description: 'Hel moodelka AI ee ugu awoodda iyo casrisan.',
+      description: 'Access the most powerful and advanced AI model.',
       color: '#EAB308',
       icon: 'star',
-      expiry: '30 Maalmood ka dib (Expires in 30 days)',
-      benefits: 'Chat aan xaddidnayn + Moodelka premium-ka ah',
+      expiry: 'Expires in 30 days',
+      benefits: 'Unlimited chat + Premium AI model',
       features: [
-        'Xallinta su\'aalaha adag iyo Xisaabaadka (Math & Science)',
-        'Sawirro ku wareejinta iyo crop-gareynta imtixaannada',
-        'Jawaabo aad u degdeg badan oo sax ah 100%'
+        'Solve complex math & science problems',
+        'Send images and get exam solutions instantly',
+        'Ultra-fast and 100% accurate responses'
       ]
     }
   ];
@@ -110,8 +110,8 @@ export default function BillingScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={colors.secondary} />
         </TouchableOpacity>
-        <Text style={styles.title}>PAY BILLE</Text>
-        <Text style={styles.subtitle}>Si aad u sii wadato isticmaalka Darkpen AI, fadlan dooro mid ka mid ah BIILLESHAN.</Text>
+        <Text style={styles.title}>CHOOSE A PLAN</Text>
+        <Text style={styles.subtitle}>To continue using Darkpen AI, please select one of the plans below.</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -131,10 +131,10 @@ export default function BillingScreen() {
             <Ionicons name="time" size={28} color="#D97706" />
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 14, fontWeight: 'bold', color: colors.text }}>
-                Dalabkaaga wuu qabsoomay (Pending)
+                Payment Pending
               </Text>
               <Text style={{ fontSize: 12, color: isDark ? '#D1D5DB' : '#4B5563', marginTop: 4, lineHeight: 18 }}>
-                Fadlan sug, lacagtii aad ka dirtay {paymentReference} waa la hubinayaa hadda si credit loogu shubo koontadaada.
+                Your payment from {paymentReference} is being verified. Credits will be added to your account shortly.
               </Text>
             </View>
           </View>
@@ -168,11 +168,11 @@ export default function BillingScreen() {
             <View style={styles.specsContainer}>
               <View style={styles.specRow}>
                 <Ionicons name="gift-outline" size={16} color={plan.color} />
-                <Text style={styles.specLabel}>Waxa aad helayso: <Text style={styles.specValue}>{plan.benefits}</Text></Text>
+                <Text style={styles.specLabel}>You get: <Text style={styles.specValue}>{plan.benefits}</Text></Text>
               </View>
               <View style={styles.specRow}>
                 <Ionicons name="time-outline" size={16} color={plan.color} />
-                <Text style={styles.specLabel}>Goorta uu dhacayo: <Text style={styles.specValue}>{plan.expiry}</Text></Text>
+                <Text style={styles.specLabel}>Validity: <Text style={styles.specValue}>{plan.expiry}</Text></Text>
               </View>
             </View>
 
@@ -181,7 +181,7 @@ export default function BillingScreen() {
 
             {/* Features List */}
             <View style={styles.featuresList}>
-              <Text style={styles.featuresTitle}>Awoodaha qorshahan:</Text>
+              <Text style={styles.featuresTitle}>What's included:</Text>
               {plan.features.map((feature, idx) => (
                 <View key={idx} style={styles.featureItem}>
                   <Ionicons name="checkmark-circle" size={16} color={plan.color} />
@@ -195,7 +195,7 @@ export default function BillingScreen() {
               style={[styles.selectBtn, { backgroundColor: plan.color }]}
               onPress={() => handleSelect(plan)}
             >
-              <Text style={styles.selectBtnText}>Dooro Qorshahan →</Text>
+              <Text style={styles.selectBtnText}>Select This Plan →</Text>
             </TouchableOpacity>
           </TouchableOpacity>
         ))}
@@ -203,7 +203,7 @@ export default function BillingScreen() {
         <View style={styles.infoCard}>
           <Ionicons name="information-circle" size={20} color={colors.primary} />
           <Text style={styles.infoText}>
-            Markaad doorato qorshaha, waxaa lagu tusi doonaa numberka aad lacagta ku soo dirayso (EVC/Zaad/Sahal).
+            After selecting a plan, you will be shown the payment number to send money to (EVC/Zaad/Sahal).
           </Text>
         </View>
       </ScrollView>
