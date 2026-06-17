@@ -35,11 +35,31 @@ async function retryWithBackoff(fn, retries = 3, delay = 600) {
     throw lastError;
 }
 
+function hasImageAttachment(attachment) {
+    if (!attachment) return false;
+    const atts = Array.isArray(attachment) ? attachment : [attachment];
+    return atts.some(att => att && att.base64 && att.mimeType && att.mimeType.startsWith('image/'));
+}
+
 /**
  * La hadal Gemini
  */
 exports.askGemini = async (prompt, modelName = "gemini-2.5-flash", attachment = null, history = [], systemInstruction = null) => {
-    const fallbackModels = Array.from(new Set([modelName, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-flash-latest"]));
+    let targetModel = modelName;
+    if (targetModel === "gemini-2.5-flash" && !hasImageAttachment(attachment)) {
+        console.log("[GEMINI SERVICE] No image attachment detected. Dynamically downgrading gemini-2.5-flash to gemini-2.5-flash-lite for cost optimization.");
+        targetModel = "gemini-2.5-flash-lite";
+    }
+
+    const fallbackModels = Array.from(new Set([
+        targetModel, 
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash-lite", 
+        "gemini-2.5-flash", 
+        "gemini-2.0-flash", 
+        "gemini-1.5-flash", 
+        "gemini-flash-latest"
+    ]));
     let lastError = null;
 
     for (const currentModel of fallbackModels) {
@@ -92,7 +112,21 @@ exports.askGemini = async (prompt, modelName = "gemini-2.5-flash", attachment = 
  * La hadal Gemini adigoo ku jawaabaya qaab Streaming ah
  */
 exports.askGeminiStream = async (prompt, modelName = "gemini-2.5-flash", attachment = null, history = [], systemInstruction = null) => {
-    const fallbackModels = Array.from(new Set([modelName, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-flash-latest"]));
+    let targetModel = modelName;
+    if (targetModel === "gemini-2.5-flash" && !hasImageAttachment(attachment)) {
+        console.log("[GEMINI SERVICE] No image attachment detected. Dynamically downgrading gemini-2.5-flash to gemini-2.5-flash-lite for cost optimization.");
+        targetModel = "gemini-2.5-flash-lite";
+    }
+
+    const fallbackModels = Array.from(new Set([
+        targetModel, 
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash-lite", 
+        "gemini-2.5-flash", 
+        "gemini-2.0-flash", 
+        "gemini-1.5-flash", 
+        "gemini-flash-latest"
+    ]));
     let lastError = null;
 
     for (const currentModel of fallbackModels) {

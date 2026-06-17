@@ -729,6 +729,7 @@ export default function ReaderExamScreen() {
   const [isSavedOffline, setIsSavedOffline] = useState(false);
   const [htmlUri, setHtmlUri] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [webViewLoaded, setWebViewLoaded] = useState(false);
 
   interface ChatMessage {
@@ -1144,7 +1145,7 @@ export default function ReaderExamScreen() {
       isMounted = false;
       if (unsubscribe) unsubscribe();
     };
-  }, [formattedPdfUrl, passedLocalPath]);
+  }, [formattedPdfUrl, passedLocalPath, retryCount]);
 
   // Load local file into PDF.js Webview viewer
   useEffect(() => {
@@ -1277,9 +1278,24 @@ export default function ReaderExamScreen() {
         <Text style={[styles.downloadSubtitle, { textAlign: 'center', marginTop: 8 }]}>
           {errorMessage}
         </Text>
-        <TouchableOpacity style={styles.retryBtn} onPress={() => router.back()}>
-          <Text style={styles.retryBtnText}>Back</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 12, marginTop: 24 }}>
+          <TouchableOpacity 
+            style={[styles.retryBtn, { backgroundColor: '#475569', marginTop: 0 }]} 
+            onPress={() => router.back()}
+          >
+            <Text style={styles.retryBtnText}>Ka laabo</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.retryBtn, { backgroundColor: '#3B82F6', marginTop: 0 }]} 
+            onPress={() => {
+              setErrorMessage(null);
+              setDownloading(true);
+              setRetryCount(prev => prev + 1);
+            }}
+          >
+            <Text style={styles.retryBtnText}>Ku celi (Retry)</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }

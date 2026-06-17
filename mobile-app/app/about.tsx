@@ -134,7 +134,12 @@ export default function AboutScreen() {
               />
               <View style={{ flex: 1 }}>
                 <Text style={styles.founderName}>Hamze Mohamuud Ali (Zinson)</Text>
-                <Text style={styles.founderTitle}>Founder & CEO</Text>
+                <View style={styles.titleRow}>
+                  <View style={[styles.roleBadge, { backgroundColor: 'rgba(10,132,255,0.12)' }]}>
+                    <Ionicons name="star" size={11} color="#0A84FF" style={{ marginRight: 4 }} />
+                    <Text style={[styles.roleBadgeText, { color: '#0A84FF' }]}>Founder & CEO</Text>
+                  </View>
+                </View>
               </View>
             </View>
             <View style={styles.divider} />
@@ -150,6 +155,57 @@ export default function AboutScreen() {
               <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
               <Text style={styles.contactBtnText}>La Xiriir CEO (WhatsApp)</Text>
             </TouchableOpacity>
+          </View>
+
+          {/* TEAM SECTION */}
+          <Text style={styles.sectionHeader}>KOOXDEENNA — OUR TEAM</Text>
+
+          {/* Fadxi - Payments Manager */}
+          <View style={[styles.card, styles.teamMemberCard]}>
+            <View style={styles.teamMemberInner}>
+              <View style={styles.teamImageWrapper}>
+                <Image 
+                  source={require('../assets/images/fadxi.jpg')} 
+                  style={styles.teamMemberImage} 
+                />
+                <View style={[styles.teamOnlineDot, { backgroundColor: '#10B981' }]} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.teamMemberName}>Fadxi Ciise Maxamed</Text>
+                <View style={styles.titleRow}>
+                  <View style={[styles.roleBadge, { backgroundColor: 'rgba(16,185,129,0.12)' }]}>
+                    <Ionicons name="card" size={11} color="#10B981" style={{ marginRight: 4 }} />
+                    <Text style={[styles.roleBadgeText, { color: '#10B981' }]}>Payments Manager</Text>
+                  </View>
+                </View>
+                <Text style={styles.teamMemberBio}>Maareeyaha lacag bixinta iyo xisaabaadka dhaqaale ee Darkpen.</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Shaafici - Marketing Manager */}
+          <View style={[styles.card, styles.teamMemberCard]}>
+            <View style={styles.teamMemberInner}>
+              <View style={styles.teamImageWrapper}>
+                <Image 
+                  source={require('../assets/images/shaafici.jpg')} 
+                  style={styles.teamMemberImage} 
+                />
+                <View style={[styles.teamOnlineDot, { backgroundColor: '#F59E0B' }]} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.teamMemberName}>Shaafici Cabdiraxmaan{' '}
+                  <Text style={{ fontSize: 13, color: '#F59E0B' }}>✦ Iconic</Text>
+                </Text>
+                <View style={styles.titleRow}>
+                  <View style={[styles.roleBadge, { backgroundColor: 'rgba(245,158,11,0.12)' }]}>
+                    <Ionicons name="megaphone" size={11} color="#F59E0B" style={{ marginRight: 4 }} />
+                    <Text style={[styles.roleBadgeText, { color: '#F59E0B' }]}>Marketing Manager</Text>
+                  </View>
+                </View>
+                <Text style={styles.teamMemberBio}>Qofka mas'uulka ka ah xaaladaha suuq-geynta iyo ballaarinta Darkpen.</Text>
+              </View>
+            </View>
           </View>
 
           {/* QUICK LINKS */}
@@ -373,6 +429,64 @@ const getStyles = (colors: any) => StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    flexWrap: 'wrap',
+  },
+  roleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  roleBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  teamMemberCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(100,100,100,0.08)',
+  },
+  teamMemberInner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  teamImageWrapper: {
+    position: 'relative',
+    marginRight: 16,
+  },
+  teamMemberImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 2.5,
+    borderColor: colors.primary,
+  },
+  teamOnlineDot: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    borderWidth: 2,
+    borderColor: colors.card,
+  },
+  teamMemberName: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.text,
+    flexShrink: 1,
+  },
+  teamMemberBio: {
+    fontSize: 13,
+    color: colors.textLight,
+    marginTop: 6,
+    lineHeight: 19,
   },
   founderName: {
     fontSize: 18,

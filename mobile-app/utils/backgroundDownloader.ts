@@ -125,79 +125,127 @@ class BackgroundDownloader {
       console.warn('Error checking local path info:', e);
     }
 
-    // Set up download resumable
     const listeners = new Set<ProgressListener>();
-    const resumable = FileSystem.createDownloadResumable(
-      pdfUrl,
-      targetPath,
-      {},
-      (downloadProgress) => {
-        const totalExpected = downloadProgress.totalBytesExpectedToWrite;
-        const totalWritten = downloadProgress.totalBytesWritten;
-        const progressVal = totalExpected > 0 ? (totalWritten / totalExpected) : 0;
-        const progress = Math.min(Math.max(progressVal || 0, 0), 1);
-        
-        const active = this.activeDownloads.get(pdfUrl);
-        if (active) {
-          active.progress = progress;
-          const info: DownloadProgressInfo = {
-            pdfUrl,
-            title,
-            progress,
-            status: 'downloading'
-          };
-          active.listeners.forEach(l => l(info));
-        }
-        this.notifyGlobalListeners();
-      }
-    );
+    
+    // Initial dummy resumable, will be replaced inside the retry loop
+    let resumable = FileSystem.createDownloadResumable(pdfUrl, targetPath, {}, () => {});
 
     const promise = (async () => {
-      try {
-        const result = await resumable.downloadAsync();
-        if (result && result.status === 200) {
-          // Register download in AsyncStorage
-          await registerDownload({
-            pdfUrl,
-            title,
-            type,
-            localPath: targetPath,
-            grade: 'Form 4',
-          });
+      let lastProgressTime = Date.now();
+      let timeoutCheckInterval: any = null;
+      let attempts = 3;
+      let lastErr: any = null;
 
-          const active = this.activeDownloads.get(pdfUrl);
-          if (active) {
-            const info: DownloadProgressInfo = {
+      for (let attempt = 1; attempt <= attempts; attempt++) {
+        const currentResumable = FileSystem.createDownloadResumable(
+          pdfUrl,
+          targetPath,
+          {},
+          (downloadProgress) => {
+            lastProgressTime = Date.now();
+            const totalExpected = downloadProgress.totalBytesExpectedToWrite;
+            const totalWritten = downloadProgress.totalBytesWritten;
+            const progressVal = totalExpected > 0 ? (totalWritten / totalExpected) : 0;
+            const progress = Math.min(Math.max(progressVal || 0, 0), 1);
+            
+            const active = this.activeDownloads.get(pdfUrl);
+            if (active) {
+              active.progress = progress;
+              const info: DownloadProgressInfo = {
+                pdfUrl,
+                title,
+                progress,
+                status: 'downloading'
+              };
+              active.listeners.forEach(l => l(info));
+            }
+            this.notifyGlobalListeners();
+          }
+        );
+
+        // Update the active download object reference
+        const activeItem = this.activeDownloads.get(pdfUrl);
+        if (activeItem) {
+          activeItem.resumable = currentResumable;
+        }
+
+        try {
+          lastProgressTime = Date.now();
+          
+          if (timeoutCheckInterval) clearInterval(timeoutCheckInterval);
+          timeoutCheckInterval = setInterval(() => {
+            if (Date.now() - lastProgressTime > 25000) { // 25 seconds inactivity timeout
+              console.warn(`[DOWNLOAD TIMEOUT] No progress for 25s on ${title}. Aborting to retry...`);
+              currentResumable.pauseAsync().catch(err => console.warn('[DOWNLOAD TIMEOUT] Pause error:', err.message));
+            }
+          }, 5000);
+
+          console.log(`[DOWNLOAD] Starting download attempt ${attempt}/${attempts} for ${title}...`);
+          const result = await currentResumable.downloadAsync();
+          
+          if (timeoutCheckInterval) {
+            clearInterval(timeoutCheckInterval);
+            timeoutCheckInterval = null;
+          }
+
+          if (result && result.status === 200) {
+            // Register download in AsyncStorage
+            await registerDownload({
               pdfUrl,
               title,
-              progress: 1,
-              status: 'completed',
-              localPath: targetPath
-            };
-            active.listeners.forEach(l => l(info));
+              type,
+              localPath: targetPath,
+              grade: 'Form 4',
+            });
+
+            const active = this.activeDownloads.get(pdfUrl);
+            if (active) {
+              const info: DownloadProgressInfo = {
+                pdfUrl,
+                title,
+                progress: 1,
+                status: 'completed',
+                localPath: targetPath
+              };
+              active.listeners.forEach(l => l(info));
+            }
+            this.activeDownloads.delete(pdfUrl);
+            this.notifyGlobalListeners();
+            return targetPath;
+          } else {
+            throw new Error(`Server returned status code ${result?.status || 'unknown'}`);
           }
-          this.activeDownloads.delete(pdfUrl);
-          this.notifyGlobalListeners();
-          return targetPath;
-        } else {
-          throw new Error('Server returned status code ' + (result?.status || 'unknown'));
+        } catch (err: any) {
+          if (timeoutCheckInterval) {
+            clearInterval(timeoutCheckInterval);
+            timeoutCheckInterval = null;
+          }
+          lastErr = err;
+          console.warn(`[DOWNLOAD ERROR] Attempt ${attempt}/${attempts} failed for ${title}: ${err.message}`);
+          
+          if (attempt < attempts) {
+            // Exponential backoff
+            const backoffDelay = Math.pow(2, attempt) * 1000;
+            await new Promise(resolve => setTimeout(resolve, backoffDelay));
+          }
         }
-      } catch (err: any) {
-        const active = this.activeDownloads.get(pdfUrl);
-        if (active) {
-          const info: DownloadProgressInfo = {
-            pdfUrl,
-            title,
-            progress: active.progress,
-            status: 'failed',
-            error: err.message || 'Error downloading file'
-          };
-          active.listeners.forEach(l => l(info));
-        }
-        this.activeDownloads.delete(pdfUrl);
-        this.notifyGlobalListeners();
-        throw err;
       }
+
+      // All attempts failed
+      const active = this.activeDownloads.get(pdfUrl);
+      if (active) {
+        const info: DownloadProgressInfo = {
+          pdfUrl,
+          title,
+          progress: active.progress,
+          status: 'failed',
+          error: lastErr?.message || 'Error downloading file after multiple attempts'
+        };
+        active.listeners.forEach(l => l(info));
+      }
+      this.activeDownloads.delete(pdfUrl);
+      this.notifyGlobalListeners();
+      throw lastErr;
     })();
 
     this.activeDownloads.set(pdfUrl, {
