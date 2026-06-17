@@ -225,7 +225,7 @@ exports.askAI = async (req, res) => {
                 const diffMs = now.getTime() - lastUpdatedDate.getTime();
                 const diffDays = diffMs / (1000 * 60 * 60 * 24);
 
-                if (diffDays >= 30) {
+                if (diffDays >= 10) {
                     console.log(`[WALLET EXPIRATION] Expiring wallet for user ${userId}. Old balance: ${balance}`);
                     // Trigger DB updates asynchronously
                     db.execute(
@@ -243,7 +243,7 @@ exports.askAI = async (req, res) => {
                     pushService.sendPushNotification(
                         userId,
                         'Credits-kaagii waa uu dhacay',
-                        `Credits-kaagii (Pay as you go) oo ahaa ${balance} ayaa dhacay sababtoo ah ma aadan isticmaalin muddo 1 bil ah. Fadlan ku shubo credits cusub.`
+                        `Credits-kaagii (Pay as you go) oo ahaa ${balance} ayaa dhacay sababtoo ah ma aadan isticmaalin muddo 10 casho ah. Fadlan ku shubo credits cusub.`
                     ).catch(err => console.error('[WALLET EXPIRATION] Push notification error:', err.message));
 
                     // Locally update the balance to 0 for current monetization logic
