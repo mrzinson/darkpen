@@ -1,6 +1,10 @@
 # Ignore entire backend and admin-dashboard directories
 backend/
 admin-dashboard/
+privacy-policy/
+web-app/
+LICENSE
+README.md
 
 # Ignore node_modules
 node_modules/

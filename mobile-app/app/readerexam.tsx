@@ -1093,7 +1093,7 @@ export default function ReaderExamScreen() {
             setIsSavedOffline(true);
             setDownloading(false);
           } else if (info.status === 'failed') {
-            setErrorMessage(info.error || "Faylka waa la soo dejin waayey.");
+            setErrorMessage(info.error || "Waa la diyaarin waayey.");
             setDownloading(false);
           }
         };
@@ -1125,7 +1125,7 @@ export default function ReaderExamScreen() {
             })
             .catch((err) => {
               if (isMounted) {
-                setErrorMessage(err.message || "Faylka waa la soo dejin waayey.");
+                setErrorMessage(err.message || "Waa la diyaarin waayey.");
                 setDownloading(false);
               }
             });
@@ -1135,7 +1135,7 @@ export default function ReaderExamScreen() {
       } catch (err: any) {
         console.error('Error starting download flow:', err);
         if (isMounted) {
-          setErrorMessage(err.message || "Faylka waa la soo dejin waayey.");
+          setErrorMessage(err.message || "Waa la diyaarin waayey.");
           setDownloading(false);
         }
       }
