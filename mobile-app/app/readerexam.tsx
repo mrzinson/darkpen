@@ -15,8 +15,9 @@ import { isDocDownloaded, registerDownload, removeDownload, getDownloadedDocs } 
 import { backgroundDownloader } from '../utils/backgroundDownloader';
 import * as ImagePicker from 'expo-image-picker';
 
-// Helper function to generate PDF.js viewer HTML with inline engine code to run 100% offline
-const getHtmlContent = (pdfFilename: string, isDark: boolean) => {
+// Helper function to generate PDF.js viewer HTML — uses absolute file:// URIs to ensure
+// Android WebView can reliably locate the PDF, PDF.js library, and worker.
+const getHtmlContent = (pdfUri: string, pdfJsUri: string, pdfWorkerUri: string, isDark: boolean) => {
   const bgColor = isDark ? '#0F172A' : '#F1F5F9';
   const paperColor = isDark ? '#1E293B' : '#FFFFFF';
   const textColor = isDark ? '#F1F5F9' : '#1E293B';
@@ -98,7 +99,7 @@ const getHtmlContent = (pdfFilename: string, isDark: boolean) => {
           z-index: 10;
         }
       </style>
-      <script src="./pdf.min.js"></script>
+      <script src="${pdfJsUri}"></script>
     </head>
     <body>
       <div id="viewer"></div>
@@ -348,10 +349,10 @@ const getHtmlContent = (pdfFilename: string, isDark: boolean) => {
 
         try {
           if (window.pdfjsLib) {
-            pdfjsLib.GlobalWorkerOptions.workerSrc = './pdf.worker.min.js';
+            pdfjsLib.GlobalWorkerOptions.workerSrc = '${pdfWorkerUri}';
           }
 
-          const loadingTask = pdfjsLib.getDocument('./${pdfFilename}');
+          const loadingTask = pdfjsLib.getDocument('${pdfUri}');
           
           loadingTask.promise.then(function(pdf) {
             const viewer = document.getElementById('viewer');
@@ -731,6 +732,8 @@ export default function ReaderExamScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [webViewLoaded, setWebViewLoaded] = useState(false);
+  const webViewLoadedRef = useRef(false);
+  const webViewTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   interface ChatMessage {
     id: string;
@@ -1153,18 +1156,34 @@ export default function ReaderExamScreen() {
 
     const loadLocalPdf = async () => {
       try {
-        // Ensure engine is ready
-        await ensurePdfJsEngine();
+        // Ensure PDF.js engine is cached locally
+        const { pdfJsPath, pdfWorkerPath } = await ensurePdfJsEngine();
 
-        // Get filename from localPath
-        const filename = localPath.split('/').pop() || 'document.pdf';
+        // Build absolute file:// URIs so Android WebView can resolve them reliably
+        // (relative paths like ./file.pdf fail intermittently in file:// WebViews)
+        const toFileUri = (path: string) =>
+          path.startsWith('file://') ? path : `file://${path}`;
 
-        // Generate static html content and write it to viewer.html
-        const generatedHtml = getHtmlContent(filename, isDark);
+        const safePath = localPath!; // guarded by `if (!localPath) return` above
+        const pdfFileUri    = toFileUri(safePath);
+        const pdfJsUri      = toFileUri(pdfJsPath);
+        const pdfWorkerUri  = toFileUri(pdfWorkerPath);
+
+        // Generate HTML viewer with absolute URIs embedded and write to disk
+        const generatedHtml = getHtmlContent(pdfFileUri, pdfJsUri, pdfWorkerUri, isDark);
         const viewerHtmlPath = `${FileSystem.documentDirectory}viewer.html`;
         await FileSystem.writeAsStringAsync(viewerHtmlPath, generatedHtml);
 
-        // Set the HTML URI to state
+        // Reset load tracking and start a 20-second timeout safety net
+        webViewLoadedRef.current = false;
+        setWebViewLoaded(false);
+        if (webViewTimeoutRef.current) clearTimeout(webViewTimeoutRef.current);
+        webViewTimeoutRef.current = setTimeout(() => {
+          if (!webViewLoadedRef.current) {
+            setErrorMessage('Faylka si buuxda uma furmin. Fadlan dib u isku day.');
+          }
+        }, 20000);
+
         setHtmlUri(viewerHtmlPath);
       } catch (err: any) {
         console.error("Error loading PDF into Webview:", err);
@@ -1173,6 +1192,10 @@ export default function ReaderExamScreen() {
     };
 
     loadLocalPdf();
+
+    return () => {
+      if (webViewTimeoutRef.current) clearTimeout(webViewTimeoutRef.current);
+    };
   }, [isCached, localPath, isDark]);
 
   const handleOpenOffline = async () => {
@@ -1289,8 +1312,18 @@ export default function ReaderExamScreen() {
             style={[styles.retryBtn, { backgroundColor: '#3B82F6', marginTop: 0 }]} 
             onPress={() => {
               setErrorMessage(null);
-              setDownloading(true);
-              setRetryCount(prev => prev + 1);
+              setHtmlUri(null);
+              setWebViewLoaded(false);
+              webViewLoadedRef.current = false;
+              if (webViewTimeoutRef.current) clearTimeout(webViewTimeoutRef.current);
+              // If file is already cached, reset isCached to re-trigger the load pipeline
+              if (isCached) {
+                setIsCached(false);
+                setTimeout(() => setIsCached(true), 50);
+              } else {
+                setDownloading(true);
+                setRetryCount(prev => prev + 1);
+              }
             }}
           >
             <Text style={styles.retryBtnText}>Ku celi (Retry)</Text>
@@ -1341,6 +1374,8 @@ export default function ReaderExamScreen() {
                 try {
                   const data = JSON.parse(event.nativeEvent.data);
                   if (data.type === 'LOADED') {
+                    webViewLoadedRef.current = true;
+                    if (webViewTimeoutRef.current) clearTimeout(webViewTimeoutRef.current);
                     setWebViewLoaded(true);
                   } else if (data.type === 'ERROR') {
                     console.error("WebView error:", data.message);
