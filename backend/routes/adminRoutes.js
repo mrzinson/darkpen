@@ -542,7 +542,6 @@ router.post('/books', upload.fields([{ name: 'image', maxCount: 1 }, { name: 'pd
         let imageUrl = null;
         let pdfUrl = null;
         let pdfPath = null;
-        let deletePDFLocallyAfterIngestion = false;
 
         if (req.files) {
             if (req.files['image']) {
@@ -551,10 +550,7 @@ router.post('/books', upload.fields([{ name: 'image', maxCount: 1 }, { name: 'pd
             }
             if (req.files['pdf']) {
                 pdfPath = path.join(__dirname, '..', 'uploads', req.files['pdf'][0].filename);
-                pdfUrl = await storageService.uploadFile(pdfPath, 'books_pdfs', false);
-                if (pdfUrl && pdfUrl.startsWith('http')) {
-                    deletePDFLocallyAfterIngestion = true;
-                }
+                pdfUrl = await storageService.uploadFile(pdfPath, 'books_pdfs', true);
             }
         }
 
@@ -563,12 +559,7 @@ router.post('/books', upload.fields([{ name: 'image', maxCount: 1 }, { name: 'pd
             [title, author, category || 'General', grade || 'Form 4', imageUrl, pdfUrl, country || null]
         );
 
-        // Ingest into RAG in background
-        if (pdfPath) {
-            ingestionService.ingestPDF(result.insertId, 'book', title, category, pdfPath, deletePDFLocallyAfterIngestion);
-        }
-
-        res.json({ message: 'Buugga si guul leh ayaa loo soo geliyay! AI-duna hadda ayay bilaabaysaa barashada.' });
+        res.json({ message: 'Buugga si guul leh ayaa loo soo geliyay!' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Cilad ayaa dhacday soo gelinta buugga' });
@@ -598,7 +589,6 @@ router.patch('/books/:id', upload.fields([{ name: 'image', maxCount: 1 }, { name
         let pdfUrl = books[0].pdf_url;
         let pdfPath = null;
         let pdfChanged = false;
-        let deletePDFLocallyAfterIngestion = false;
 
         if (req.files) {
             if (req.files['image']) {
@@ -607,11 +597,8 @@ router.patch('/books/:id', upload.fields([{ name: 'image', maxCount: 1 }, { name
             }
             if (req.files['pdf']) {
                 pdfPath = path.join(__dirname, '..', 'uploads', req.files['pdf'][0].filename);
-                pdfUrl = await storageService.uploadFile(pdfPath, 'books_pdfs', false);
+                pdfUrl = await storageService.uploadFile(pdfPath, 'books_pdfs', true);
                 pdfChanged = true;
-                if (pdfUrl && pdfUrl.startsWith('http')) {
-                    deletePDFLocallyAfterIngestion = true;
-                }
             }
         }
 
@@ -632,7 +619,6 @@ router.patch('/books/:id', upload.fields([{ name: 'image', maxCount: 1 }, { name
         if (pdfChanged && pdfPath) {
             await db.execute('DELETE FROM book_embeddings WHERE source_id = ? AND source_type = "book"', [id]);
             clearEmbeddingsCache();
-            ingestionService.ingestPDF(id, 'book', title || books[0].title, category || books[0].category, pdfPath, deletePDFLocallyAfterIngestion);
         }
 
         res.json({ message: 'Buugga si guul leh ayaa loo cusboonaysiayey!' });

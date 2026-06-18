@@ -93,17 +93,11 @@ const Overview = () => {
             {stats?.chartData && stats.chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={stats.chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="var(--primary)" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
                   <XAxis dataKey="name" stroke="#8884d8" />
                   <YAxis stroke="#8884d8" />
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                   <Tooltip />
-                  <Area type="monotone" dataKey="revenue" stroke="var(--primary)" fillOpacity={1} fill="url(#colorRevenue)" />
+                  <Area type="monotone" dataKey="revenue" stroke="var(--primary)" fillOpacity={0.15} fill="var(--primary)" />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (

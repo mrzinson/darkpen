@@ -182,10 +182,9 @@ export default function AdminsPanel() {
           gap: '12px',
           padding: '12px 24px',
           borderRadius: 'var(--radius-md)',
-          backgroundColor: toast.type === 'success' ? 'rgba(50, 215, 75, 0.15)' : 'rgba(255, 69, 58, 0.15)',
+          backgroundColor: toast.type === 'success' ? '#1A2F1F' : '#2F1F1F',
           border: `1px solid ${toast.type === 'success' ? 'var(--success)' : 'var(--danger)'}`,
-          color: toast.type === 'success' ? 'var(--success)' : 'var(--danger)',
-          backdropFilter: 'blur(20px)',
+          color: toast.type === 'success' ? '#4ADE80' : '#F87171',
           fontWeight: 600,
           boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
           animation: 'slideIn 0.3s ease-out'

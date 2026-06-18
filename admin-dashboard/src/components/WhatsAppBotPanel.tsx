@@ -838,6 +838,7 @@ export default function WhatsAppBotPanel() {
             zIndex: 1500, display: 'flex',
             alignItems: 'center', justifyContent: 'center',
             backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
             padding: '20px'
           }}
         >
@@ -979,6 +980,7 @@ export default function WhatsAppBotPanel() {
             zIndex: 1500, display: 'flex',
             alignItems: 'center', justifyContent: 'center',
             backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
             padding: '20px'
           }}
         >

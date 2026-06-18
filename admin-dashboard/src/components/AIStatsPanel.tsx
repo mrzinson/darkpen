@@ -103,17 +103,11 @@ export default function AIStatsPanel() {
             {chartData && chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorCost" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--danger)" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="var(--danger)" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
                   <XAxis dataKey="name" stroke="#8884d8" style={{ fontSize: '11px' }} />
                   <YAxis stroke="#8884d8" style={{ fontSize: '11px' }} />
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" opacity={0.1} />
                   <Tooltip contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'rgba(255,255,255,0.08)' }} />
-                  <Area type="monotone" dataKey="cost" stroke="var(--danger)" fillOpacity={1} fill="url(#colorCost)" />
+                  <Area type="monotone" dataKey="cost" stroke="var(--danger)" fillOpacity={0.15} fill="var(--danger)" />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (

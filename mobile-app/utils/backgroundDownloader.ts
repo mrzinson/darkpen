@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import { registerDownload } from './downloadManager';
 
 export interface DownloadProgressInfo {
@@ -14,7 +14,6 @@ type ProgressListener = (info: DownloadProgressInfo) => void;
 
 class BackgroundDownloader {
   private activeDownloads: Map<string, {
-    resumable: FileSystem.DownloadResumable;
     promise: Promise<string>;
     progress: number;
     title: string;
@@ -126,69 +125,39 @@ class BackgroundDownloader {
     }
 
     const listeners = new Set<ProgressListener>();
-    
-    // Initial dummy resumable, will be replaced inside the retry loop
-    let resumable = FileSystem.createDownloadResumable(pdfUrl, targetPath, {}, () => {});
+
+    // Simulated progress updates to provide visual feedback during download
+    let progress = 0.05;
+    const progressInterval = setInterval(() => {
+      const active = this.activeDownloads.get(pdfUrl);
+      if (active) {
+        if (progress < 0.92) {
+          progress += 0.04;
+        }
+        active.progress = progress;
+        const info: DownloadProgressInfo = {
+          pdfUrl,
+          title,
+          progress,
+          status: 'downloading'
+        };
+        active.listeners.forEach(l => l(info));
+        this.notifyGlobalListeners();
+      }
+    }, 250);
 
     const promise = (async () => {
-      let lastProgressTime = Date.now();
-      let timeoutCheckInterval: any = null;
       let attempts = 3;
       let lastErr: any = null;
 
       for (let attempt = 1; attempt <= attempts; attempt++) {
-        const currentResumable = FileSystem.createDownloadResumable(
-          pdfUrl,
-          targetPath,
-          {},
-          (downloadProgress) => {
-            lastProgressTime = Date.now();
-            const totalExpected = downloadProgress.totalBytesExpectedToWrite;
-            const totalWritten = downloadProgress.totalBytesWritten;
-            const progressVal = totalExpected > 0 ? (totalWritten / totalExpected) : 0;
-            const progress = Math.min(Math.max(progressVal || 0, 0), 1);
-            
-            const active = this.activeDownloads.get(pdfUrl);
-            if (active) {
-              active.progress = progress;
-              const info: DownloadProgressInfo = {
-                pdfUrl,
-                title,
-                progress,
-                status: 'downloading'
-              };
-              active.listeners.forEach(l => l(info));
-            }
-            this.notifyGlobalListeners();
-          }
-        );
-
-        // Update the active download object reference
-        const activeItem = this.activeDownloads.get(pdfUrl);
-        if (activeItem) {
-          activeItem.resumable = currentResumable;
-        }
-
         try {
-          lastProgressTime = Date.now();
-          
-          if (timeoutCheckInterval) clearInterval(timeoutCheckInterval);
-          timeoutCheckInterval = setInterval(() => {
-            if (Date.now() - lastProgressTime > 25000) { // 25 seconds inactivity timeout
-              console.warn(`[DOWNLOAD TIMEOUT] No progress for 25s on ${title}. Aborting to retry...`);
-              currentResumable.pauseAsync().catch(err => console.warn('[DOWNLOAD TIMEOUT] Pause error:', err.message));
-            }
-          }, 5000);
-
           console.log(`[DOWNLOAD] Starting download attempt ${attempt}/${attempts} for ${title}...`);
-          const result = await currentResumable.downloadAsync();
-          
-          if (timeoutCheckInterval) {
-            clearInterval(timeoutCheckInterval);
-            timeoutCheckInterval = null;
-          }
+          const result = await FileSystem.downloadAsync(pdfUrl, targetPath);
 
           if (result && result.status === 200) {
+            clearInterval(progressInterval);
+
             // Register download in AsyncStorage
             await registerDownload({
               pdfUrl,
@@ -216,13 +185,9 @@ class BackgroundDownloader {
             throw new Error(`Server returned status code ${result?.status || 'unknown'}`);
           }
         } catch (err: any) {
-          if (timeoutCheckInterval) {
-            clearInterval(timeoutCheckInterval);
-            timeoutCheckInterval = null;
-          }
           lastErr = err;
           console.warn(`[DOWNLOAD ERROR] Attempt ${attempt}/${attempts} failed for ${title}: ${err.message}`);
-          
+
           if (attempt < attempts) {
             // Exponential backoff
             const backoffDelay = Math.pow(2, attempt) * 1000;
@@ -232,6 +197,7 @@ class BackgroundDownloader {
       }
 
       // All attempts failed
+      clearInterval(progressInterval);
       const active = this.activeDownloads.get(pdfUrl);
       if (active) {
         const info: DownloadProgressInfo = {
@@ -249,9 +215,8 @@ class BackgroundDownloader {
     })();
 
     this.activeDownloads.set(pdfUrl, {
-      resumable,
       promise,
-      progress: 0,
+      progress: 0.05,
       title,
       type,
       listeners

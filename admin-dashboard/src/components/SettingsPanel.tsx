@@ -141,10 +141,9 @@ export default function SettingsPanel() {
           gap: '12px',
           padding: '12px 24px',
           borderRadius: 'var(--radius-md)',
-          backgroundColor: message.type === 'success' ? 'rgba(50, 215, 75, 0.15)' : 'rgba(255, 69, 58, 0.15)',
+          backgroundColor: message.type === 'success' ? '#1A2F1F' : '#2F1F1F',
           border: `1px solid ${message.type === 'success' ? 'var(--success)' : 'var(--danger)'}`,
-          color: message.type === 'success' ? 'var(--success)' : 'var(--danger)',
-          backdropFilter: 'blur(20px)',
+          color: message.type === 'success' ? '#4ADE80' : '#F87171',
           fontWeight: 600,
           boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
           animation: 'slideIn 0.3s ease-out'
