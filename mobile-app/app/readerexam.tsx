@@ -1299,7 +1299,10 @@ export default function ReaderExamScreen() {
         <Ionicons name="alert-circle-outline" size={64} color="#EF4444" />
         <Text style={[styles.downloadTitle, { color: '#EF4444', marginTop: 16 }]}>Cilad Farsamo</Text>
         <Text style={[styles.downloadSubtitle, { textAlign: 'center', marginTop: 8 }]}>
-          Cilad farsamo ayaa dhacday sorry
+          Cilad farsamo ayaa dhacday, sorry.
+        </Text>
+        <Text style={{ color: '#EF4444', fontSize: 12, marginTop: 8, textAlign: 'center', paddingHorizontal: 16, opacity: 0.8 }}>
+          Error: {errorMessage}
         </Text>
         <View style={{ flexDirection: 'row', gap: 12, marginTop: 24 }}>
           <TouchableOpacity 
@@ -1366,8 +1369,10 @@ export default function ReaderExamScreen() {
               style={[styles.webview, { opacity: webViewLoaded ? 1 : 0 }]}
               startInLoadingState={false}
               javaScriptEnabled={true}
+              domStorageEnabled={true}
               originWhitelist={['*']}
               allowFileAccess={true}
+              allowFileAccessFromFileURLs={true}
               allowUniversalAccessFromFileURLs={true}
               allowingReadAccessToURL={FileSystem.documentDirectory || undefined}
               onMessage={(event) => {
