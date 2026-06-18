@@ -7,15 +7,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as IntentLauncher from 'expo-intent-launcher';
 import Config from '../constants/Config';
 import { isDocDownloaded, registerDownload, removeDownload, getDownloadedDocs } from '../utils/downloadManager';
 import { backgroundDownloader } from '../utils/backgroundDownloader';
 import * as ImagePicker from 'expo-image-picker';
-
-const documentDirectory = (FileSystem as any).documentDirectory;
 
 // Helper function to generate PDF.js viewer HTML with inline engine code to run 100% offline
 const getHtmlContent = (pdfFilename: string, isDark: boolean) => {
@@ -1024,8 +1022,8 @@ export default function ReaderExamScreen() {
   // Ensure PDF.js engine is cached locally
   const ensurePdfJsEngine = async () => {
     try {
-      const pdfJsPath = `${documentDirectory}pdf.min.js`;
-      const pdfWorkerPath = `${documentDirectory}pdf.worker.min.js`;
+      const pdfJsPath = `${FileSystem.documentDirectory}pdf.min.js`;
+      const pdfWorkerPath = `${FileSystem.documentDirectory}pdf.worker.min.js`;
 
       const jsInfo = await FileSystem.getInfoAsync(pdfJsPath);
       if (!jsInfo.exists) {
@@ -1163,7 +1161,7 @@ export default function ReaderExamScreen() {
 
         // Generate static html content and write it to viewer.html
         const generatedHtml = getHtmlContent(filename, isDark);
-        const viewerHtmlPath = `${documentDirectory}viewer.html`;
+        const viewerHtmlPath = `${FileSystem.documentDirectory}viewer.html`;
         await FileSystem.writeAsStringAsync(viewerHtmlPath, generatedHtml);
 
         // Set the HTML URI to state
@@ -1338,7 +1336,7 @@ export default function ReaderExamScreen() {
               originWhitelist={['*']}
               allowFileAccess={true}
               allowUniversalAccessFromFileURLs={true}
-              allowingReadAccessToURL={documentDirectory || undefined}
+              allowingReadAccessToURL={FileSystem.documentDirectory || undefined}
               onMessage={(event) => {
                 try {
                   const data = JSON.parse(event.nativeEvent.data);
