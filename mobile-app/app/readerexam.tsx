@@ -1252,7 +1252,7 @@ export default function ReaderExamScreen() {
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.downloadTitle}>{title || 'Document'}</Text>
             <Text style={styles.downloadSubtitle}>
-              Faylka waa la soo dejinayaa, fadlan sug...
+              Waa la diyaarinayaa, fadlan sug...
             </Text>
             <View style={styles.progressBarBg}>
               <View style={[styles.progressBarFill, { width: `${Math.round(downloadProgress * 100)}%` }]} />

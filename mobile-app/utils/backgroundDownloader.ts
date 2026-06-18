@@ -106,47 +106,29 @@ class BackgroundDownloader {
 
     const filename = this.getCleanFilename(pdfUrl);
     const targetPath = `${FileSystem.documentDirectory}${filename}`;
-
-    // Verify if already cached/downloaded on disk
-    try {
-      const fileInfo = await FileSystem.getInfoAsync(targetPath);
-      if (fileInfo.exists) {
-        await registerDownload({
-          pdfUrl,
-          title,
-          type,
-          localPath: targetPath,
-          grade: 'Form 4',
-        });
-        return targetPath;
-      }
-    } catch (e) {
-      console.warn('Error checking local path info:', e);
-    }
-
     const listeners = new Set<ProgressListener>();
 
-    // Simulated progress updates to provide visual feedback during download
-    let progress = 0.05;
-    const progressInterval = setInterval(() => {
-      const active = this.activeDownloads.get(pdfUrl);
-      if (active) {
-        if (progress < 0.92) {
-          progress += 0.04;
-        }
-        active.progress = progress;
-        const info: DownloadProgressInfo = {
-          pdfUrl,
-          title,
-          progress,
-          status: 'downloading'
-        };
-        active.listeners.forEach(l => l(info));
-        this.notifyGlobalListeners();
-      }
-    }, 250);
-
     const promise = (async () => {
+      // 1. Verify if already cached/downloaded on disk
+      try {
+        const fileInfo = await FileSystem.getInfoAsync(targetPath);
+        if (fileInfo.exists) {
+          await registerDownload({
+            pdfUrl,
+            title,
+            type,
+            localPath: targetPath,
+            grade: 'Form 4',
+          });
+          this.activeDownloads.delete(pdfUrl);
+          this.notifyGlobalListeners();
+          return targetPath;
+        }
+      } catch (e) {
+        console.warn('Error checking local path info:', e);
+      }
+
+      // 2. Start download
       let attempts = 3;
       let lastErr: any = null;
 
@@ -214,6 +196,27 @@ class BackgroundDownloader {
       throw lastErr;
     })();
 
+    // Simulated progress updates to provide visual feedback during download
+    let progress = 0.05;
+    const progressInterval = setInterval(() => {
+      const active = this.activeDownloads.get(pdfUrl);
+      if (active) {
+        if (progress < 0.92) {
+          progress += 0.04;
+        }
+        active.progress = progress;
+        const info: DownloadProgressInfo = {
+          pdfUrl,
+          title,
+          progress,
+          status: 'downloading'
+        };
+        active.listeners.forEach(l => l(info));
+        this.notifyGlobalListeners();
+      }
+    }, 250);
+
+    // Register active download IMMEDIATELY, before yielding execution!
     this.activeDownloads.set(pdfUrl, {
       promise,
       progress: 0.05,
