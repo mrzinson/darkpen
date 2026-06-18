@@ -55,4 +55,8 @@ backend/uploads/
 
 # Scratch files
 backend/check_users.js
-backend/test_gemini.js
+backend/test_gemini.js
+
+# Untracked Web Projects
+darkpen-web/
+web-app/
