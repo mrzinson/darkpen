@@ -2,7 +2,7 @@
   "expo": {
     "name": "Darkpen",
     "slug": "darkpen",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "darkpen",
@@ -15,7 +15,7 @@
     },
     "android": {
       "package": "com.zinson.darkpen",
-      "versionCode": 4,
+      "versionCode": 6,
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
