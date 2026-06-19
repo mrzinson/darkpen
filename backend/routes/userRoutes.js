@@ -402,11 +402,11 @@ router.get('/usage', auth, async (req, res) => {
 
         // Fetch Active Subscriptions
         const [subRows] = await db.execute(
-            'SELECT type, expiry_date FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW() AND (SELECT balance FROM user_wallet WHERE user_id = user_subscriptions.user_id) > 0 ORDER BY expiry_date DESC LIMIT 1',
+            'SELECT type, expiry_date FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1',
             [userId]
         );
         const [shukaansiSubRows] = await db.execute(
-            'SELECT type, expiry_date FROM shukaansi_subscriptions WHERE user_id = ? AND expiry_date > NOW() AND (SELECT balance FROM shukaansi_wallet WHERE user_id = shukaansi_subscriptions.user_id) > 0 ORDER BY expiry_date DESC LIMIT 1',
+            'SELECT type, expiry_date FROM shukaansi_subscriptions WHERE user_id = ? AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1',
             [userId]
         );
         const [allSubRows] = await db.execute(

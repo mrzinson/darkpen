@@ -83,22 +83,20 @@ exports.deleteSession = async (req, res) => {
     }
 };
 
-const darkpenSystemInstruction = `You are Darkpen, a highly intelligent and friendly AI assistant developed by ZinsonAI (owned by Hamze Mohamuud Ali Zinson). Always identify as Darkpen developed by ZinsonAI.
+const darkpenSystemInstruction = `You are Darkpen, a highly intelligent and friendly AI assistant developed by ZinsonAI (owned by Hamze Mohamuud Ali Zinson).
 
 Core Guidelines:
 1. LANGUAGE CONSISTENCY:
 - You MUST respond in the EXACT same language the user spoke to you (e.g., if the user asks a question in English, respond ONLY in English; if in Somali, respond in Somali; if in Arabic, respond in Arabic). Do not get stuck on Somali or prepend Somali disclaimers when responding in other languages.
 - If an image attachment is provided, analyze the image and respond in the language used in the image text or requested by the user.
 2. IDENTITY & DISCLAIMERS:
-- Never prepend a disclaimer banner like "Fiiro gaar ah: Waxaan ahay Darkpen..." to every single message. Only mention your identity/ZinsonAI/Hamze Mohamuud Ali Zinson if the user specifically asks "Who are you?", "Who developed you?", or "Who is your creator?".
-- If you must present a disclaimer or note, format it in the same language as the conversation (e.g. use "<callout>Note: ...</callout>" in English, or "<callout>Fiiro gaar ah: ...</callout>" in Somali).
+- Never prepend or include any disclaimer, note, warning, banner, or anything starting with "Fiiro gaar ah" or "Note:" under any circumstances. Keep responses clean and free of disclaimers. Only mention your identity/ZinsonAI/Hamze Mohamuud Ali Zinson if the user specifically asks "Who are you?", "Who developed you?", or "Who is your creator?".
 3. INTELLIGENCE & CONVERSATION:
 - Do not sound robotic or low-intelligence. Provide natural, intelligent, and accurate responses.
 - For casual or friendly chats, keep replies concise and friendly. You may end with a natural follow-up question to keep the chat active.
 - For technical, scientific, or academic questions, provide detailed, accurate, and professional step-by-step answers without adding unnecessary conversational fluff.
 4. FORMATTING RULES:
 - Use markdown headers (# H1, ## H2, ### H3) for structure.
-- Wrap critical notices in <callout>Note: ...</callout>.
 - Highlight key terms using <green>Keyword</green>.
 - Use the following custom table format for tabular data:
 <table_data>
@@ -137,7 +135,8 @@ Xeerarkaaga:
 3. Mararka qaar adiguna weydii su'aalo xaraabad leh oo ka qosliya sida: "Horta meherkaaga meeqaad rabtaa? 😂" ama "Muxuu ahaa sawirkan aad soo dirtay, ma dadkaad ku baadhaysaa? 😉".
 4. Marka hore is-barta (weydii magaca) oo xusuuso wixii uu kuu sheego, kuna dhex xus wada-hadalka dambe si aad ugu dareento jacayl iyo diirimaad.
 5. Haddii uu sawir soo diro, ku jawaab si kalgacal iyo shactiro leh — tusaale: "Aad baad ugu qurux badantahay sawirkan, laakiin horta yaad u egtahay? 😂".
-6. MARNA HA ISTICMAALIN laba luuqadood — Soomaali dabiici ah oo kaliya oo ah ta ugu habboon haasaawaha Soomaalida.`;
+6. MARNA HA ISTICMAALIN laba luuqadood — Soomaali dabiici ah oo kaliya oo ah ta ugu habboon haasaawaha Soomaalida.
+7. WALIGAA ha isticmaalin wax digniino ah, disclaimers, ama qoraal ka bilaabmaya "Fiiro gaar ah" ama "Note:". Gebi ahaanba ka saar wax kasta oo disclaimers ah.`;
 
 function isSubstantiveQuery(text) {
     if (!text) return false;
@@ -171,28 +170,7 @@ function isSubstantiveQuery(text) {
 }
 
 function isImageGenerationRequest(text) {
-    if (!text) return false;
-    const clean = text.toLowerCase().trim();
-    
-    const isSomaliImageReq = clean.includes('sawir') && (
-        clean.includes('samee') || clean.includes('keen') || clean.includes('soo') || 
-        clean.includes('naqshad') || clean.includes('dhig') || clean.includes('qor') || 
-        clean.includes('iiga') || clean.includes('iga') || clean.includes('ii') || 
-        clean.includes('muuji') || clean.includes('tus')
-    );
-    const isEnglishImageReq = (
-        clean.includes('image') || clean.includes('picture') || clean.includes('photo') || 
-        clean.includes('draw') || clean.includes('paint') || clean.includes('illustration')
-    ) && (
-        clean.includes('create') || clean.includes('generate') || clean.includes('make') || 
-        clean.includes('draw') || clean.includes('paint') || clean.includes('show') || 
-        clean.includes('render')
-    );
-    
-    const directSomali = clean.startsWith('sawir ') || clean.includes(' sawir ') || clean.includes(' sawiro ') || clean.includes(' sawirada ');
-    const directEnglish = clean.startsWith('draw ') || clean.startsWith('paint ') || clean.startsWith('generate image') || clean.startsWith('create image') || clean.startsWith('make an image');
-
-    return isSomaliImageReq || isEnglishImageReq || directSomali || directEnglish;
+    return false;
 }
 
 // La sheekaysiga AI-da (Private Chat)
@@ -215,8 +193,8 @@ exports.askAI = async (req, res) => {
             : `SELECT balance, last_updated FROM ${walletTable} WHERE user_id = ?`;
 
         const subQuery = chatType === 'shukaansi'
-            ? `SELECT * FROM ${subTable} WHERE user_id = ? AND expiry_date > NOW() AND (SELECT balance FROM shukaansi_wallet WHERE user_id = ${subTable}.user_id) > 0`
-            : `SELECT * FROM ${subTable} WHERE user_id = ? AND expiry_date > NOW() AND (SELECT balance FROM user_wallet WHERE user_id = ${subTable}.user_id) > 0`;
+            ? `SELECT * FROM ${subTable} WHERE user_id = ? AND expiry_date > NOW()`
+            : `SELECT * FROM ${subTable} WHERE user_id = ? AND expiry_date > NOW()`;
 
         const [walletRes, subRes] = await Promise.all([
             db.execute(walletQuery, [userId]),
@@ -417,11 +395,9 @@ exports.askAI = async (req, res) => {
             usedFreeAI = await tryUseFreeAI(userId, hasImage ? 'image' : 'text');
         }
 
-        if (!usedFreeAI) {
+        if (!hasActiveSub && !usedFreeAI) {
             if (!hasBalance || wallet[0].balance < cost) {
-                const errorMsg = hasActiveSub
-                    ? `Waxaad gaadhay xadkii isticmaalka qorshahaaga (Subscription limit reached). Chat-ka ${chatType === 'shukaansi' ? 'Shukaansiga' : 'Caadiga ah'} wuxuu u baahan yahay ${cost} Credits. Fadlan iibso qorshe cusub ama ku shub credits.`
-                    : `Free-kaagii wuu dhammaaday. Chat-ka ${chatType === 'shukaansi' ? 'Shukaansiga' : 'Caadiga ah'} wuxuu u baahan yahay ${cost} Credits. Fadlan ku shubo credits ama iibso qorshe si aad u sii wadato.`;
+                const errorMsg = `Free-kaagii wuu dhammaaday. Chat-ka ${chatType === 'shukaansi' ? 'Shukaansiga' : 'Caadiga ah'} wuxuu u baahan yahay ${cost} Credits. Fadlan ku shubo credits ama iibso qorshe si aad u sii wadato.`;
                 return res.status(402).json({ 
                     message: errorMsg, 
                     needsPayment: true 
@@ -680,18 +656,22 @@ exports.processVoice = async (req, res) => {
 
         // Credit Deduction for Voice (20 Credits)
         const userId = req.user.id;
-        const [sub] = await db.execute('SELECT * FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW() AND (SELECT balance FROM user_wallet WHERE user_id = user_subscriptions.user_id) > 0', [userId]);
+        const subTable = chatType === 'shukaansi' ? 'shukaansi_subscriptions' : 'user_subscriptions';
+        const [sub] = await db.execute(`SELECT * FROM ${subTable} WHERE user_id = ? AND expiry_date > NOW()`, [userId]);
         const hasActiveSub = sub.length > 0;
 
         const walletTable = chatType === 'shukaansi' ? 'shukaansi_wallet' : 'user_wallet';
-        const [wallet] = await db.execute(`SELECT balance FROM ${walletTable} WHERE user_id = ?`, [userId]);
-        const hasBalance = wallet.length > 0 && wallet[0].balance >= 20;
 
-        if (!hasBalance) {
-            return res.status(402).json({ message: 'Dhibcahaagu kuma filna duubista codka (20 Credits).', needsPayment: true });
+        if (!hasActiveSub) {
+            const [wallet] = await db.execute(`SELECT balance FROM ${walletTable} WHERE user_id = ?`, [userId]);
+            const hasBalance = wallet.length > 0 && wallet[0].balance >= 20;
+
+            if (!hasBalance) {
+                return res.status(402).json({ message: 'Dhibcahaagu kuma filna duubista codka (20 Credits).', needsPayment: true });
+            }
+
+            await db.execute(`UPDATE ${walletTable} SET balance = balance - 20 WHERE user_id = ?`, [userId]);
         }
-
-        await db.execute(`UPDATE ${walletTable} SET balance = balance - 20 WHERE user_id = ?`, [userId]);
         
         // Log voice note transcription to ai_usage_logs
         try {

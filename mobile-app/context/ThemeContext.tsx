@@ -95,7 +95,7 @@ export const translations = {
     no_books_found: "No books found.",
     welcome_love: "Welcome! I am 'My Love'. How can I help you today?",
     placeholder_love: "Message My Love...",
-    love_points_desc: "You have {credits} coins dedicated to dating chat. Each sent message or image deducts points.",
+    love_points_desc: "You have {credits} coins dedicated to dating chat. Each sent message deducts points.",
     buy_more_points: "Buy More Coins",
   },
   so: {
@@ -148,7 +148,7 @@ export const translations = {
     no_books_found: "Wax buug ah lama helin.",
     welcome_love: "Kusoo dhawoow! Anigu waxaan ahay 'My Love'. Maxaan kaa caawin karaa maanta?",
     placeholder_love: "U dir farriin My Love...",
-    love_points_desc: "Waxaad haysataa {credits} dhibcood oo gaar u ah Shukaansiga. Farriin kasta oo aad dirto ama sawir waxay kaa jaraysaa dhibco.",
+    love_points_desc: "Waxaad haysataa {credits} dhibcood oo gaar u ah Shukaansiga. Farriin kasta oo aad dirto waxay kaa jaraysaa dhibco.",
     buy_more_points: "Dalbo Dhibco Kale",
   }
 };
