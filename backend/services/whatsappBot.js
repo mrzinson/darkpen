@@ -538,25 +538,12 @@ async function handleIncomingMessage(message) {
     }
 
     const isGroup = message.from.endsWith('@g.us');
-    let senderNumberRaw = '';
 
-    try {
-        const contact = await message.getContact();
-        if (contact && contact.id && contact.id.user) {
-            senderNumberRaw = contact.id.user;
-        }
-        console.log('[WHATSAPP BOT DEBUG] Fetched contact ID user:', senderNumberRaw);
-    } catch (err) {
-        console.error('[WHATSAPP BOT DEBUG] Failed to get contact:', err.message);
-    }
-
-    if (!senderNumberRaw) {
-        const senderRaw = isGroup ? (message.author || '') : message.from;
-        if (senderRaw) senderNumberRaw = senderRaw.split('@')[0];
-    }
-
+    // Extract sender number directly from message fields (faster than getContact())
+    const senderRaw = isGroup ? (message.author || '') : message.from;
+    const senderNumberRaw = senderRaw.split('@')[0];
     const normalizedPhone = normalizePhoneNumber(senderNumberRaw);
-    console.log(`[WHATSAPP BOT DEBUG] Extracted senderNumberRaw: ${senderNumberRaw}, normalizedPhone: ${normalizedPhone}`);
+    console.log(`[WHATSAPP BOT DEBUG] senderNumberRaw: ${senderNumberRaw}, normalizedPhone: ${normalizedPhone}`);
 
     if (!normalizedPhone) return;
 
@@ -682,15 +669,16 @@ async function handleIncomingMessage(message) {
 
     const userId = user.id;
 
-    // A. Intercept if user has any pending payment request
-    const [pendingRows] = await db.execute(
-        'SELECT id FROM whatsapp_pending_payments WHERE user_id = ? AND status = "pending" LIMIT 1',
-        [userId]
-    );
-
-    if (pendingRows.length > 0) {
-        await message.reply("Codsigaaga ku shubashada waa uu socdaa, fadlan sug inta laga soo hubinayo.");
-        return;
+    // C. Check pending payments (skip if this is admin — admin messages handled above)
+    if (!isFromAdmin) {
+        const [pendingRows] = await db.execute(
+            'SELECT id FROM whatsapp_pending_payments WHERE user_id = ? AND status = "pending" LIMIT 1',
+            [userId]
+        );
+        if (pendingRows.length > 0) {
+            await message.reply("Codsigaaga ku shubashada waa uu socdaa, fadlan sug inta laga soo hubinayo.");
+            return;
+        }
     }
 
     // ─── Password Reset Flow ──────────────────────────────────────────────────────
@@ -1115,11 +1103,13 @@ async function handleIncomingMessage(message) {
         else cost = 12;
     }
 
-    const [sub] = await db.execute(
-        'SELECT * FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW()',
-        [userId]
-    );
+    // Fetch wallet and subscription in parallel for speed
+    const [[walletRows], [sub]] = await Promise.all([
+        db.execute('SELECT balance FROM user_wallet WHERE user_id = ?', [userId]),
+        db.execute('SELECT * FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW()', [userId])
+    ]);
     const hasActiveSub = sub.length > 0;
+    const walletBalance = walletRows.length > 0 ? walletRows[0].balance : 0;
 
     let usedFreeAI = false;
     if (!hasActiveSub && !voiceCostApplied) {
@@ -1127,9 +1117,7 @@ async function handleIncomingMessage(message) {
     }
 
     if (!hasActiveSub && !usedFreeAI) {
-        const [wallet] = await db.execute('SELECT balance FROM user_wallet WHERE user_id = ?', [userId]);
-        const balance = wallet.length > 0 ? wallet[0].balance : 0;
-        if (balance < cost) {
+        if (walletBalance < cost) {
             await message.reply('kushubo credit');
             await message.reply('Makuugu shubaa credit? (Ku jawaab: Haa ama Maya)');
             userStates.set(userId, { step: 'awaiting_topup_consent' });
