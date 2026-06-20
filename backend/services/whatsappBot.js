@@ -342,6 +342,52 @@ exports.initialize = async () => {
     }
 };
 
+function isYesResponse(text) {
+    const clean = String(text || '').toLowerCase().trim().replace(/[?!.]/g, '');
+    return /^ha+$/i.test(clean) || 
+           /^ye+y$/i.test(clean) || 
+           /^haye$/i.test(clean) || 
+           /^ok(ay)?$/i.test(clean) || 
+           /^yes+$/i.test(clean) || 
+           /^yep$/i.test(clean) || 
+           clean === 'y' || 
+           clean === 'sax' || 
+           clean === 'sawn' || 
+           clean === 'waa sax';
+}
+
+function isNoResponse(text) {
+    const clean = String(text || '').toLowerCase().trim().replace(/[?!.]/g, '');
+    return /^may?a*$/i.test(clean) || 
+           /^no+p?e?$/i.test(clean) || 
+           clean === 'n' || 
+           clean === 'laa' || 
+           clean.includes('ma rabo') || 
+           clean.includes('ha rabin');
+}
+
+async function handleOutOfFlowQuery(message, key, flowType, flowContext) {
+    const userPrompt = message.body || '';
+    const systemPrompt = `You are Darkpen, a friendly AI assistant. 
+    The user is currently in the middle of a WhatsApp bot registration/payment process.
+    Flow: ${flowContext}
+    
+    They just sent this message instead of answering the expected question: "${userPrompt}"
+    
+    Instruction:
+    1. Answer their question directly, warmly, and concisely in the same language they used (Somali or English).
+    2. Add a polite reminder at the end asking them to continue the flow by answering the pending question (e.g. "To continue registration, please reply with 'Haa' or 'Maya'." or "To choose a plan, please type 1, 2, or 3.").
+    3. Do NOT proceed with the payment or registration itself, just answer the query and prompt them to continue.`;
+
+    try {
+        const aiResponse = await askGemini(userPrompt, "gemini-2.5-flash", null, [], systemPrompt);
+        await message.reply(formatResponseForWhatsApp(aiResponse));
+    } catch (err) {
+        console.error('[WHATSAPP BOT] Failed to answer out-of-flow query:', err.message);
+        await message.reply("Fadlan ku jawaab Haa ama Maya si aan u sii wadno.");
+    }
+}
+
 // ─── Helper: clean phone number ───────────────────────────────────────────────
 function getCleanNumber(rawJid) {
     const digits = rawJid.split('@')[0];
@@ -381,14 +427,14 @@ async function handleUnregisteredRegistration(message, normalizedPhone) {
     }
 
     if (state.step === 'awaiting_registration_consent') {
-        if (cleanBody === 'haa') {
+        if (isYesResponse(cleanBody)) {
             state.step = 'awaiting_name';
             await message.reply("Fadlan ii soo qor magacaaga saddexan (Tusaale: Axmed Cali Faarax):");
-        } else if (cleanBody === 'maya') {
+        } else if (isNoResponse(cleanBody)) {
             await message.reply("Haye, waa la baajiyey (Cancel).");
             registrationStates.delete(normalizedPhone);
         } else {
-            await message.reply("Fadlan ku jawaab 'Haa' ama 'Maya'.");
+            await handleOutOfFlowQuery(message, normalizedPhone, 'signup_consent', "I am asking the user if they want to register for Darkpen WhatsApp bot. They should reply with 'Haa' (Yes) or 'Maya' (No).");
         }
         return;
     }
@@ -424,7 +470,7 @@ async function handleUnregisteredRegistration(message, normalizedPhone) {
     }
 
     if (state.step === 'awaiting_review') {
-        if (cleanBody === 'haa') {
+        if (isYesResponse(cleanBody)) {
             const connection = await db.getConnection();
             try {
                 await connection.beginTransaction();
@@ -451,8 +497,17 @@ async function handleUnregisteredRegistration(message, normalizedPhone) {
 
                 await connection.commit();
 
-                await message.reply("Hambalyo! Si guul leh ayaa laguu diwaan-geliyey. Hadda waad isticmaali kartaa Darkpen WhatsApp Bot.");
+                await message.reply(
+                    "Hambalyo! Si guul leh ayaa laguu diwaan-geliyey. Hadda waad isticmaali kartaa Darkpen WhatsApp Bot.\n\n" +
+                    "🎁 Waxaad hadiyad ahaan u heysataa:\n" +
+                    "• 15 farriimo oo bilaash ah (Free Messages)\n" +
+                    "• 3 sawir oo bilaash ah (Free Images)\n\n" +
+                    "Markay kaa dhammaadaan, waxaad u baahan doontaa inaad ku shubato credits si aad u sii waddo isticmaalka.\n\n" +
+                    "Makaa caawiyaa sida uu u shaqeeyo WhatsApp bot-ku? (Ku jawaab: Haa ama Maya)"
+                );
+
                 registrationStates.delete(normalizedPhone);
+                userStates.set(newUserId, { step: 'awaiting_whatsapp_help_consent' });
             } catch (dbErr) {
                 await connection.rollback();
                 console.error('[WHATSAPP BOT] Registration failed:', dbErr.message);
@@ -460,11 +515,11 @@ async function handleUnregisteredRegistration(message, normalizedPhone) {
             } finally {
                 connection.release();
             }
-        } else if (cleanBody === 'maya') {
+        } else if (isNoResponse(cleanBody)) {
             await message.reply("Haye, waa la baajiyey (Cancel).");
             registrationStates.delete(normalizedPhone);
         } else {
-            await message.reply("Fadlan ku jawaab 'Haa' ama 'Maya'.");
+            await handleOutOfFlowQuery(message, normalizedPhone, 'signup_review', "I showed the user their registration details and asked if I should save them. They must reply with Haa (Yes) or Maya (No) to continue.");
         }
         return;
     }
@@ -548,27 +603,45 @@ async function handleIncomingMessage(message) {
 
     // A. Check if message is a reply from the Admin (+252637930329 / LID: +174741381992545) to a pending payment notification
     const isFromAdmin = normalizedPhone === '+252637930329' || normalizedPhone === '+174741381992545' || normalizedPhone === '252637930329' || normalizedPhone === '174741381992545';
-    if (isFromAdmin && message.hasQuotedMsg) {
-        let quotedMsg = null;
-        try {
-            quotedMsg = await message.getQuotedMessage();
-        } catch (qErr) {
-            console.error('[WHATSAPP BOT] Failed to get quoted message:', qErr.message);
-        }
+    if (isFromAdmin) {
+        const replyText = (message.body || '').toLowerCase().trim();
+        const isApprove = replyText === 'approve' || replyText === 'aprove' || replyText === 'accept' || replyText === 'yeel' || replyText === 'yeelo' || replyText === 'haa';
+        const isReject = replyText === 'reject' || replyText === 'diid' || replyText === 'diido' || replyText === 'diiday' || replyText === 'maya';
 
-        if (quotedMsg && quotedMsg.id && quotedMsg.id._serialized) {
-            const quotedId = quotedMsg.id._serialized;
-            const [pendingPayments] = await db.execute(
-                'SELECT * FROM whatsapp_pending_payments WHERE admin_message_id = ? AND status = "pending" LIMIT 1',
-                [quotedId]
-            );
+        if (isApprove || isReject) {
+            let payment = null;
 
-            if (pendingPayments.length > 0) {
-                const payment = pendingPayments[0];
-                const replyText = (message.body || '').toLowerCase().trim();
-                const isApprove = replyText === 'approve' || replyText === 'aprove' || replyText === 'accept' || replyText === 'yeel' || replyText === 'yeelo' || replyText === 'haa';
-                const isReject = replyText === 'reject' || replyText === 'diid' || replyText === 'diido' || replyText === 'diiday' || replyText === 'maya';
+            if (message.hasQuotedMsg) {
+                let quotedMsg = null;
+                try {
+                    quotedMsg = await message.getQuotedMessage();
+                } catch (qErr) {
+                    console.error('[WHATSAPP BOT] Failed to get quoted message:', qErr.message);
+                }
 
+                if (quotedMsg && quotedMsg.id && quotedMsg.id._serialized) {
+                    const quotedId = quotedMsg.id._serialized;
+                    const [pendingPayments] = await db.execute(
+                        'SELECT * FROM whatsapp_pending_payments WHERE admin_message_id = ? AND status = "pending" LIMIT 1',
+                        [quotedId]
+                    );
+                    if (pendingPayments.length > 0) {
+                        payment = pendingPayments[0];
+                    }
+                }
+            }
+
+            // Fallback: If no quoted message (or quoted message not found), get the most recent pending payment
+            if (!payment) {
+                const [pendingPayments] = await db.execute(
+                    'SELECT * FROM whatsapp_pending_payments WHERE status = "pending" ORDER BY id DESC LIMIT 1'
+                );
+                if (pendingPayments.length > 0) {
+                    payment = pendingPayments[0];
+                }
+            }
+
+            if (payment) {
                 if (isApprove) {
                     await db.execute('UPDATE whatsapp_pending_payments SET status = "approved" WHERE id = ?', [payment.id]);
                     await db.execute('UPDATE users SET payment_status = "approved" WHERE id = ?', [payment.user_id]);
@@ -618,8 +691,9 @@ async function handleIncomingMessage(message) {
                         try {
                             await client.sendMessage(
                                 userJid,
-                                "Iminka waad ila hadli kartaa oo lacagta waa lagaa hayaa."
+                                `Hambalyo! Lacag-bixintaada waa la ansixiyey. Koontadaada waxaa lagu shubay qorshaha aad dooratay (${planName}). Hadda waad isticmaali kartaa Darkpen.\n\nMakaa caawiyaa sida uu u shaqeeyo WhatsApp bot-ku? (Ku jawaab: Haa ama Maya)`
                             );
+                            userStates.set(payment.user_id, { step: 'awaiting_whatsapp_help_consent' });
                         } catch (sendErr) {
                             console.error('[WHATSAPP BOT] Failed to notify user of approval:', sendErr.message);
                         }
@@ -673,6 +747,28 @@ async function handleIncomingMessage(message) {
         'SELECT id, name, is_suspended FROM users WHERE whatsapp_number = ? LIMIT 1',
         [normalizedPhone]
     );
+
+    // Universal Cancel Command Handler
+    const cleanBodyText = (message.body || '').toLowerCase().trim();
+    const isCancelRequest = cleanBodyText === 'cancel' || cleanBodyText === 'exit' || cleanBodyText === 'stop' || cleanBodyText === 'ka noqo' || cleanBodyText === 'ka-noqo' || cleanBodyText === 'baaji' || cleanBodyText === 'cancel garee';
+    if (isCancelRequest) {
+        let cancelled = false;
+        if (registrationStates.has(normalizedPhone)) {
+            registrationStates.delete(normalizedPhone);
+            cancelled = true;
+        }
+        if (users.length > 0) {
+            const userId = users[0].id;
+            if (userStates.has(userId)) {
+                userStates.delete(userId);
+                cancelled = true;
+            }
+        }
+        if (cancelled) {
+            await message.reply("Hawshii aad ku jirtay waa la baajiyey (Cancelled). Wax kasta waa sidoodii.");
+            return;
+        }
+    }
 
     if (users.length === 0) {
         if (!isGroup) {
@@ -747,7 +843,7 @@ async function handleIncomingMessage(message) {
 
     // ─── Top-Up Consent / Payment Flow ───
     if (state && state.step === 'awaiting_topup_consent') {
-        if (cleanBody === 'haa') {
+        if (isYesResponse(cleanBody)) {
             userStates.set(userId, { step: 'awaiting_plan_choice' });
             await message.reply(
                 `Fadlan dooro qorshaha aad rabto (Qor lambarka qorshaha tusaale: 1, 2 ama 3):\n\n` +
@@ -755,11 +851,11 @@ async function handleIncomingMessage(message) {
                 `2. *Monthly Basic:* $3 (Unlimited standard chat - 30 Days)\n` +
                 `3. *Monthly Premium:* $11 (Unlimited chat + premium support - 30 Days)`
             );
-        } else if (cleanBody === 'maya') {
+        } else if (isNoResponse(cleanBody)) {
             await message.reply("Haye, waa la baajiyey (Cancel).");
             userStates.delete(userId);
         } else {
-            await message.reply("Fadlan ku jawaab 'Haa' ama 'Maya'.");
+            await handleOutOfFlowQuery(message, userId, 'topup_consent', "I asked the user if they want to top up their credits. They must reply with 'Haa' (Yes) or 'Maya' (No) to continue.");
         }
         return;
     }
@@ -784,7 +880,7 @@ async function handleIncomingMessage(message) {
                 `Markaad lacagta soo dirtid, fadlan halkan ku soo qor lambarka aad lacagta ka soo dirtay si aan u hubinno (Checking):`
             );
         } else {
-            await message.reply("Fadlan dooro lambar sax ah oo u dhexeeya 1, 2, ama 3:");
+            await handleOutOfFlowQuery(message, userId, 'plan_choice', "I asked the user to select plan 1, 2, or 3. They must reply with '1', '2', or '3' to continue.");
         }
         return;
     }
@@ -819,6 +915,30 @@ async function handleIncomingMessage(message) {
         } catch (err) {
             console.error('[WHATSAPP BOT] Failed to notify admin/save database:', err.message);
             await message.reply("Waan ka xunnahay, codsigaaga lama gudbin karo hadda. Fadlan mar kale isku day waxyar ka dib.");
+        }
+        return;
+    }
+
+    // ─── Help Guide Consent Flow ───
+    if (state && state.step === 'awaiting_whatsapp_help_consent') {
+        if (isYesResponse(cleanBody)) {
+            userStates.delete(userId);
+            await message.reply(
+                `*SIDA UU U SHAQEYNYO WHATSAPP BOT-KU* 📱🚀\n` +
+                `----------------------------------\n` +
+                `1. *Qoraalka & AI:* Si caadi ah iila hadal, wax ii weydii, iigana sheekeyso wax kasta. Waxaan kuugu jawaabayaa isla luuqadda aad igu qortay.\n` +
+                `2. *Sawirro (Images):* Iisoo dir sawir kasta (MCQ, xisaab, ama sharaxaad). Waxaan kuu soo saarayaa jawaabaha saxda ah si degdeg ah.\n` +
+                `3. *Codadka (Voice Notes):* Iisoo dir fariin cod ah, waan ku dhageysanayaa, waanan kuu sharxayaa.\n` +
+                `4. *Report:* Qor *report* mar kasta oo aad rabto inaad ogaato dhibcahaaga (credits) iyo qorshahaaga.\n` +
+                `5. *Password Reset:* Qor *password reset* haddii aad rabto inaad bedesho furahaaga sirta ah.\n` +
+                `6. *Ka noqoshada (Cancel):* Mar kasta oo aad ku jirto is-diiwaangelin ama ku shubasho, waxaad qori kartaa *cancel* ama *ka noqo* si aad uga baxdo.\n\n` +
+                `Maxaan hadda kaa caawiyaa? 😊`
+            );
+        } else if (isNoResponse(cleanBody)) {
+            userStates.delete(userId);
+            await message.reply("Haye, diyaar ayaan kuu ahay. Maxaan hadda kuu qabtaa? 🚀");
+        } else {
+            await handleOutOfFlowQuery(message, userId, 'help_consent', "I asked the user if they want help with how the WhatsApp bot works. They must reply with Haa (Yes) or Maya (No) to continue.");
         }
         return;
     }
@@ -1184,7 +1304,8 @@ async function handleIncomingMessage(message) {
     5. Highlight key terms using *Keyword* (bold) instead of markdown.
     6. Shaxan (table): use custom <table_data>Header1|Header2\nVal1|Val2</table_data> format.
     7. Pricing info: Pay as you go $0.5 (100 credits), Monthly Basic $3 (unlimited standard chat), Monthly Premium $11 (unlimited chat + premium math/science/image support). EVC Plus/eDahab numbers 637930329 or 659119779. Send screenshot to WhatsApp +252637930329 or team.darkpen@gmail.com.
-    8. USER SATISFACTION: Your primary goal is to satisfy and persuade the user. Be helpful, warm, and accommodating. NEVER try to redirect the user away or respond in a way that frustrates them.`;
+    8. USER SATISFACTION: Your primary goal is to satisfy and persuade the user. Be helpful, warm, and accommodating. NEVER try to redirect the user away or respond in a way that frustrates them.
+    9. PERSONALITY & HUMOR (KAFTAN): Be friendly, warm, and humorous. You can joke, tease, and play along with the user (kaftami kara). Do NOT limit yourself to educational topics. If the user wants to chat about life, relationships, connect, make friends, joke, or talk about anything, accommodate them warmly and play along. If a user writes something rude, inappropriate, or sexual ("edeb darro"), reject it politely but with a lighthearted, playful, and teasing tone (kaftan diido ah), never being harsh or overly formal.`;
 
     // 9. Call Gemini API
     const chat = await message.getChat();

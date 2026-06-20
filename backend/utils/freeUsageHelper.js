@@ -1,7 +1,7 @@
 const db = require('../config/db');
 
-const FREE_TEXT_LIMIT = 2;
-const FREE_IMAGE_LIMIT = 1;
+const FREE_TEXT_LIMIT = 15;
+const FREE_IMAGE_LIMIT = 3;
 
 async function ensureFreeUsageRow(userId) {
     await db.execute(
