@@ -22,6 +22,82 @@ const pendingPosts = new Map();
 const groupLimits = new Map();
 let botInfo = { username: '', id: null };
 
+// Rate limiting map for Telegram
+const telegramMsgTimestamps = new Map();
+const groupWarningsSent = new Set();
+
+// Helper to check rate limit for Telegram (10 msgs in 1 min -> 10 min block)
+async function checkTelegramRateLimit(userId, chatId) {
+    try {
+        const now = Date.now();
+        if (!telegramMsgTimestamps.has(userId)) {
+            telegramMsgTimestamps.set(userId, []);
+        }
+        const times = telegramMsgTimestamps.get(userId).filter(t => t > now - 60000);
+        times.push(now);
+        telegramMsgTimestamps.set(userId, times);
+
+        if (times.length >= 10) {
+            const blockedUntilDate = new Date(now + 10 * 60000);
+            await db.execute(
+                'UPDATE users SET rate_limit_blocked_until = ? WHERE id = ?',
+                [blockedUntilDate, userId]
+            );
+            await bot.sendMessage(
+                chatId,
+                "⚠️ Waxaad gaadhay xadka farriimaha (Xeerka 1-Minute). Fadlan dib ugu soo laabo marka uu dhammaado waqtiga xannibaadda (10 daqiiqo)."
+            );
+            return true;
+        }
+    } catch (err) {
+        console.error('[TELEGRAM RATE LIMIT ERROR]:', err.message);
+    }
+    return false;
+}
+
+// Helper to check manager request
+function checkManagerRequest(text) {
+    const clean = String(text || '').toLowerCase().trim();
+    const isPaymentManager = clean.includes('managerka payments') ||
+                             clean.includes('managerka payment') ||
+                             clean.includes('payment manager') ||
+                             clean.includes('payments manager') ||
+                             clean.includes('managerka lacagta') ||
+                             clean.includes('managerka lacagaha') ||
+                             clean.includes('maamulaha lacagta') ||
+                             clean.includes('maamulaha lacagaha') ||
+                             clean.includes('maamulaha paymentska');
+                             
+    const isGeneralManager = clean.includes('manager') ||
+                             clean.includes('managerka') ||
+                             clean.includes('maamule') ||
+                             clean.includes('maamulaha') ||
+                             clean.includes('admin') ||
+                             clean.includes('adminka') ||
+                             clean.includes('owner') ||
+                             clean.includes('ownerka');
+                             
+    if (isPaymentManager) return 'payment';
+    if (isGeneralManager) return 'general';
+    return null;
+}
+
+// Helper to check wrong answer feedback
+function isWrongAnswerFeedback(text) {
+    const clean = String(text || '').toLowerCase().trim();
+    return clean.includes('waad khaladay') ||
+           clean.includes('waad qaldantahay') ||
+           clean.includes('waad khaldantahay') ||
+           clean.includes('waad qaldan tahay') ||
+           clean.includes('waad khaldan tahay') ||
+           clean.includes('waad qaldantay') ||
+           clean.includes('waad khaldantay') ||
+           clean.includes('waad khaladday') ||
+           clean.includes('waad qaldday') ||
+           clean.includes('you are wrong') ||
+           clean.includes('wrong answer');
+}
+
 exports.getBotStatus = () => botStatus;
 
 
@@ -185,6 +261,25 @@ async function handleIncomingMessage(msg) {
     const isGroup = msg.chat.type === 'group' || msg.chat.type === 'supergroup';
     const isOwner = chatId.toString() === (process.env.TELEGRAM_OWNER_CHAT_ID || '');
 
+    // Welcome message if bot is added to a group
+    if (msg.new_chat_members) {
+        const isBotAdded = msg.new_chat_members.some(member => member.id === botInfo.id);
+        if (isBotAdded) {
+            await bot.sendMessage(
+                chatId,
+                `*DARKPEN GROUP BOT* 🤖📚\n` +
+                `----------------------------------\n` +
+                `Haye dhammaan xubnaha group-ka! Waxaa igu soo biiray caawiyahaaga AI-da ee *Darkpen*.\n\n` +
+                `*SIDA LOOGU JAWAABO INTA LAGU JIRO GROUP-KA:*\n` +
+                `• Si aan kuugu jawaabo, fadlan farriintaada ku bilaab erayga *Darkpen* ama igu soo tag (@tag) si aan u aqoonsado su'aashaada.\n` +
+                `• Waxaad kaloo ii soo diri kartaa sawirro (MCQ, xisaab, ama sharaxaad) adigoo qoraalka sawirka la socda ku bilaabaya *Darkpen*.\n\n` +
+                `*XEERARKA GROUP-KA:*\n` +
+                `• Xubnaha group-ku waa inay ka fogaadaan farriimaha is-daba-joogga ah (spam). Farriimaha badan oo daqiiqad gudaheed ah waxay keeni karaan xannibaad ku-meel-gaadh ah.`
+            );
+        }
+        return;
+    }
+
     // Owner manual trigger commands (for testing/admin use)
     if (msg.text && isOwner) {
         if (msg.text.startsWith('/post_tip')) {
@@ -252,7 +347,7 @@ async function handleIncomingMessage(msg) {
 
     // ── 3. Retrieve user record ────────────────────────────────────────────────
     const [users] = await db.execute(
-        'SELECT id, name, is_suspended FROM users WHERE id = ? LIMIT 1',
+        'SELECT id, name, is_suspended, rate_limit_blocked_until FROM users WHERE id = ? LIMIT 1',
         [userId]
     );
 
@@ -263,6 +358,13 @@ async function handleIncomingMessage(msg) {
     }
 
     const user = users[0];
+    
+    // Check rate limit block (persistent)
+    if (user.rate_limit_blocked_until && new Date(user.rate_limit_blocked_until) > new Date()) {
+        console.log(`[TELEGRAM BOT] User ${user.name} is rate limited until ${user.rate_limit_blocked_until}. Ignoring.`);
+        return;
+    }
+
     if (user.is_suspended) return;
 
     // If user shares contact again when already linked
@@ -273,6 +375,35 @@ async function handleIncomingMessage(msg) {
 
     // ── 4. 👀 Seen reaction (cosmetic animation) ───────────────────────────────
     await reactToMessage(chatId, msgId, '👀');
+
+    // ── 4b. Rate Limiting check (1-Minute rule) ──────────────────────────────
+    if (await checkTelegramRateLimit(userId, chatId)) {
+        return;
+    }
+
+    // Intercept Manager Routing
+    const managerType = checkManagerRequest(msg.text);
+    if (managerType) {
+        if (managerType === 'payment') {
+            await bot.sendMessage(chatId, "Halkan kala xidhiidh Manager-ka Payments-ka (Lacag-bixinta):");
+            await bot.sendContact(chatId, '+252654810865', 'Manager Payments');
+        } else {
+            await bot.sendMessage(chatId, "Halkan kala xidhiidh Maamulaha (Manager-ka):");
+            await bot.sendContact(chatId, '+252637930329', 'Manager General');
+        }
+        return;
+    }
+
+    // Intercept AI correction feedback
+    if (isWrongAnswerFeedback(msg.text)) {
+        await bot.sendMessage(
+            chatId,
+            "Waan ka xunnahay! Waxaan isku dayey 100% inaan saxo, laakiin hadda waxaan ku jiraa xaalad aan ku baranayo buugaagta manhajka dugsiyada.\n\n" +
+            "Haddii aad aragtay wax weyn oo khaldan, fadlan la hadal maamulaha (manager-ka):"
+        );
+        await bot.sendContact(chatId, '+252637930329', 'Manager General');
+        return;
+    }
 
     // ── 5. Password Reset State ───────────────────────────────────────────────
     const pwState = telegramUserStates.get(`pw_${userId}`);
@@ -893,6 +1024,43 @@ async function handleGroupMessage(msg) {
     const text = msg.text || msg.caption || '';
     
     if (!text) return;
+
+    // Check if the sender has an active private flow state
+    const fromId = msg.from && msg.from.id;
+    if (fromId) {
+        let hasActivePrivateState = false;
+        let warningKey = '';
+
+        if (telegramUserStates.has(`unreg_${fromId}`)) {
+            hasActivePrivateState = true;
+            warningKey = `unreg_${fromId}`;
+        } else {
+            // Check if linked
+            const [linked] = await db.execute(
+                'SELECT user_id FROM telegram_users WHERE telegram_chat_id = ? LIMIT 1',
+                [fromId.toString()]
+            );
+            if (linked.length > 0) {
+                const userId = linked[0].user_id;
+                if (telegramUserStates.has(`pw_${userId}`)) {
+                    hasActivePrivateState = true;
+                    warningKey = `pw_${userId}`;
+                }
+            }
+        }
+
+        if (hasActivePrivateState) {
+            const warnedKey = `${warningKey}_group_warned`;
+            if (!groupWarningsSent.has(warnedKey)) {
+                groupWarningsSent.add(warnedKey);
+                setTimeout(() => groupWarningsSent.delete(warnedKey), 5 * 60000);
+                await bot.sendMessage(chatId, "Fadlan ku noqo Telegram-ka Darkpen (luuqa/DM-ka) si aad u sii waddo shaqadii noo socotey.", { reply_to_message_id: msgId });
+            } else {
+                await reactToMessage(chatId, msgId, '🚫');
+            }
+            return; // Intercept and ignore group message processing
+        }
+    }
     
     // Check if bot was mentioned OR if it is a reply to the bot's message
     const botMention = `@${botInfo.username}`;

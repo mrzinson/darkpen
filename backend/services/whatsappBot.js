@@ -32,6 +32,7 @@ const processedMessageIds = new Set();
 // Rate limiting maps
 const userMsgTimestamps = new Map();
 const unregMsgTimestamps = new Map();
+const groupWarningsSent = new Set();
 
 // Helper to check rate limit for registered users (10 msgs in 1 min -> 10 min block)
 async function checkRateLimit(userId, message) {
@@ -51,7 +52,7 @@ async function checkRateLimit(userId, message) {
                 [blockedUntilDate, userId]
             );
             await message.reply(
-                "⚠️ Farriimaha aad soo dirtay aad bay u badan yihiin (xadka waa 10 farriimood daqiiqaddii). Waxaa laguu xidhay muddo 10 daqiiqo ah."
+                "⚠️ Waxaad gaadhay xadka farriimaha (Xeerka 1-Minute). Fadlan dib ugu soo laabo marka uu dhammaado waqtiga xannibaadda (10 daqiiqo)."
             );
             return true;
         }
@@ -80,7 +81,7 @@ async function checkUnregisteredRateLimit(normalizedPhone, message) {
     if (times.length >= 10) {
         unregMsgTimestamps.set(blockKey, now + 10 * 60000);
         await message.reply(
-            "⚠️ Farriimaha aad soo dirtay aad bay u badan yihiin (xadka waa 10 farriimood daqiiqaddii). Waxaa laguu xidhay muddo 10 daqiiqo ah."
+            "⚠️ Waxaad gaadhay xadka farriimaha (Xeerka 1-Minute). Fadlan dib ugu soo laabo marka uu dhammaado waqtiga xannibaadda (10 daqiiqo)."
         );
         return true;
     }
@@ -412,10 +413,37 @@ exports.initialize = async () => {
                 await call.reject();
                 await client.sendMessage(
                     call.from,
-                    "Ma qaban karo call, iga raali noqo. Fadlan qoraal ahaan ama cod ahaan iigu soo dir su'aashaada."
+                    "kuma hadli karo call oo iminka kama jawaabayoba"
                 );
             } catch (err) {
                 console.error('[WHATSAPP BOT] Call handling error:', err.message);
+            }
+        });
+
+        // Group join – welcome message
+        client.on('group_join', async (notification) => {
+            try {
+                const chat = await notification.getChat();
+                const recipientIds = notification.recipientIds || [];
+                const botJid = client.info && client.info.wid && client.info.wid._serialized;
+                const isBotAdded = recipientIds.includes(botJid) || 
+                                   (notification.id && notification.id.participant === botJid);
+                
+                if (isBotAdded) {
+                    console.log(`[WHATSAPP BOT] Bot was added to group: ${chat.name}`);
+                    await chat.sendMessage(
+                        `*DARKPEN GROUP BOT* 🤖📚\n` +
+                        `----------------------------------\n` +
+                        `Haye dhammaan xubnaha group-ka! Waxaa igu soo biiray caawiyahaaga AI-da ee *Darkpen*.\n\n` +
+                        `*SIDA LOOGU JAWAABO INTA LAGU JIRO GROUP-KA:*\n` +
+                        `• Si aan kuugu jawaabo, fadlan farriintaada ku bilaab erayga *Darkpen* ama igu soo tag (@tag) si aan u aqoonsado su'aashaada.\n` +
+                        `• Waxaad kaloo ii soo diri kartaa sawirro (MCQ, xisaab, ama sharaxaad) adigoo qoraalka sawirka la socda ku bilaabaya *Darkpen*.\n\n` +
+                        `*XEERARKA GROUP-KA:*\n` +
+                        `• Xubnaha group-ku waa inay ka fogaadaan farriimaha is-daba-joogga ah (spam). Farriimaha badan oo daqiiqad gudaheed ah waxay keeni karaan xannibaad ku-meel-gaadh ah.`
+                    );
+                }
+            } catch (err) {
+                console.error('[WHATSAPP BOT] Group join welcome failed:', err.message);
             }
         });
 
@@ -746,6 +774,39 @@ async function handleIncomingMessage(message) {
         'SELECT id, name, is_suspended, rate_limit_blocked_until FROM users WHERE whatsapp_jid = ? OR whatsapp_number = ? LIMIT 1',
         [normalizedPhone, normalizedPhone]
     );
+
+    // C. Group isolation for active private flows (registration / password reset / payment)
+    if (isGroup) {
+        let hasActivePrivateState = false;
+        let warningKey = '';
+
+        if (registrationStates.has(normalizedPhone)) {
+            hasActivePrivateState = true;
+            warningKey = normalizedPhone;
+        } else if (users.length > 0) {
+            const userId = users[0].id;
+            if (userStates.has(userId)) {
+                hasActivePrivateState = true;
+                warningKey = String(userId);
+            }
+        }
+
+        if (hasActivePrivateState) {
+            const warnedKey = `${warningKey}_group_warned`;
+            if (!groupWarningsSent.has(warnedKey)) {
+                groupWarningsSent.add(warnedKey);
+                setTimeout(() => groupWarningsSent.delete(warnedKey), 5 * 60000);
+                await message.reply("Fadlan ku noqo WhatsApp-ka Darkpen (luuqa/DM-ka) si aad u sii waddo shaqadii noo socotey.");
+            } else {
+                try {
+                    await message.react('🚫');
+                } catch (reactErr) {
+                    console.error('[WHATSAPP BOT] Failed to react with emoji:', reactErr.message);
+                }
+            }
+            return; // Intercept and ignore group message processing
+        }
+    }
 
     // Universal Cancel Command Handler
     const cleanBodyText = (message.body || '').toLowerCase().trim();

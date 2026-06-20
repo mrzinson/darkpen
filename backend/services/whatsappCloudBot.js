@@ -34,7 +34,7 @@ async function checkRateLimit(userId, from) {
             );
             await sendCloudMessage(
                 from,
-                "⚠️ Farriimaha aad soo dirtay aad bay u badan yihiin (xadka waa 10 farriimood daqiiqaddii). Waxaa laguu xidhay muddo 10 daqiiqo ah."
+                "⚠️ Waxaad gaadhay xadka farriimaha (Xeerka 1-Minute). Fadlan dib ugu soo laabo marka uu dhammaado waqtiga xannibaadda (10 daqiiqo)."
             );
             return true;
         }
