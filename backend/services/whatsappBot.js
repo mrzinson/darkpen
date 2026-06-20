@@ -416,9 +416,8 @@ async function handleUnregisteredRegistration(message, normalizedPhone) {
         state.step = 'awaiting_review';
         await message.reply(
             `Fadlan dib u eeg xogtaada:\n` +
-            `• Lambarka WhatsApp-ka: +${normalizedPhone}\n` +
-            `• Magaca: ${state.name}\n` +
-            `• Lambarka WhatsApp-ka: +${normalizedPhone}\n\n` +
+            `• Lambarka WhatsApp-ka: ${normalizedPhone}\n` +
+            `• Magaca: ${state.name}\n\n` +
             `Ma diwaan galiyaa xogtan? (Ku jawaab: Haa ama Maya)`
         );
         return;
@@ -567,8 +566,10 @@ async function handleIncomingMessage(message) {
             if (pendingPayments.length > 0) {
                 const payment = pendingPayments[0];
                 const replyText = (message.body || '').toLowerCase().trim();
+                const isApprove = replyText === 'approve' || replyText === 'aprove' || replyText === 'accept' || replyText === 'yeel' || replyText === 'yeelo' || replyText === 'haa';
+                const isReject = replyText === 'reject' || replyText === 'diid' || replyText === 'diido' || replyText === 'diiday' || replyText === 'maya';
 
-                if (replyText === 'approve') {
+                if (isApprove) {
                     await db.execute('UPDATE whatsapp_pending_payments SET status = "approved" WHERE id = ?', [payment.id]);
                     await db.execute('UPDATE users SET payment_status = "approved" WHERE id = ?', [payment.user_id]);
 
@@ -603,7 +604,17 @@ async function handleIncomingMessage(message) {
 
                     const [userRows] = await db.execute('SELECT whatsapp_number FROM users WHERE id = ? LIMIT 1', [payment.user_id]);
                     if (userRows.length > 0 && userRows[0].whatsapp_number) {
-                        const userJid = `${userRows[0].whatsapp_number.replace(/\+/g, '')}@c.us`;
+                        const userPhone = userRows[0].whatsapp_number.replace(/\+/g, '').trim();
+                        let userJid = `${userPhone}@c.us`;
+                        try {
+                            const numId = await client.getNumberId(userPhone);
+                            if (numId && numId._serialized) {
+                                userJid = numId._serialized;
+                            }
+                        } catch (idErr) {
+                            console.error('[WHATSAPP BOT] Failed to resolve JID for approval:', idErr.message);
+                        }
+
                         try {
                             await client.sendMessage(
                                 userJid,
@@ -617,13 +628,23 @@ async function handleIncomingMessage(message) {
                     await message.reply(`✅ Lacag-bixinta waa la aqbalay (Approved). Isticmaalaha waxaa loo ogeysiiyey qorshaha: ${planName}.`);
                     return;
 
-                } else if (replyText === 'reject') {
+                } else if (isReject) {
                     await db.execute('UPDATE whatsapp_pending_payments SET status = "rejected" WHERE id = ?', [payment.id]);
                     await db.execute('UPDATE users SET payment_status = "rejected" WHERE id = ?', [payment.user_id]);
 
                     const [userRows] = await db.execute('SELECT whatsapp_number FROM users WHERE id = ? LIMIT 1', [payment.user_id]);
                     if (userRows.length > 0 && userRows[0].whatsapp_number) {
-                        const userJid = `${userRows[0].whatsapp_number.replace(/\+/g, '')}@c.us`;
+                        const userPhone = userRows[0].whatsapp_number.replace(/\+/g, '').trim();
+                        let userJid = `${userPhone}@c.us`;
+                        try {
+                            const numId = await client.getNumberId(userPhone);
+                            if (numId && numId._serialized) {
+                                userJid = numId._serialized;
+                            }
+                        } catch (idErr) {
+                            console.error('[WHATSAPP BOT] Failed to resolve JID for rejection:', idErr.message);
+                        }
+
                         try {
                             await client.sendMessage(
                                 userJid,
@@ -1308,7 +1329,16 @@ exports.sendWhatsAppMessage = async (to, content) => {
     let jid = to;
     if (!to.includes('@')) {
         const cleaned = to.replace(/\+/g, '').trim();
-        jid = `${cleaned}@c.us`;
+        try {
+            const numId = await client.getNumberId(cleaned);
+            if (numId && numId._serialized) {
+                jid = numId._serialized;
+            } else {
+                jid = `${cleaned}@c.us`;
+            }
+        } catch (err) {
+            jid = `${cleaned}@c.us`;
+        }
     }
     return await client.sendMessage(jid, content);
 };
@@ -1320,7 +1350,16 @@ exports.sendWhatsAppContact = async (to, contactJid) => {
     let jid = to;
     if (!to.includes('@')) {
         const cleaned = to.replace(/\+/g, '').trim();
-        jid = `${cleaned}@c.us`;
+        try {
+            const numId = await client.getNumberId(cleaned);
+            if (numId && numId._serialized) {
+                jid = numId._serialized;
+            } else {
+                jid = `${cleaned}@c.us`;
+            }
+        } catch (err) {
+            jid = `${cleaned}@c.us`;
+        }
     }
     const contact = await client.getContactById(contactJid);
     return await client.sendMessage(jid, contact);
