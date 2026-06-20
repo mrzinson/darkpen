@@ -143,20 +143,7 @@ exports.initialize = async () => {
         `);
         console.log('[WHATSAPP BOT] Table whatsapp_cooldowns checked/created.');
 
-        // 1b. Create table whatsapp_pending_payments if not exists
-        await db.execute(`
-            CREATE TABLE IF NOT EXISTS whatsapp_pending_payments (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id INT NOT NULL,
-                admin_message_id VARCHAR(255) NOT NULL,
-                plan VARCHAR(50) NOT NULL,
-                phone_submitted VARCHAR(50) NOT NULL,
-                status VARCHAR(20) DEFAULT 'pending',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-        `);
-        console.log('[WHATSAPP BOT] Table whatsapp_pending_payments checked/created.');
+
 
         // 2. Puppeteer headless mode (always headless on server)
         const isServer = process.env.RENDER || process.env.NODE_ENV === 'production';
@@ -601,146 +588,7 @@ async function handleIncomingMessage(message) {
 
     if (!normalizedPhone) return;
 
-    // A. Check if message is a reply from the Admin (+252637930329 / LID: +174741381992545) to a pending payment notification
-    const isFromAdmin = normalizedPhone === '+252637930329' || normalizedPhone === '+174741381992545' || normalizedPhone === '252637930329' || normalizedPhone === '174741381992545';
-    if (isFromAdmin) {
-        const replyText = (message.body || '').toLowerCase().trim();
-        const isApprove = replyText === 'approve' || replyText === 'aprove' || replyText === 'accept' || replyText === 'yeel' || replyText === 'yeelo' || replyText === 'haa';
-        const isReject = replyText === 'reject' || replyText === 'diid' || replyText === 'diido' || replyText === 'diiday' || replyText === 'maya';
 
-        if (isApprove || isReject) {
-            let payment = null;
-
-            if (message.hasQuotedMsg) {
-                let quotedMsg = null;
-                try {
-                    quotedMsg = await message.getQuotedMessage();
-                } catch (qErr) {
-                    console.error('[WHATSAPP BOT] Failed to get quoted message:', qErr.message);
-                }
-
-                if (quotedMsg && quotedMsg.id && quotedMsg.id._serialized) {
-                    const quotedId = quotedMsg.id._serialized;
-                    const [pendingPayments] = await db.execute(
-                        'SELECT * FROM whatsapp_pending_payments WHERE admin_message_id = ? AND status = "pending" LIMIT 1',
-                        [quotedId]
-                    );
-                    if (pendingPayments.length > 0) {
-                        payment = pendingPayments[0];
-                    }
-                }
-            }
-
-            // Fallback: If no quoted message (or quoted message not found), get the most recent pending payment
-            if (!payment) {
-                const [pendingPayments] = await db.execute(
-                    'SELECT * FROM whatsapp_pending_payments WHERE status = "pending" ORDER BY id DESC LIMIT 1'
-                );
-                if (pendingPayments.length > 0) {
-                    payment = pendingPayments[0];
-                }
-            }
-
-            if (payment) {
-                if (isApprove) {
-                    await db.execute('UPDATE whatsapp_pending_payments SET status = "approved" WHERE id = ?', [payment.id]);
-                    await db.execute('UPDATE users SET payment_status = "approved" WHERE id = ?', [payment.user_id]);
-
-                    let planName = '';
-                    if (payment.plan === '1') {
-                        planName = 'Pay as you go (100 Credits)';
-                        await db.execute(
-                            'INSERT INTO user_wallet (user_id, balance) VALUES (?, 100) ON DUPLICATE KEY UPDATE balance = balance + 100, last_updated = NOW()',
-                            [payment.user_id]
-                        );
-                    } else if (payment.plan === '2') {
-                        planName = 'Monthly Basic';
-                        await db.execute(
-                            'INSERT INTO user_subscriptions (user_id, type, expiry_date) VALUES (?, "monthly_3", DATE_ADD(NOW(), INTERVAL 30 DAY))',
-                            [payment.user_id]
-                        );
-                        await db.execute(
-                            'INSERT INTO user_wallet (user_id, balance) VALUES (?, 1000) ON DUPLICATE KEY UPDATE balance = 1000, last_updated = NOW()',
-                            [payment.user_id]
-                        );
-                    } else if (payment.plan === '3') {
-                        planName = 'Monthly Premium';
-                        await db.execute(
-                            'INSERT INTO user_subscriptions (user_id, type, expiry_date) VALUES (?, "monthly_11", DATE_ADD(NOW(), INTERVAL 30 DAY))',
-                            [payment.user_id]
-                        );
-                        await db.execute(
-                            'INSERT INTO user_wallet (user_id, balance) VALUES (?, 5000) ON DUPLICATE KEY UPDATE balance = 5000, last_updated = NOW()',
-                            [payment.user_id]
-                        );
-                    }
-
-                    const [userRows] = await db.execute('SELECT whatsapp_number FROM users WHERE id = ? LIMIT 1', [payment.user_id]);
-                    if (userRows.length > 0 && userRows[0].whatsapp_number) {
-                        const userPhone = userRows[0].whatsapp_number.replace(/\+/g, '').trim();
-                        let userJid = `${userPhone}@c.us`;
-                        try {
-                            const numId = await client.getNumberId(userPhone);
-                            if (numId && numId._serialized) {
-                                userJid = numId._serialized;
-                            }
-                        } catch (idErr) {
-                            console.error('[WHATSAPP BOT] Failed to resolve JID for approval:', idErr.message);
-                        }
-
-                        try {
-                            await client.sendMessage(
-                                userJid,
-                                `Hambalyo! Lacag-bixintaada waa la ansixiyey. Koontadaada waxaa lagu shubay qorshaha aad dooratay (${planName}). Hadda waad isticmaali kartaa Darkpen.\n\nMakaa caawiyaa sida uu u shaqeeyo WhatsApp bot-ku? (Ku jawaab: Haa ama Maya)`
-                            );
-                            userStates.set(payment.user_id, { step: 'awaiting_whatsapp_help_consent' });
-                        } catch (sendErr) {
-                            console.error('[WHATSAPP BOT] Failed to notify user of approval:', sendErr.message);
-                        }
-                    }
-
-                    await message.reply(`✅ Lacag-bixinta waa la aqbalay (Approved). Isticmaalaha waxaa loo ogeysiiyey qorshaha: ${planName}.`);
-                    return;
-
-                } else if (isReject) {
-                    await db.execute('UPDATE whatsapp_pending_payments SET status = "rejected" WHERE id = ?', [payment.id]);
-                    await db.execute('UPDATE users SET payment_status = "rejected" WHERE id = ?', [payment.user_id]);
-
-                    const [userRows] = await db.execute('SELECT whatsapp_number FROM users WHERE id = ? LIMIT 1', [payment.user_id]);
-                    if (userRows.length > 0 && userRows[0].whatsapp_number) {
-                        const userPhone = userRows[0].whatsapp_number.replace(/\+/g, '').trim();
-                        let userJid = `${userPhone}@c.us`;
-                        try {
-                            const numId = await client.getNumberId(userPhone);
-                            if (numId && numId._serialized) {
-                                userJid = numId._serialized;
-                            }
-                        } catch (idErr) {
-                            console.error('[WHATSAPP BOT] Failed to resolve JID for rejection:', idErr.message);
-                        }
-
-                        try {
-                            await client.sendMessage(
-                                userJid,
-                                "Lacagta lagaama hayo ee makuugu shubaa mid kale ama hadii aad cabasho qabto lahadal payments managerkan:"
-                            );
-                            try {
-                                const managerContact = await client.getContactById('252654810865@c.us');
-                                await client.sendMessage(userJid, managerContact);
-                            } catch (cErr) {
-                                console.error('[WHATSAPP BOT] Failed to send contact card:', cErr.message);
-                            }
-                        } catch (sendErr) {
-                            console.error('[WHATSAPP BOT] Failed to notify user of rejection:', sendErr.message);
-                        }
-                    }
-
-                    await message.reply("❌ Lacag-bixinta waa la diiday (Rejected). Isticmaalaha waa la ogeysiiyey.");
-                    return;
-                }
-            }
-        }
-    }
 
     // B. Look up user in database
     const [users] = await db.execute(
@@ -786,16 +634,14 @@ async function handleIncomingMessage(message) {
 
     const userId = user.id;
 
-    // C. Check pending payments (skip if this is admin — admin messages handled above)
-    if (!isFromAdmin) {
-        const [pendingRows] = await db.execute(
-            'SELECT id FROM whatsapp_pending_payments WHERE user_id = ? AND status = "pending" LIMIT 1',
-            [userId]
-        );
-        if (pendingRows.length > 0) {
-            await message.reply("Codsigaaga ku shubashada waa uu socdaa, fadlan sug inta laga soo hubinayo.");
-            return;
-        }
+    // C. Check pending payments
+    const [pendingRows] = await db.execute(
+        'SELECT id FROM payments WHERE user_id = ? AND status = "pending" LIMIT 1',
+        [userId]
+    );
+    if (pendingRows.length > 0) {
+        await message.reply("Codsigaaga ku shubashada waa uu socdaa, fadlan sug inta laga soo hubinayo.");
+        return;
     }
 
     // ─── Password Reset Flow ──────────────────────────────────────────────────────
@@ -894,20 +740,27 @@ async function handleIncomingMessage(message) {
 
         const planChoice = state.plan;
         let planName = '';
-        if (planChoice === '1') planName = 'Pay as you go ($0.5)';
-        else if (planChoice === '2') planName = 'Monthly Basic ($3)';
-        else if (planChoice === '3') planName = 'Monthly Premium ($11)';
+        let amount = 0.50;
+        if (planChoice === '1') {
+            planName = 'Pay as you go ($0.5)';
+            amount = 0.50;
+        } else if (planChoice === '2') {
+            planName = 'Monthly Basic ($3)';
+            amount = 3.00;
+        } else if (planChoice === '3') {
+            planName = 'Monthly Premium ($11)';
+            amount = 11.00;
+        }
 
         const adminJid = '252637930329@c.us';
-        const adminMsgText = `qorshe: ${planName}\nuser: ${user.name}\nnumber: ${senderNum}`;
+        const adminMsgText = `*CODSIG LACAG-BIXIN WHATSAPP*\n------------------\nQorshe: *${planName}*\nIsticmaalaha: *${user.name}*\nLambar/Reference: *${senderNum}*\n\nFadlan gal Admin Dashboard-ka si aad u ansixiso ama u diido.`;
 
         try {
-            const adminMsg = await client.sendMessage(adminJid, adminMsgText);
-            const adminMsgId = adminMsg.id._serialized;
+            await client.sendMessage(adminJid, adminMsgText);
 
             await db.execute(
-                'INSERT INTO whatsapp_pending_payments (user_id, admin_message_id, plan, phone_submitted, status) VALUES (?, ?, ?, ?, "pending")',
-                [userId, adminMsgId, planChoice, senderNum]
+                'INSERT INTO payments (user_id, amount, reference_number, service_type, status) VALUES (?, ?, ?, "general", "pending")',
+                [userId, amount, senderNum]
             );
 
             await message.reply("Codsigaaga ku shubashada waa la diray oo waa la hubinayaa. Fadlan sug inta laga soo tasdiqinayo.");
@@ -1508,4 +1361,16 @@ exports.getBotGroups = async () => {
         console.error('[WHATSAPP BOT] Failed to get chats/groups:', err.message);
         return [];
     }
+};
+
+exports.setUserState = (userId, state) => {
+    userStates.set(userId, state);
+};
+
+exports.getUserState = (userId) => {
+    return userStates.get(userId);
+};
+
+exports.deleteUserState = (userId) => {
+    userStates.delete(userId);
 };

@@ -372,6 +372,31 @@ router.post('/payments/:id/approve', async (req, res) => {
             `Dalabkaaga lacag-bixinta ee $${p.amount} waa la ansixiyey! Adeegyadaadu hadda waa firfircoon yihiin.`
         );
 
+        // Send WhatsApp notification if the user has a whatsapp_number
+        const [userRows] = await db.execute('SELECT name, whatsapp_number FROM users WHERE id = ? LIMIT 1', [p.user_id]);
+        if (userRows.length > 0 && userRows[0].whatsapp_number) {
+            const userPhone = userRows[0].whatsapp_number;
+            let planName = '';
+            if (p.amount >= 11.0) {
+                planName = 'Monthly Premium';
+            } else if (p.amount >= 3.0) {
+                planName = 'Monthly Basic';
+            } else {
+                planName = 'Pay as you go (100 Credits)';
+            }
+            try {
+                if (whatsappBot.getBotStatus && whatsappBot.getBotStatus() === 'connected') {
+                    await whatsappBot.sendWhatsAppMessage(
+                        userPhone,
+                        `Hambalyo! Lacag-bixintaada waa la ansixiyey. Koontadaada waxaa lagu shubay qorshaha aad dooratay (${planName}). Hadda waad isticmaali kartaa Darkpen.\n\nMakaa caawiyaa sida uu u shaqeeyo WhatsApp bot-ku? (Ku jawaab: Haa ama Maya)`
+                    );
+                    whatsappBot.setUserState(p.user_id, { step: 'awaiting_whatsapp_help_consent' });
+                }
+            } catch (wErr) {
+                console.error('[ADMIN APPROVE] Failed to notify user on WhatsApp:', wErr.message);
+            }
+        }
+
         res.json({ message: 'Lacag-bixinta waa la oggolaaday, xogta user-ka waa la cusboonaysiiyay!' });
     } catch (error) {
         console.error(error);
@@ -396,6 +421,27 @@ router.post('/payments/:id/reject', async (req, res) => {
             'Dalabka Lacag-bixinta',
             `Dalabkaaga lacag-bixinta ee $${p.amount} waa la diiday. Fadlan la xiriir caawiyaha.`
         );
+
+        // Send WhatsApp notification if the user has a whatsapp_number
+        const [userRows] = await db.execute('SELECT name, whatsapp_number FROM users WHERE id = ? LIMIT 1', [p.user_id]);
+        if (userRows.length > 0 && userRows[0].whatsapp_number) {
+            const userPhone = userRows[0].whatsapp_number;
+            try {
+                if (whatsappBot.getBotStatus && whatsappBot.getBotStatus() === 'connected') {
+                    await whatsappBot.sendWhatsAppMessage(
+                        userPhone,
+                        `Lacagta lagaama hayo ee makuugu shubaa mid kale ama hadii aad cabasho qabto lahadal payments managerkan:`
+                    );
+                    try {
+                        await whatsappBot.sendWhatsAppContact(userPhone, '252654810865@c.us');
+                    } catch (cErr) {
+                        console.error('[ADMIN REJECT] Failed to send contact card:', cErr.message);
+                    }
+                }
+            } catch (wErr) {
+                console.error('[ADMIN REJECT] Failed to notify user on WhatsApp:', wErr.message);
+            }
+        }
 
         res.json({ message: 'Lacag-bixinta waa la diiday!' });
     } catch (error) {
