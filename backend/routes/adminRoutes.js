@@ -249,7 +249,7 @@ router.post('/users/:id/whatsapp-report', async (req, res) => {
         // Try regular local whatsappBot first
         try {
             if (whatsappBot.getBotStatus && whatsappBot.getBotStatus() === 'connected') {
-                await whatsappBot.sendWhatsAppMessage(user.whatsapp_number, reportMessage);
+                await whatsappBot.sendWhatsAppMessage(user.whatsapp_jid || user.whatsapp_number, reportMessage);
                 sent = true;
             }
         } catch (err) {
@@ -373,9 +373,10 @@ router.post('/payments/:id/approve', async (req, res) => {
         );
 
         // Send WhatsApp notification if the user has a whatsapp_number
-        const [userRows] = await db.execute('SELECT name, whatsapp_number FROM users WHERE id = ? LIMIT 1', [p.user_id]);
+        const [userRows] = await db.execute('SELECT name, whatsapp_number, whatsapp_jid FROM users WHERE id = ? LIMIT 1', [p.user_id]);
         if (userRows.length > 0 && userRows[0].whatsapp_number) {
             const userPhone = userRows[0].whatsapp_number;
+            const userJid = userRows[0].whatsapp_jid || userPhone;
             let planName = '';
             if (p.amount >= 11.0) {
                 planName = 'Monthly Premium';
@@ -393,7 +394,7 @@ router.post('/payments/:id/approve', async (req, res) => {
             // Try local bot first
             try {
                 if (whatsappBot.getBotStatus && whatsappBot.getBotStatus() === 'connected') {
-                    await whatsappBot.sendWhatsAppMessage(userPhone, approveMsg);
+                    await whatsappBot.sendWhatsAppMessage(userJid, approveMsg);
                     whatsappBot.setUserState(p.user_id, { step: 'awaiting_whatsapp_help_consent' });
                     waSent = true;
                 }
@@ -437,9 +438,10 @@ router.post('/payments/:id/reject', async (req, res) => {
         );
 
         // Send WhatsApp notification if the user has a whatsapp_number
-        const [userRows] = await db.execute('SELECT name, whatsapp_number FROM users WHERE id = ? LIMIT 1', [p.user_id]);
+        const [userRows] = await db.execute('SELECT name, whatsapp_number, whatsapp_jid FROM users WHERE id = ? LIMIT 1', [p.user_id]);
         if (userRows.length > 0 && userRows[0].whatsapp_number) {
             const userPhone = userRows[0].whatsapp_number;
+            const userJid = userRows[0].whatsapp_jid || userPhone;
             const rejectMsg =
                 `❌ *Lacagta lama hayo.*\n` +
                 `Fadlan ku soo dir lacag kale, ama la xiriir:\n` +
@@ -448,9 +450,9 @@ router.post('/payments/:id/reject', async (req, res) => {
             // Try local bot first
             try {
                 if (whatsappBot.getBotStatus && whatsappBot.getBotStatus() === 'connected') {
-                    await whatsappBot.sendWhatsAppMessage(userPhone, rejectMsg);
+                    await whatsappBot.sendWhatsAppMessage(userJid, rejectMsg);
                     try {
-                        await whatsappBot.sendWhatsAppContact(userPhone, '252654810865@c.us');
+                        await whatsappBot.sendWhatsAppContact(userJid, '252654810865@c.us');
                     } catch (cErr) {
                         console.error('[ADMIN REJECT] Failed to send contact card:', cErr.message);
                     }

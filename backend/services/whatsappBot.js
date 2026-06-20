@@ -29,6 +29,118 @@ const registrationStates = new Map();
 // Cache of recently processed message IDs to prevent duplicates
 const processedMessageIds = new Set();
 
+// Rate limiting maps
+const userMsgTimestamps = new Map();
+const unregMsgTimestamps = new Map();
+
+// Helper to check rate limit for registered users (10 msgs in 1 min -> 10 min block)
+async function checkRateLimit(userId, message) {
+    try {
+        const now = Date.now();
+        if (!userMsgTimestamps.has(userId)) {
+            userMsgTimestamps.set(userId, []);
+        }
+        const times = userMsgTimestamps.get(userId).filter(t => t > now - 60000);
+        times.push(now);
+        userMsgTimestamps.set(userId, times);
+
+        if (times.length >= 10) {
+            const blockedUntilDate = new Date(now + 10 * 60000);
+            await db.execute(
+                'UPDATE users SET rate_limit_blocked_until = ? WHERE id = ?',
+                [blockedUntilDate, userId]
+            );
+            await message.reply(
+                "⚠️ Farriimaha aad soo dirtay aad bay u badan yihiin (xadka waa 10 farriimood daqiiqaddii). Waxaa laguu xidhay muddo 10 daqiiqo ah."
+            );
+            return true;
+        }
+    } catch (err) {
+        console.error('[RATE LIMIT ERROR]:', err.message);
+    }
+    return false;
+}
+
+// Helper to check rate limit for unregistered users (10 msgs in 1 min -> 10 min block)
+async function checkUnregisteredRateLimit(normalizedPhone, message) {
+    const now = Date.now();
+    if (!unregMsgTimestamps.has(normalizedPhone)) {
+        unregMsgTimestamps.set(normalizedPhone, []);
+    }
+    const times = unregMsgTimestamps.get(normalizedPhone).filter(t => t > now - 60000);
+    times.push(now);
+    unregMsgTimestamps.set(normalizedPhone, times);
+
+    const blockKey = `block_${normalizedPhone}`;
+    const blockedUntil = unregMsgTimestamps.get(blockKey);
+    if (blockedUntil && blockedUntil > now) {
+        return true;
+    }
+
+    if (times.length >= 10) {
+        unregMsgTimestamps.set(blockKey, now + 10 * 60000);
+        await message.reply(
+            "⚠️ Farriimaha aad soo dirtay aad bay u badan yihiin (xadka waa 10 farriimood daqiiqaddii). Waxaa laguu xidhay muddo 10 daqiiqo ah."
+        );
+        return true;
+    }
+    return false;
+}
+
+// Helper to check if user requests manager contact routing
+function checkManagerRequest(text) {
+    const clean = String(text || '').toLowerCase().trim();
+    const isPaymentManager = clean.includes('managerka payments') ||
+                             clean.includes('managerka payment') ||
+                             clean.includes('payment manager') ||
+                             clean.includes('payments manager') ||
+                             clean.includes('managerka lacagta') ||
+                             clean.includes('managerka lacagaha') ||
+                             clean.includes('maamulaha lacagta') ||
+                             clean.includes('maamulaha lacagaha') ||
+                             clean.includes('maamulaha paymentska');
+                             
+    const isGeneralManager = clean.includes('manager') ||
+                             clean.includes('managerka') ||
+                             clean.includes('maamule') ||
+                             clean.includes('maamulaha') ||
+                             clean.includes('admin') ||
+                             clean.includes('adminka') ||
+                             clean.includes('owner') ||
+                             clean.includes('ownerka');
+                             
+    if (isPaymentManager) return 'payment';
+    if (isGeneralManager) return 'general';
+    return null;
+}
+
+// Helper to check if user is giving correction feedback to the AI
+function isWrongAnswerFeedback(text) {
+    const clean = String(text || '').toLowerCase().trim();
+    return clean.includes('waad khaladay') ||
+           clean.includes('waad qaldantahay') ||
+           clean.includes('waad khaldantahay') ||
+           clean.includes('waad qaldan tahay') ||
+           clean.includes('waad khaldan tahay') ||
+           clean.includes('waad qaldantay') ||
+           clean.includes('waad khaldantay') ||
+           clean.includes('waad khaladday') ||
+           clean.includes('waad qaldday') ||
+           clean.includes('you are wrong') ||
+           clean.includes('wrong answer');
+}
+
+// Helper to send contact card securely
+async function sendContactCard(from, jid, displayName) {
+    try {
+        const contact = await client.getContactById(jid);
+        await client.sendMessage(from, contact);
+    } catch (err) {
+        console.warn(`[WHATSAPP BOT] Failed to send contact card for ${jid}:`, err.message);
+        await client.sendMessage(from, `Fadlan kala xidhiidh ${displayName} halkan: +${jid.split('@')[0]}`);
+    }
+}
+
 exports.getBotStatus = () => botStatus;
 exports.getQRCode = () => currentQRDataURL;
 
@@ -417,14 +529,34 @@ async function handleUnregisteredRegistration(message, normalizedPhone) {
 
     if (state.step === 'awaiting_registration_consent') {
         if (isYesResponse(cleanBody)) {
-            state.step = 'awaiting_name';
-            await message.reply("Fadlan ii soo qor magacaaga saddexan (Tusaale: Axmed Cali Faarax):");
+            state.step = 'awaiting_phone';
+            await message.reply("Fadlan ii soo qor lambarkaaga WhatsApp-ka ee saxda ah (Tusaale: 061XXXXXXX):");
         } else if (isNoResponse(cleanBody)) {
             await message.reply("Haye, waa la baajiyey (Cancel).");
             registrationStates.delete(normalizedPhone);
         } else {
             await handleOutOfFlowQuery(message, normalizedPhone, 'signup_consent', "I am asking the user if they want to register for Darkpen WhatsApp bot. They should reply with 'Haa' (Yes) or 'Maya' (No).");
         }
+        return;
+    }
+
+    if (state.step === 'awaiting_phone') {
+        const phoneInput = normalizePhoneNumber(message.body.trim());
+        if (!phoneInput) {
+            await message.reply("Fadlan qor lambar WhatsApp oo sax ah (Tusaale: 061XXXXXXX):");
+            return;
+        }
+
+        // Check if the phone number is already registered
+        const [existing] = await db.execute('SELECT id FROM users WHERE whatsapp_number = ?', [phoneInput]);
+        if (existing.length > 0) {
+            await message.reply("Lambar-kan mar hore ayaa la diiwaangeliyey. Fadlan qor lambar kale oo sax ah:");
+            return;
+        }
+
+        state.phone = phoneInput;
+        state.step = 'awaiting_name';
+        await message.reply("Magacaaga oo buuxa qor (Tusaale: Axmed Cali Faarax):");
         return;
     }
 
@@ -448,67 +580,64 @@ async function handleUnregisteredRegistration(message, normalizedPhone) {
             return;
         }
         state.password = passwordVal;
-        state.step = 'awaiting_review';
-        await message.reply(
-            `Fadlan dib u eeg xogtaada:\n` +
-            `• Lambarka WhatsApp-ka: ${normalizedPhone}\n` +
-            `• Magaca: ${state.name}\n\n` +
-            `Ma diwaan galiyaa xogtan? (Ku jawaab: Haa ama Maya)`
-        );
-        return;
-    }
 
-    if (state.step === 'awaiting_review') {
-        if (isYesResponse(cleanBody)) {
-            const connection = await db.getConnection();
-            try {
-                await connection.beginTransaction();
+        // Register immediately, skip review step
+        const connection = await db.getConnection();
+        try {
+            await connection.beginTransaction();
 
-                const [existing] = await connection.execute('SELECT id FROM users WHERE whatsapp_number = ?', [normalizedPhone]);
-                if (existing.length > 0) {
-                    await connection.rollback();
-                    await message.reply("Lambar-kan mar hore ayaa la diiwaangeliyey.");
-                    registrationStates.delete(normalizedPhone);
-                    return;
-                }
-
-                const username = await generateUniqueUsername(state.name);
-                const hashedPassword = await bcrypt.hash(state.password, 12);
-
-                const [result] = await connection.execute(
-                    `INSERT INTO users (name, username, email, whatsapp_number, password, payment_status, payment_reference, is_verified)
-                     VALUES (?, ?, NULL, ?, ?, NULL, NULL, TRUE)`,
-                    [state.name, username, normalizedPhone, hashedPassword]
-                );
-
-                const newUserId = result.insertId;
-                await connection.execute('INSERT IGNORE INTO user_wallet (user_id, balance) VALUES (?, 0)', [newUserId]);
-
-                await connection.commit();
-
-                await message.reply(
-                    "Hambalyo! Si guul leh ayaa laguu diwaan-geliyey. Hadda waad isticmaali kartaa Darkpen WhatsApp Bot.\n\n" +
-                    "🎁 Waxaad hadiyad ahaan u heysataa:\n" +
-                    "• 15 farriimo oo bilaash ah (Free Messages)\n" +
-                    "• 3 sawir oo bilaash ah (Free Images)\n\n" +
-                    "Markay kaa dhammaadaan, waxaad u baahan doontaa inaad ku shubato credits si aad u sii waddo isticmaalka.\n\n" +
-                    "Makaa caawiyaa sida uu u shaqeeyo WhatsApp bot-ku? (Ku jawaab: Haa ama Maya)"
-                );
-
-                registrationStates.delete(normalizedPhone);
-                userStates.set(newUserId, { step: 'awaiting_whatsapp_help_consent' });
-            } catch (dbErr) {
+            const [existing] = await connection.execute('SELECT id FROM users WHERE whatsapp_number = ?', [state.phone]);
+            if (existing.length > 0) {
                 await connection.rollback();
-                console.error('[WHATSAPP BOT] Registration failed:', dbErr.message);
-                await message.reply("Waan ka xunnahay, cilad ayaa ku timid kaydinta xogtaada. Fadlan mar kale isku day waxyar ka dib.");
-            } finally {
-                connection.release();
+                await message.reply("Lambar-kan mar hore ayaa la diiwaangeliyey.");
+                registrationStates.delete(normalizedPhone);
+                return;
             }
-        } else if (isNoResponse(cleanBody)) {
-            await message.reply("Haye, waa la baajiyey (Cancel).");
+
+            const username = await generateUniqueUsername(state.name);
+            const hashedPassword = await bcrypt.hash(state.password, 12);
+
+            const [result] = await connection.execute(
+                `INSERT INTO users (name, username, email, whatsapp_number, whatsapp_jid, password, payment_status, payment_reference, is_verified)
+                 VALUES (?, ?, NULL, ?, ?, ?, NULL, NULL, TRUE)`,
+                [state.name, username, state.phone, normalizedPhone, hashedPassword]
+            );
+
+            const newUserId = result.insertId;
+            await connection.execute('INSERT IGNORE INTO user_wallet (user_id, balance) VALUES (?, 0)', [newUserId]);
+
+            await connection.commit();
+
+            await message.reply(
+                "Hambalyo! Si guul leh ayaa laguu diwaan-geliyey. Hadda waad isticmaali kartaa Darkpen WhatsApp Bot.\n\n" +
+                "🎁 Waxaad hadiyad ahaan u heysataa:\n" +
+                "• 15 farriimo oo bilaash ah (Free Messages)\n" +
+                "• 3 sawir oo bilaash ah (Free Images)\n\n" +
+                "Markay kaa dhammaadaan, waxaad u baahan doontaa inaad ku shubato credits si aad u sii waddo isticmaalka."
+            );
+
+            // Follow-up with rules message
+            await client.sendMessage(
+                message.from,
+                `*XEERARKA ISTICMAALKA BOT-KA* ⚠️\n` +
+                `----------------------------------\n` +
+                `• *Xaddiga Farriimaha:* Haddii aad soo dirto 10 farriimood muddo 1 daqiiqo gudaheed ah, nidaamku si otomaatig ah ayuu kuu xidhi doonaa muddo 10 daqiiqo ah.\n` +
+                `• *Xallinta Khalaadaadka AI:* AI-du waxay ku jirtaa barashada buugaagta manhajka. Haddii aad aragto wax khaldan oo weyn, fadlan la xidhiidh maamulaha (+252637930329).`
+            );
+
+            await client.sendMessage(
+                message.from,
+                "Makaa caawiyaa sida uu u shaqeeyo WhatsApp bot-ku? (Ku jawaab: Haa ama Maya)"
+            );
+
             registrationStates.delete(normalizedPhone);
-        } else {
-            await handleOutOfFlowQuery(message, normalizedPhone, 'signup_review', "I showed the user their registration details and asked if I should save them. They must reply with Haa (Yes) or Maya (No) to continue.");
+            userStates.set(newUserId, { step: 'awaiting_whatsapp_help_consent' });
+        } catch (dbErr) {
+            await connection.rollback();
+            console.error('[WHATSAPP BOT] Registration failed:', dbErr.message);
+            await message.reply("Waan ka xunnahay, cilad ayaa ku timid kaydinta xogtaada. Fadlan mar kale isku day waxyar ka dib.");
+        } finally {
+            connection.release();
         }
         return;
     }
@@ -581,7 +710,7 @@ async function handleIncomingMessage(message) {
     if (message.type === 'call_log') {
         console.log(`[WHATSAPP BOT] Call log message detected from: ${message.from}`);
         try {
-            await message.reply("Ma qaban karo call, iga raali noqo. Fadlan qoraal ahaan ama cod ahaan iigu soo dir su'aashaada.");
+            await message.reply("kuma hadli karo call oo iminka kama jawaabayoba");
         } catch (err) {
             console.error('[WHATSAPP BOT] Error replying to call log:', err.message);
         }
@@ -612,12 +741,10 @@ async function handleIncomingMessage(message) {
 
     if (!normalizedPhone) return;
 
-
-
     // B. Look up user in database
     const [users] = await db.execute(
-        'SELECT id, name, is_suspended FROM users WHERE whatsapp_number = ? LIMIT 1',
-        [normalizedPhone]
+        'SELECT id, name, is_suspended, rate_limit_blocked_until FROM users WHERE whatsapp_jid = ? OR whatsapp_number = ? LIMIT 1',
+        [normalizedPhone, normalizedPhone]
     );
 
     // Universal Cancel Command Handler
@@ -644,6 +771,7 @@ async function handleIncomingMessage(message) {
 
     if (users.length === 0) {
         if (!isGroup) {
+            if (await checkUnregisteredRateLimit(normalizedPhone, message)) return;
             await handleUnregisteredRegistration(message, normalizedPhone);
         }
         return;
@@ -651,12 +779,46 @@ async function handleIncomingMessage(message) {
 
     const user = users[0];
 
+    // Check rate limit block (persistent)
+    if (user.rate_limit_blocked_until && new Date(user.rate_limit_blocked_until) > new Date()) {
+        console.log(`[WHATSAPP BOT] User ${user.name} is rate limited until ${user.rate_limit_blocked_until}. Ignoring.`);
+        return;
+    }
+
     if (user.is_suspended) {
         console.log(`[WHATSAPP BOT] User ${user.name} (${normalizedPhone}) is suspended. Ignoring.`);
         return;
     }
 
     const userId = user.id;
+
+    // Track/check rate limit (10 msgs in 1 min -> 10 min block)
+    if (await checkRateLimit(userId, message)) {
+        return;
+    }
+
+    // Intercept Manager Routing
+    const managerType = checkManagerRequest(message.body);
+    if (managerType) {
+        if (managerType === 'payment') {
+            await message.reply("Halkan kala xidhiidh Manager-ka Payments-ka (Lacag-bixinta):");
+            await sendContactCard(message.from, '252654810865@c.us', 'Manager Payments');
+        } else {
+            await message.reply("Halkan kala xidhiidh Maamulaha (Manager-ka):");
+            await sendContactCard(message.from, '252637930329@c.us', 'Manager General');
+        }
+        return;
+    }
+
+    // Intercept AI correction feedback
+    if (isWrongAnswerFeedback(message.body)) {
+        await message.reply(
+            "Waan ka xunnahay! Waxaan isku dayey 100% inaan saxo, laakiin hadda waxaan ku jiraa xaalad aan ku baranayo buugaagta manhajka dugsiyada.\n\n" +
+            "Haddii aad aragtay wax weyn oo khaldan, fadlan la hadal maamulaha (manager-ka):"
+        );
+        await sendContactCard(message.from, '252637930329@c.us', 'Manager General');
+        return;
+    }
 
     // C. Check pending payments
     const [pendingRows] = await db.execute(
@@ -698,12 +860,6 @@ async function handleIncomingMessage(message) {
             await db.execute('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId]);
             userStates.delete(userId);
             await message.reply("Amniga: Furahaaga sirta ah (password) waa la bedelay si guul leh! Fadlan ilaasho furahaaga cusub. Hadda waad u isticmaali kartaa inaad ku gasho app-ka.");
-            
-            // Also send support contact card
-            try {
-                const supportContact = await client.getContactById('252659119779@c.us');
-                await client.sendMessage(message.from, supportContact);
-            } catch (err) {}
         } catch (err) {
             console.error('[WHATSAPP BOT] Password reset db update failed:', err.message);
             await message.reply("Waan ka xunnahay, cilad ayaa ku timid kaydinta furahaaga cusub. Fadlan mar kale isku day waxyar ka dib.");
@@ -839,13 +995,15 @@ If they say "I don't have money", respond politely and tell them they can do it 
                 `6. *Ka noqoshada (Cancel):* Mar kasta oo aad ku jirto is-diiwaangelin ama ku shubasho, waxaad qori kartaa *cancel* ama *ka noqo* si aad uga baxdo.\n\n` +
                 `Maxaan hadda kaa caawiyaa? 😊`
             );
+            return;
         } else if (isNoResponse(cleanBody)) {
             userStates.delete(userId);
             await message.reply("Haye, diyaar ayaan kuu ahay. Maxaan hadda kuu qabtaa? 🚀");
+            return;
         } else {
-            await handleOutOfFlowQuery(message, userId, 'help_consent', "I asked the user if they want help with how the WhatsApp bot works. They must reply with Haa (Yes) or Maya (No) to continue.");
+            // Do not force yes/no response, clear state and fall through to process query
+            userStates.delete(userId);
         }
-        return;
     }
 
     // Broad & natural language password reset detection (Somali + English + typo-tolerant)

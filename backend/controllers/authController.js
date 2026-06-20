@@ -274,7 +274,7 @@ exports.registerStudent = async (req, res) => {
 // Helper to notify admins on new payment
 async function notifyAdminsNewPayment(user, reference_number, amount) {
     try {
-        const [admins] = await db.execute('SELECT whatsapp_number FROM users WHERE role = "admin" AND whatsapp_number IS NOT NULL');
+        const [admins] = await db.execute('SELECT whatsapp_number, whatsapp_jid FROM users WHERE role = "admin" AND whatsapp_number IS NOT NULL');
         if (admins.length === 0) return;
         
         const message = `🔔 *DALAB LACAGEED OO CUSUB!*
@@ -290,23 +290,25 @@ _Fadlan gal Admin Dashboard si aad u xaqiijiso ama u diido._`;
             let cleanPhone = admin.whatsapp_number.replace(/\D/g, '');
             if (!cleanPhone) continue;
             
+            const adminJid = admin.whatsapp_jid || admin.whatsapp_number;
+            
             // Try local bot first
             try {
                 if (whatsappBot.getBotStatus && whatsappBot.getBotStatus() === 'connected') {
-                    await whatsappBot.sendWhatsAppMessage(admin.whatsapp_number, message);
-                    console.log(`[PAYMENT NOTIFICATION] Sent WhatsApp message to admin ${admin.whatsapp_number} via local bot`);
+                    await whatsappBot.sendWhatsAppMessage(adminJid, message);
+                    console.log(`[PAYMENT NOTIFICATION] Sent WhatsApp message to admin ${adminJid} via local bot`);
                     continue; // Skip fallback if successful
                 }
             } catch (err) {
-                console.warn(`[PAYMENT NOTIFICATION] Local bot failed for admin ${admin.whatsapp_number}:`, err.message);
+                console.warn(`[PAYMENT NOTIFICATION] Local bot failed for admin ${adminJid}:`, err.message);
             }
 
             // Fallback to cloud bot
             try {
                 await whatsappCloudBot.sendCloudMessage(cleanPhone, message);
-                console.log(`[PAYMENT NOTIFICATION] Sent WhatsApp message to admin ${admin.whatsapp_number} via cloud bot`);
+                console.log(`[PAYMENT NOTIFICATION] Sent WhatsApp message to admin ${cleanPhone} via cloud bot`);
             } catch (err) {
-                console.error(`[PAYMENT NOTIFICATION] Cloud bot failed for admin ${admin.whatsapp_number}:`, err.message);
+                console.error(`[PAYMENT NOTIFICATION] Cloud bot failed for admin ${cleanPhone}:`, err.message);
             }
         }
     } catch (e) {

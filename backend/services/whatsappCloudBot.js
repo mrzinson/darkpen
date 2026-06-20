@@ -12,6 +12,81 @@ const userStates = new Map();
 // Cache of recently processed message IDs to prevent duplicates
 const processedMessageIds = new Set();
 
+// Rate limiting maps
+const userMsgTimestamps = new Map();
+
+// Helper to check rate limit for registered users (10 msgs in 1 min -> 10 min block)
+async function checkRateLimit(userId, from) {
+    try {
+        const now = Date.now();
+        if (!userMsgTimestamps.has(userId)) {
+            userMsgTimestamps.set(userId, []);
+        }
+        const times = userMsgTimestamps.get(userId).filter(t => t > now - 60000);
+        times.push(now);
+        userMsgTimestamps.set(userId, times);
+
+        if (times.length >= 10) {
+            const blockedUntilDate = new Date(now + 10 * 60000);
+            await db.execute(
+                'UPDATE users SET rate_limit_blocked_until = ? WHERE id = ?',
+                [blockedUntilDate, userId]
+            );
+            await sendCloudMessage(
+                from,
+                "⚠️ Farriimaha aad soo dirtay aad bay u badan yihiin (xadka waa 10 farriimood daqiiqaddii). Waxaa laguu xidhay muddo 10 daqiiqo ah."
+            );
+            return true;
+        }
+    } catch (err) {
+        console.error('[RATE LIMIT ERROR]:', err.message);
+    }
+    return false;
+}
+
+// Helper to check if user requests manager contact routing
+function checkManagerRequest(text) {
+    const clean = String(text || '').toLowerCase().trim();
+    const isPaymentManager = clean.includes('managerka payments') ||
+                             clean.includes('managerka payment') ||
+                             clean.includes('payment manager') ||
+                             clean.includes('payments manager') ||
+                             clean.includes('managerka lacagta') ||
+                             clean.includes('managerka lacagaha') ||
+                             clean.includes('maamulaha lacagta') ||
+                             clean.includes('maamulaha lacagaha') ||
+                             clean.includes('maamulaha paymentska');
+                             
+    const isGeneralManager = clean.includes('manager') ||
+                             clean.includes('managerka') ||
+                             clean.includes('maamule') ||
+                             clean.includes('maamulaha') ||
+                             clean.includes('admin') ||
+                             clean.includes('adminka') ||
+                             clean.includes('owner') ||
+                             clean.includes('ownerka');
+                             
+    if (isPaymentManager) return 'payment';
+    if (isGeneralManager) return 'general';
+    return null;
+}
+
+// Helper to check if user is giving correction feedback to the AI
+function isWrongAnswerFeedback(text) {
+    const clean = String(text || '').toLowerCase().trim();
+    return clean.includes('waad khaladay') ||
+           clean.includes('waad qaldantahay') ||
+           clean.includes('waad khaldantahay') ||
+           clean.includes('waad qaldan tahay') ||
+           clean.includes('waad khaldan tahay') ||
+           clean.includes('waad qaldantay') ||
+           clean.includes('waad khaldantay') ||
+           clean.includes('waad khaladday') ||
+           clean.includes('waad qaldday') ||
+           clean.includes('you are wrong') ||
+           clean.includes('wrong answer');
+}
+
 
 // Create temp directory for voice notes if it doesn't exist
 const uploadsDir = path.join(__dirname, '../uploads');
@@ -234,7 +309,7 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
 
     // 1. Look up user in database
     const [users] = await db.execute(
-        'SELECT id, name, is_suspended FROM users WHERE whatsapp_number = ? LIMIT 1',
+        'SELECT id, name, is_suspended, rate_limit_blocked_until FROM users WHERE whatsapp_number = ? LIMIT 1',
         [normalizedPhone]
     );
 
@@ -254,6 +329,12 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
 
     const user = users[0];
 
+    // Check rate limit block (persistent)
+    if (user.rate_limit_blocked_until && new Date(user.rate_limit_blocked_until) > new Date()) {
+        console.log(`[WHATSAPP CLOUD] User ${user.name} is rate limited until ${user.rate_limit_blocked_until}. Ignoring.`);
+        return;
+    }
+
     // If user is suspended, ignore
     if (user.is_suspended) {
         console.log(`[WHATSAPP CLOUD] User ${user.name} (${normalizedPhone}) is suspended. Ignoring.`);
@@ -261,6 +342,32 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
     }
 
     const userId = user.id;
+
+    // Check rate limit (10 msgs in 1 min -> 10 min block)
+    if (await checkRateLimit(userId, from)) {
+        return;
+    }
+
+    // Intercept manager contact request
+    const managerType = checkManagerRequest(messageText);
+    if (managerType) {
+        if (managerType === 'payment') {
+            await sendCloudMessage(from, "Halkan kala xidhiidh Manager-ka Payments-ka (Lacag-bixinta): +252654810865");
+        } else {
+            await sendCloudMessage(from, "Halkan kala xidhiidh Maamulaha (Manager-ka): +252637930329");
+        }
+        return;
+    }
+
+    // Intercept AI correction feedback
+    if (isWrongAnswerFeedback(messageText)) {
+        await sendCloudMessage(
+            from,
+            "Waan ka xunnahay! Waxaan isku dayey 100% inaan saxo, laakiin hadda waxaan ku jiraa xaalad aan ku baranayo buugaagta manhajka dugsiyada.\n\n" +
+            "Haddii aad aragtay wax weyn oo khaldan, fadlan la hadal maamulaha (manager-ka): +252637930329"
+        );
+        return;
+    }
 
     // ─── Password Reset Flow ──────────────────────────────────────────────────────
     const cleanBody = (messageText || '').toLowerCase().trim();
@@ -292,12 +399,6 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
             await db.execute('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId]);
             userStates.delete(userId);
             await sendCloudMessage(from, "Amniga: Furahaaga sirta ah (password) waa la bedelay si guul leh! Fadlan ilaasho furahaaga cusub. Hadda waad u isticmaali kartaa inaad ku gasho app-ka.");
-            
-            // Also send support contact
-            try {
-                // In Cloud API, contact sharing is not standard, we can’t send contact cards, so we send text
-                await sendCloudMessage(from, "Wixii caawinaad ah, kala xiriir support-ka: +252659119779");
-            } catch (err) {}
         } catch (err) {
             console.error('[WHATSAPP CLOUD] Password reset db update failed:', err.message);
             await sendCloudMessage(from, "Waan ka xunnahay, cilad ayaa ku timid kaydinta furahaaga cusub. Fadlan mar kale isku day waxyar ka dib.");
@@ -319,13 +420,15 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
                 `5. *Password Reset:* Qor *password reset* haddii aad rabto inaad bedesho furahaaga sirta ah.\n\n` +
                 `Maxaan hadda kaa caawiyaa? 😊`
             );
+            return;
         } else if (isNoResponse(cleanBody)) {
             userStates.delete(userId);
             await sendCloudMessage(from, "Haye, diyaar ayaan kuu ahay. Maxaan hadda kuu qabtaa? 🚀");
+            return;
         } else {
-            await sendCloudMessage(from, "Fadlan ku jawaab *Haa* ama *Maya* — Makaa caawiyaa sida uu u shaqeeyo WhatsApp bot-ku?");
+            // Do not force yes/no response, clear state and fall through to process query
+            userStates.delete(userId);
         }
-        return;
     }
 
     // Broad & natural language password reset detection (Somali + English + typo-tolerant)
