@@ -560,8 +560,8 @@ async function handleIncomingMessage(message) {
 
     if (!normalizedPhone) return;
 
-    // A. Check if message is a reply from the Admin (+252637930329) to a pending payment notification
-    const isFromAdmin = normalizedPhone === '252637930329';
+    // A. Check if message is a reply from the Admin (+252637930329 / LID: +174741381992545) to a pending payment notification
+    const isFromAdmin = normalizedPhone === '+252637930329' || normalizedPhone === '+174741381992545' || normalizedPhone === '252637930329' || normalizedPhone === '174741381992545';
     if (isFromAdmin && message.hasQuotedMsg) {
         let quotedMsg = null;
         try {
