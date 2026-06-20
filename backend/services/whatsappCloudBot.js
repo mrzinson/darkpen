@@ -9,6 +9,8 @@ const { logAIUsage } = require('../utils/aiLogger');
 
 // Password reset states map (userId -> { step })
 const userStates = new Map();
+// Cache of recently processed message IDs to prevent duplicates
+const processedMessageIds = new Set();
 
 
 // Create temp directory for voice notes if it doesn't exist
@@ -161,6 +163,19 @@ exports.handleWebhookPost = (req, res) => {
         const from = message.from; // Sender number
         const messageId = message.id; // WhatsApp Message ID
         const type = message.type; // text, image, audio, etc.
+
+        // Deduplicate incoming messages using messageId
+        if (messageId) {
+            if (processedMessageIds.has(messageId)) {
+                console.log(`[WHATSAPP CLOUD] Duplicate message ignored: ${messageId}`);
+                return;
+            }
+            processedMessageIds.add(messageId);
+            if (processedMessageIds.size > 200) {
+                const oldestId = processedMessageIds.values().next().value;
+                processedMessageIds.delete(oldestId);
+            }
+        }
 
         let messageText = '';
         let mediaId = null;
@@ -671,7 +686,8 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
     2. LANGUAGE CONSISTENCY:
        - You MUST respond in the EXACT same language that the user spoke to you (Somali when asked in Somali, English when asked in English, etc.).
        - If an image is provided, analyze it and reply in the same language.
-    3. EXAMS & QUESTIONS:
+    3. EXAMS, IMAGES & QUESTIONS:
+       - When analyzing an image, you MUST carefully verify the details, double-check all calculations or question options, and perform a self-validation check to ensure your answer is completely correct. Do not rush or make assumptions.
        - If the image contains MCQ, True/False, or exam questions:
          * ONLY output the question numbers and correct options (e.g. 1. B \n 2. C \n 3. True).
          * Do NOT explain or show steps unless specifically asked to "explain" or "sharax".
@@ -688,10 +704,10 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
     let finalPrompt;
     if (attachmentData && !hasCaption) {
         // Image with no caption: detect quiz vs normal image
-        finalPrompt = `Fiiri sawirkan. Haddii sawirku ka kooban yahay suaalo MCQ, saxan/qaldaan, ama suaalo imtixaan: KALIYA soo qor jawaabaha kooban (lambarka + jawaabta) — HA SHARXIN. Haddii ay yihiin suaalo furan ama xisaab: si kooban u xali. Ku jawaab luuqadda qoraalka sawirka ku dhex jira.`;
+        finalPrompt = `Fiiri sawirkan. Kahor intaadan jawaabin, si fiican u akhri oo u falanqee su'aalaha ku jira, kuna samee xaqiijin labaad (double check) si aad u hubiso in jawaabtu tahay 100% sax ah oo aysan ku jirin wax qalad ah. Haddii sawirku ka kooban yahay suaalo MCQ, saxan/qaldaan, ama suaalo imtixaan: KALIYA soo qor jawaabaha kooban (lambarka + jawaabta) — HA SHARXIN. Haddii ay yihiin suaalo furan ama xisaab: si kooban u xali. Ku jawaab luuqadda qoraalka sawirka ku dhex jira.`;
     } else if (attachmentData && hasCaption) {
-        // Image with caption: use caption as the instruction
-        finalPrompt = messageText;
+        // Image with caption: append verification instruction
+        finalPrompt = `${messageText}\n\n[Fadlan si fiican u hubi sawirka iyo xogta si aad u keento jawaab 100% sax ah oo aad uga fogaato khaladaadka.]`;
     } else {
         finalPrompt = messageText || 'Hello';
     }

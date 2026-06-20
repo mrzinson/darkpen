@@ -1,6 +1,9 @@
 function normalizePhoneNumber(value) {
-    const raw = String(value || '').trim();
+    let raw = String(value || '').trim();
     if (!raw) return '';
+
+    // Strip WhatsApp JID domain and companion device suffixes (e.g. 252637930329:2@c.us -> 252637930329)
+    raw = raw.split('@')[0].split(':')[0];
 
     let compact = raw.replace(/[()\s.-]/g, '');
     if (compact.startsWith('00')) {

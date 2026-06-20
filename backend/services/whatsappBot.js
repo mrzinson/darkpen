@@ -26,6 +26,8 @@ let currentQRDataURL = null;    // Base64 QR image for the /api/whatsapp/qr endp
 const userStates = new Map();
 // Registration states map (phone -> { step, name, password })
 const registrationStates = new Map();
+// Cache of recently processed message IDs to prevent duplicates
+const processedMessageIds = new Set();
 
 exports.getBotStatus = () => botStatus;
 exports.getQRCode = () => currentQRDataURL;
@@ -554,6 +556,20 @@ function startProactiveChecker() {
 async function handleIncomingMessage(message) {
     if (message.fromMe) return;
 
+    // Deduplicate incoming messages using serialization ID
+    const msgId = message.id && message.id._serialized;
+    if (msgId) {
+        if (processedMessageIds.has(msgId)) {
+            console.log(`[WHATSAPP BOT] Duplicate message ignored: ${msgId}`);
+            return;
+        }
+        processedMessageIds.add(msgId);
+        if (processedMessageIds.size > 200) {
+            const oldestId = processedMessageIds.values().next().value;
+            processedMessageIds.delete(oldestId);
+        }
+    }
+
     console.log(`[WHATSAPP BOT DEBUG] Incoming message:
       from: ${message.from}
       author: ${message.author}
@@ -580,11 +596,19 @@ async function handleIncomingMessage(message) {
 
     const isGroup = message.from.endsWith('@g.us');
 
-    // Extract sender number directly from message fields (faster than getContact())
+    // Extract sender number using getContact() if possible to resolve JIDs/LIDs cleanly, falling back to message fields
     const senderRaw = isGroup ? (message.author || '') : message.from;
-    const senderNumberRaw = senderRaw.split('@')[0];
+    let senderNumberRaw = senderRaw.split('@')[0].split(':')[0];
+    try {
+        const contact = await message.getContact();
+        if (contact && contact.number) {
+            senderNumberRaw = contact.number;
+        }
+    } catch (contactErr) {
+        console.warn('[WHATSAPP BOT] Failed to fetch contact profile, falling back to raw JID:', contactErr.message);
+    }
     const normalizedPhone = normalizePhoneNumber(senderNumberRaw);
-    console.log(`[WHATSAPP BOT DEBUG] senderNumberRaw: ${senderNumberRaw}, normalizedPhone: ${normalizedPhone}`);
+    console.log(`[WHATSAPP BOT DEBUG] senderRaw: ${senderRaw}, senderNumberRaw: ${senderNumberRaw}, normalizedPhone: ${normalizedPhone}`);
 
     if (!normalizedPhone) return;
 
@@ -733,8 +757,36 @@ async function handleIncomingMessage(message) {
 
     if (state && state.step === 'awaiting_payment_sender_number') {
         const senderNum = message.body.trim();
-        if (!senderNum) {
-            await message.reply("Fadlan qor lambar sax ah oo aad lacagta ka soo dirtay:");
+        
+        // Validate if it is a numeric/phone number format
+        const isNumeric = /^\+?[\d\s.-]{6,15}$/.test(senderNum);
+        if (!isNumeric) {
+            state.invalidCount = (state.invalidCount || 0) + 1;
+            if (state.invalidCount > 2) {
+                await message.reply("markad lacagta soo dirto ila soo hadal oo numberka so qor xadkaagi baad gaadhaye waad balaadhisee");
+            } else {
+                // Call Gemini to concisely explain/respond to their message
+                const systemPrompt = `You are an AI assistant for Darkpen.
+The user is currently trying to top up their account and was asked to enter the phone number they sent the money from.
+Instead of entering a number, they sent this message: "${senderNum}".
+
+Instruction:
+1. Understand what they are saying/asking in this message (e.g. asking how to send money, saying they don't have money, etc.).
+2. Respond to them directly and warmly in the same language they used (usually Somali).
+3. Keep the response very concise and helpful.
+4. Remind them at the end that to complete the top-up, they must send the money and type the sender phone number here.
+
+Example:
+If they ask "How do I send?", explain briefly (EVC Plus dial *712*637930329*amount#) and ask them to enter the number after sending.
+If they say "I don't have money", respond politely and tell them they can do it whenever they are ready.`;
+                try {
+                    const aiResponse = await askGemini(senderNum, "gemini-2.5-flash", null, [], systemPrompt);
+                    await message.reply(formatResponseForWhatsApp(aiResponse));
+                } catch (err) {
+                    console.error('[WHATSAPP BOT] Failed to answer payment query via Gemini:', err.message);
+                    await message.reply("Fadlan qor lambarka aad lacagta ka soo dirtay:");
+                }
+            }
             return;
         }
 
@@ -1148,7 +1200,8 @@ async function handleIncomingMessage(message) {
     2. LANGUAGE CONSISTENCY:
        - You MUST respond in the EXACT same language that the user spoke to you (Somali when asked in Somali, English when asked in English, etc.).
        - If an image is provided, analyze it and reply in the same language.
-    3. EXAMS & QUESTIONS:
+    3. EXAMS, IMAGES & QUESTIONS:
+       - When analyzing an image, you MUST carefully verify the details, double-check all calculations or question options, and perform a self-validation check to ensure your answer is completely correct. Do not rush or make assumptions.
        - If the image contains MCQ, True/False, or exam questions:
          * ONLY output the question numbers and correct options (e.g. 1. B \n 2. C \n 3. True).
          * Do NOT explain or show steps unless specifically asked to "explain" or "sharax".
@@ -1175,10 +1228,10 @@ async function handleIncomingMessage(message) {
     let finalPrompt;
     if (attachmentData && !hasCaption) {
         // Image with no caption: detect quiz vs normal image
-        finalPrompt = `Fiiri sawirkan. Haddii sawirku ka kooban yahay suaalo MCQ, saxan/qaldaan, ama suaalo imtixaan: KALIYA soo qor jawaabaha kooban (lambarka + jawaabta) — HA SHARXIN. Haddii ay yihiin suaalo furan ama xisaab: si kooban u xali. Ku jawaab luuqadda qoraalka sawirka ku dhex jira.`;
+        finalPrompt = `Fiiri sawirkan. Kahor intaadan jawaabin, si fiican u akhri oo u falanqee su'aalaha ku jira, kuna samee xaqiijin labaad (double check) si aad u hubiso in jawaabtu tahay 100% sax ah oo aysan ku jirin wax qalad ah. Haddii sawirku ka kooban yahay suaalo MCQ, saxan/qaldaan, ama suaalo imtixaan: KALIYA soo qor jawaabaha kooban (lambarka + jawaabta) — HA SHARXIN. Haddii ay yihiin suaalo furan ama xisaab: si kooban u xali. Ku jawaab luuqadda qoraalka sawirka ku dhex jira.`;
     } else if (attachmentData && hasCaption) {
-        // Image with caption: use caption as the instruction
-        finalPrompt = messageText;
+        // Image with caption: append verification instruction
+        finalPrompt = `${messageText}\n\n[Fadlan si fiican u hubi sawirka iyo xogta si aad u keento jawaab 100% sax ah oo aad uga fogaato khaladaadka.]`;
     } else {
         finalPrompt = messageText || 'Hello';
     }
