@@ -43,9 +43,13 @@ async function checkTelegramRateLimit(userId, chatId) {
                 'UPDATE users SET rate_limit_blocked_until = ? WHERE id = ?',
                 [blockedUntilDate, userId]
             );
+            const unblockTime = blockedUntilDate.toLocaleTimeString('en-US', {
+                hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Africa/Mogadishu'
+            });
             await bot.sendMessage(
                 chatId,
-                "⚠️ Waxaad gaadhay xadka farriimaha (Xeerka 1-Minute). Fadlan dib ugu soo laabo marka uu dhammaado waqtiga xannibaadda (10 daqiiqo)."
+                `⚠️ Waxaad ka gaadhay xad — Xeerka 1\-Daqiiqo \(10 farriimood\)\!\n\nNidaamku si otomaatig ah ayuu kuu xidhay muddo 10 daqiiqo ah\.\n⏰ Kusoo noqo marka ay tahay: *${unblockTime}*`,
+                { parse_mode: 'Markdown' }
             );
             return true;
         }

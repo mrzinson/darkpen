@@ -51,8 +51,11 @@ async function checkRateLimit(userId, message) {
                 'UPDATE users SET rate_limit_blocked_until = ? WHERE id = ?',
                 [blockedUntilDate, userId]
             );
+            const unblockTime = blockedUntilDate.toLocaleTimeString('en-US', {
+                hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Africa/Mogadishu'
+            });
             await message.reply(
-                "⚠️ Waxaad gaadhay xadka farriimaha (Xeerka 1-Minute). Fadlan dib ugu soo laabo marka uu dhammaado waqtiga xannibaadda (10 daqiiqo)."
+                `⚠️ Waxaad ka gaadhay xad — Xeerka 1-Daqiiqo (10 farriimood)!\n\nNidaamku si otomaatig ah ayuu kuu xidhay muddo 10 daqiiqo ah.\n⏰ Kusoo noqo marka ay tahay: *${unblockTime}*`
             );
             return true;
         }
@@ -79,9 +82,13 @@ async function checkUnregisteredRateLimit(normalizedPhone, message) {
     }
 
     if (times.length >= 10) {
-        unregMsgTimestamps.set(blockKey, now + 10 * 60000);
+        const blockEnd = now + 10 * 60000;
+        unregMsgTimestamps.set(blockKey, blockEnd);
+        const unblockTime = new Date(blockEnd).toLocaleTimeString('en-US', {
+            hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Africa/Mogadishu'
+        });
         await message.reply(
-            "⚠️ Waxaad gaadhay xadka farriimaha (Xeerka 1-Minute). Fadlan dib ugu soo laabo marka uu dhammaado waqtiga xannibaadda (10 daqiiqo)."
+            `⚠️ Waxaad ka gaadhay xad — Xeerka 1-Daqiiqo (10 farriimood)!\n\nNidaamku si otomaatig ah ayuu kuu xidhay muddo 10 daqiiqo ah.\n⏰ Kusoo noqo marka ay tahay: *${unblockTime}*`
         );
         return true;
     }
@@ -1233,7 +1240,13 @@ If they say "I don't have money", respond politely and tell them they can do it 
     // 2. Group chat filters
     if (isGroup) {
         const hasImage = message.hasMedia && message.type === 'image';
-        if (!hasImage) return;
+        // For groups: only respond to images, or messages that mention the bot or start with "Darkpen"
+        if (!hasImage) {
+            const groupText = (message.body || '').toLowerCase().trim();
+            const mentionedBot = message.mentionedIds && message.mentionedIds.length > 0;
+            const startsWithDarkpen = groupText.startsWith('darkpen');
+            if (!mentionedBot && !startsWithDarkpen) return;
+        }
 
         // Log group mention/interaction
         try {
