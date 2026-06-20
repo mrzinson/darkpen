@@ -186,6 +186,30 @@ exports.handleWebhookPost = (req, res) => {
     }
 };
 
+function isYesResponse(text) {
+    const clean = text.toLowerCase().trim().replace(/[?!.]/g, '');
+    return /^ha+$/i.test(clean) || 
+           /^ye+y$/i.test(clean) || 
+           /^haye$/i.test(clean) || 
+           /^ok(ay)?$/i.test(clean) || 
+           /^yes+$/i.test(clean) || 
+           /^yep$/i.test(clean) || 
+           clean === 'y' || 
+           clean === 'sax' || 
+           clean === 'sawn' || 
+           clean === 'waa sax';
+}
+
+function isNoResponse(text) {
+    const clean = text.toLowerCase().trim().replace(/[?!.]/g, '');
+    return /^may?a*$/i.test(clean) || 
+           /^no+p?e?$/i.test(clean) || 
+           clean === 'n' || 
+           clean === 'laa' || 
+           clean.includes('ma rabo') || 
+           clean.includes('ha rabin');
+}
+
 // Main processing logic
 async function processIncomingMessage(from, messageId, type, messageText, mediaId, mediaMime) {
     console.log(`[WHATSAPP CLOUD] Received message: from=${from}, type=${type}, body="${messageText}"`);
@@ -262,6 +286,29 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
         } catch (err) {
             console.error('[WHATSAPP CLOUD] Password reset db update failed:', err.message);
             await sendCloudMessage(from, "Waan ka xunnahay, cilad ayaa ku timid kaydinta furahaaga cusub. Fadlan mar kale isku day waxyar ka dib.");
+        }
+        return;
+    }
+
+    // ─── Help Guide Consent Flow ───
+    if (state && state.step === 'awaiting_whatsapp_help_consent') {
+        if (isYesResponse(cleanBody)) {
+            userStates.delete(userId);
+            await sendCloudMessage(from,
+                `*SIDA UU U SHAQEYNYO WHATSAPP BOT-KU* 📱🚀\n` +
+                `----------------------------------\n` +
+                `1. *Qoraalka & AI:* Si caadi ah iila hadal, wax ii weydii, iigana sheekeyso wax kasta. Waxaan kuugu jawaabayaa isla luuqadda aad igu qortay.\n` +
+                `2. *Sawirro (Images):* Iisoo dir sawir kasta (MCQ, xisaab, ama sharaxaad). Waxaan kuu soo saarayaa jawaabaha saxda ah si degdeg ah.\n` +
+                `3. *Codadka (Voice Notes):* Iisoo dir fariin cod ah, waan ku dhageysanayaa, waanan kuu sharxayaa.\n` +
+                `4. *Report:* Qor *report* mar kasta oo aad rabto inaad ogaato dhibcahaaga (credits) iyo qorshahaaga.\n` +
+                `5. *Password Reset:* Qor *password reset* haddii aad rabto inaad bedesho furahaaga sirta ah.\n\n` +
+                `Maxaan hadda kaa caawiyaa? 😊`
+            );
+        } else if (isNoResponse(cleanBody)) {
+            userStates.delete(userId);
+            await sendCloudMessage(from, "Haye, diyaar ayaan kuu ahay. Maxaan hadda kuu qabtaa? 🚀");
+        } else {
+            await sendCloudMessage(from, "Fadlan ku jawaab *Haa* ama *Maya* — Makaa caawiyaa sida uu u shaqeeyo WhatsApp bot-ku?");
         }
         return;
     }
@@ -756,3 +803,15 @@ function formatResponseForWhatsApp(text) {
 }
 
 exports.sendCloudMessage = sendCloudMessage;
+
+exports.setUserState = (userId, state) => {
+    userStates.set(userId, state);
+};
+
+exports.getUserState = (userId) => {
+    return userStates.get(userId);
+};
+
+exports.deleteUserState = (userId) => {
+    userStates.delete(userId);
+};

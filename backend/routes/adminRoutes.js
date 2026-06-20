@@ -384,16 +384,26 @@ router.post('/payments/:id/approve', async (req, res) => {
             } else {
                 planName = 'Pay as you go (100 Credits)';
             }
+            const approveMsg = `Hambalyo! Lacag-bixintaada waa la ansixiyey. Koontadaada waxaa lagu shubay qorshaha aad dooratay (${planName}). Hadda waad isticmaali kartaa Darkpen.\n\nMakaa caawiyaa sida uu u shaqeeyo WhatsApp bot-ku? (Ku jawaab: Haa ama Maya)`;
+            let waSent = false;
+            // Try local bot first
             try {
                 if (whatsappBot.getBotStatus && whatsappBot.getBotStatus() === 'connected') {
-                    await whatsappBot.sendWhatsAppMessage(
-                        userPhone,
-                        `Hambalyo! Lacag-bixintaada waa la ansixiyey. Koontadaada waxaa lagu shubay qorshaha aad dooratay (${planName}). Hadda waad isticmaali kartaa Darkpen.\n\nMakaa caawiyaa sida uu u shaqeeyo WhatsApp bot-ku? (Ku jawaab: Haa ama Maya)`
-                    );
+                    await whatsappBot.sendWhatsAppMessage(userPhone, approveMsg);
                     whatsappBot.setUserState(p.user_id, { step: 'awaiting_whatsapp_help_consent' });
+                    waSent = true;
                 }
             } catch (wErr) {
-                console.error('[ADMIN APPROVE] Failed to notify user on WhatsApp:', wErr.message);
+                console.error('[ADMIN APPROVE] Local bot failed:', wErr.message);
+            }
+            // Fallback to Cloud Bot
+            if (!waSent) {
+                try {
+                    await whatsappCloudBot.sendCloudMessage(userPhone.replace(/^\+/, ''), approveMsg);
+                    whatsappCloudBot.setUserState(p.user_id, { step: 'awaiting_whatsapp_help_consent' });
+                } catch (cErr) {
+                    console.error('[ADMIN APPROVE] Cloud bot also failed:', cErr.message);
+                }
             }
         }
 
@@ -426,20 +436,29 @@ router.post('/payments/:id/reject', async (req, res) => {
         const [userRows] = await db.execute('SELECT name, whatsapp_number FROM users WHERE id = ? LIMIT 1', [p.user_id]);
         if (userRows.length > 0 && userRows[0].whatsapp_number) {
             const userPhone = userRows[0].whatsapp_number;
+            const rejectMsg = `Lacagta lagaama hayo ee makuugu shubaa mid kale ama hadii aad cabasho qabto lahadal payments managerkan: +252654810865`;
+            let waRejSent = false;
+            // Try local bot first
             try {
                 if (whatsappBot.getBotStatus && whatsappBot.getBotStatus() === 'connected') {
-                    await whatsappBot.sendWhatsAppMessage(
-                        userPhone,
-                        `Lacagta lagaama hayo ee makuugu shubaa mid kale ama hadii aad cabasho qabto lahadal payments managerkan:`
-                    );
+                    await whatsappBot.sendWhatsAppMessage(userPhone, rejectMsg);
                     try {
                         await whatsappBot.sendWhatsAppContact(userPhone, '252654810865@c.us');
                     } catch (cErr) {
                         console.error('[ADMIN REJECT] Failed to send contact card:', cErr.message);
                     }
+                    waRejSent = true;
                 }
             } catch (wErr) {
-                console.error('[ADMIN REJECT] Failed to notify user on WhatsApp:', wErr.message);
+                console.error('[ADMIN REJECT] Local bot failed:', wErr.message);
+            }
+            // Fallback to Cloud Bot
+            if (!waRejSent) {
+                try {
+                    await whatsappCloudBot.sendCloudMessage(userPhone.replace(/^\+/, ''), rejectMsg);
+                } catch (cErr) {
+                    console.error('[ADMIN REJECT] Cloud bot also failed:', cErr.message);
+                }
             }
         }
 
