@@ -57,7 +57,7 @@ async function sendPasswordResetEmail({ email, name, code }) {
         template_params: {
             to_email: email,
             to_name: name,
-            app_name: 'Darkpen / ZinsonAI',
+            app_name: 'Darkpen App',
             otp_code: code,
             time: new Date().toLocaleString('en-US', { timeZone: 'Africa/Mogadishu' })
         }
@@ -70,7 +70,7 @@ async function sendPasswordResetEmail({ email, name, code }) {
     });
 
     if (!response.ok) {
-        const err = new Error('Email reset code lama dirin. Fadlan isku day mar kale ama la xiriir support.');
+        const err = new Error('Email reset code lama dirin. Fadlan isku day mar kale ama la xiriir support whatsappka:637930329');
         err.statusCode = 502;
         throw err;
     }
@@ -216,7 +216,7 @@ exports.login = async (req, res) => {
 
         const user = users[0];
         if (user.is_suspended) {
-            return res.status(403).json({ message: 'Koontadaada waa la laalay (Suspended). Tafasiil dheeri ah la xiriir maamulka.' });
+            return res.status(403).json({ message: 'Koontadaada waa la laalay (Suspended). Tafasiil dheeri ah la xiriir maamulka. whatsapp: 637930329' });
         }
 
         const isMatch = await bcrypt.compare(password, user.password);

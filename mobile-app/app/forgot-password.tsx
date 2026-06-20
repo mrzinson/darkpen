@@ -78,7 +78,7 @@ export default function ForgotPasswordScreen() {
 
   const handleSupport = () => {
     const normalizedPhone = normalizePhoneInput(whatsappNumber) || whatsappNumber;
-    const message = encodeURIComponent(`Salaan Darkpen, waxaan rabaa password reset. Number-kaygu waa: ${normalizedPhone}`);
+    const message = encodeURIComponent(`Salaan Darkpen, waxaan rabaa password reset.`);
     Linking.openURL(`https://wa.me/252659119779?text=${message}`).catch(() => {
       setErrorMsg('Ma awoodno inaan furno WhatsApp Support.');
     });
