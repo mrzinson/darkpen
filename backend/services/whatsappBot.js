@@ -24,6 +24,8 @@ let currentQRDataURL = null;    // Base64 QR image for the /api/whatsapp/qr endp
 
 // Password reset states map (userId -> { step })
 const userStates = new Map();
+// Registration states map (phone -> { step, name, password })
+const registrationStates = new Map();
 
 exports.getBotStatus = () => botStatus;
 exports.getQRCode = () => currentQRDataURL;
@@ -140,6 +142,21 @@ exports.initialize = async () => {
             )
         `);
         console.log('[WHATSAPP BOT] Table whatsapp_cooldowns checked/created.');
+
+        // 1b. Create table whatsapp_pending_payments if not exists
+        await db.execute(`
+            CREATE TABLE IF NOT EXISTS whatsapp_pending_payments (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                admin_message_id VARCHAR(255) NOT NULL,
+                plan VARCHAR(50) NOT NULL,
+                phone_submitted VARCHAR(50) NOT NULL,
+                status VARCHAR(20) DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        `);
+        console.log('[WHATSAPP BOT] Table whatsapp_pending_payments checked/created.');
 
         // 2. Puppeteer headless mode (always headless on server)
         const isServer = process.env.RENDER || process.env.NODE_ENV === 'production';
@@ -331,6 +348,129 @@ function getCleanNumber(rawJid) {
     return normalizePhoneNumber(digits);
 }
 
+// Helper: auto-generate unique username from full name
+async function generateUniqueUsername(name) {
+    const base = name
+        .toLowerCase()
+        .replace(/\s+/g, '_')
+        .replace(/[^a-z0-9_]/g, '')
+        .slice(0, 20) || 'user';
+
+    for (let i = 0; i < 10; i++) {
+        const suffix = Math.floor(1000 + Math.random() * 9000);
+        const candidate = `${base}_${suffix}`;
+        const [rows] = await db.execute(
+            'SELECT id FROM users WHERE username = ?',
+            [candidate]
+        );
+        if (rows.length === 0) return candidate;
+    }
+    // Fallback: timestamp-based
+    return `${base}_${Date.now().toString().slice(-6)}`;
+}
+
+// Handle unregistered user registration flow
+async function handleUnregisteredRegistration(message, normalizedPhone) {
+    const state = registrationStates.get(normalizedPhone);
+    const cleanBody = (message.body || '').toLowerCase().trim();
+
+    if (!state) {
+        registrationStates.set(normalizedPhone, { step: 'awaiting_registration_consent' });
+        await message.reply("Ma diwaan gashanid ee maku diwaan galiyaa whatsappkan laftarkiisa? (Ku jawaab: Haa ama Maya)");
+        return;
+    }
+
+    if (state.step === 'awaiting_registration_consent') {
+        if (cleanBody === 'haa') {
+            state.step = 'awaiting_name';
+            await message.reply("Fadlan ii soo qor magacaaga saddexan (Tusaale: Axmed Cali Faarax):");
+        } else if (cleanBody === 'maya') {
+            await message.reply("Haye, waa la baajiyey (Cancel).");
+            registrationStates.delete(normalizedPhone);
+        } else {
+            await message.reply("Fadlan ku jawaab 'Haa' ama 'Maya'.");
+        }
+        return;
+    }
+
+    if (state.step === 'awaiting_name') {
+        const nameVal = message.body.trim();
+        if (!nameVal) {
+            await message.reply("Fadlan ii soo qor magac sax ah:");
+            return;
+        }
+        state.name = nameVal;
+        state.step = 'awaiting_password';
+        await message.reply(`Haye, ${nameVal}. Fadlan qor furaha sirta ah (password) ee aad rabto (ugu yaraan 8 xaraf):`);
+        return;
+    }
+
+    if (state.step === 'awaiting_password') {
+        const passwordVal = message.body.trim();
+        const passwordError = validatePassword(passwordVal);
+        if (passwordError) {
+            await message.reply("Fadlan furaha sirta ah (password) ha ahaado ugu yaraan 8 xaraf. Fadlan mar kale qor furahaaga:");
+            return;
+        }
+        state.password = passwordVal;
+        state.step = 'awaiting_review';
+        await message.reply(
+            `Fadlan dib u eeg xogtaada:\n` +
+            `• Lambarka WhatsApp-ka: +${normalizedPhone}\n` +
+            `• Magaca: ${state.name}\n` +
+            `• Lambarka WhatsApp-ka: +${normalizedPhone}\n\n` +
+            `Ma diwaan galiyaa xogtan? (Ku jawaab: Haa ama Maya)`
+        );
+        return;
+    }
+
+    if (state.step === 'awaiting_review') {
+        if (cleanBody === 'haa') {
+            const connection = await db.getConnection();
+            try {
+                await connection.beginTransaction();
+
+                const [existing] = await connection.execute('SELECT id FROM users WHERE whatsapp_number = ?', [normalizedPhone]);
+                if (existing.length > 0) {
+                    await connection.rollback();
+                    await message.reply("Lambar-kan mar hore ayaa la diiwaangeliyey.");
+                    registrationStates.delete(normalizedPhone);
+                    return;
+                }
+
+                const username = await generateUniqueUsername(state.name);
+                const hashedPassword = await bcrypt.hash(state.password, 12);
+
+                const [result] = await connection.execute(
+                    `INSERT INTO users (name, username, email, whatsapp_number, password, payment_status, payment_reference, is_verified)
+                     VALUES (?, ?, NULL, ?, ?, NULL, NULL, TRUE)`,
+                    [state.name, username, normalizedPhone, hashedPassword]
+                );
+
+                const newUserId = result.insertId;
+                await connection.execute('INSERT IGNORE INTO user_wallet (user_id, balance) VALUES (?, 0)', [newUserId]);
+
+                await connection.commit();
+
+                await message.reply("Hambalyo! Si guul leh ayaa laguu diwaan-geliyey. Hadda waad isticmaali kartaa Darkpen WhatsApp Bot.");
+                registrationStates.delete(normalizedPhone);
+            } catch (dbErr) {
+                await connection.rollback();
+                console.error('[WHATSAPP BOT] Registration failed:', dbErr.message);
+                await message.reply("Waan ka xunnahay, cilad ayaa ku timid kaydinta xogtaada. Fadlan mar kale isku day waxyar ka dib.");
+            } finally {
+                connection.release();
+            }
+        } else if (cleanBody === 'maya') {
+            await message.reply("Haye, waa la baajiyey (Cancel).");
+            registrationStates.delete(normalizedPhone);
+        } else {
+            await message.reply("Fadlan ku jawaab 'Haa' ama 'Maya'.");
+        }
+        return;
+    }
+}
+
 // ─── Proactive Checker ────────────────────────────────────────────────────────
 function startProactiveChecker() {
     setInterval(async () => {
@@ -420,7 +560,107 @@ async function handleIncomingMessage(message) {
 
     if (!normalizedPhone) return;
 
-    // 1. Look up user in database
+    // A. Check if message is a reply from the Admin (+252637930329) to a pending payment notification
+    const isFromAdmin = normalizedPhone === '252637930329';
+    if (isFromAdmin && message.hasQuotedMsg) {
+        let quotedMsg = null;
+        try {
+            quotedMsg = await message.getQuotedMessage();
+        } catch (qErr) {
+            console.error('[WHATSAPP BOT] Failed to get quoted message:', qErr.message);
+        }
+
+        if (quotedMsg && quotedMsg.id && quotedMsg.id._serialized) {
+            const quotedId = quotedMsg.id._serialized;
+            const [pendingPayments] = await db.execute(
+                'SELECT * FROM whatsapp_pending_payments WHERE admin_message_id = ? AND status = "pending" LIMIT 1',
+                [quotedId]
+            );
+
+            if (pendingPayments.length > 0) {
+                const payment = pendingPayments[0];
+                const replyText = (message.body || '').toLowerCase().trim();
+
+                if (replyText === 'approve') {
+                    await db.execute('UPDATE whatsapp_pending_payments SET status = "approved" WHERE id = ?', [payment.id]);
+                    await db.execute('UPDATE users SET payment_status = "approved" WHERE id = ?', [payment.user_id]);
+
+                    let planName = '';
+                    if (payment.plan === '1') {
+                        planName = 'Pay as you go (100 Credits)';
+                        await db.execute(
+                            'INSERT INTO user_wallet (user_id, balance) VALUES (?, 100) ON DUPLICATE KEY UPDATE balance = balance + 100, last_updated = NOW()',
+                            [payment.user_id]
+                        );
+                    } else if (payment.plan === '2') {
+                        planName = 'Monthly Basic';
+                        await db.execute(
+                            'INSERT INTO user_subscriptions (user_id, type, expiry_date) VALUES (?, "monthly_3", DATE_ADD(NOW(), INTERVAL 30 DAY))',
+                            [payment.user_id]
+                        );
+                        await db.execute(
+                            'INSERT INTO user_wallet (user_id, balance) VALUES (?, 1000) ON DUPLICATE KEY UPDATE balance = 1000, last_updated = NOW()',
+                            [payment.user_id]
+                        );
+                    } else if (payment.plan === '3') {
+                        planName = 'Monthly Premium';
+                        await db.execute(
+                            'INSERT INTO user_subscriptions (user_id, type, expiry_date) VALUES (?, "monthly_11", DATE_ADD(NOW(), INTERVAL 30 DAY))',
+                            [payment.user_id]
+                        );
+                        await db.execute(
+                            'INSERT INTO user_wallet (user_id, balance) VALUES (?, 5000) ON DUPLICATE KEY UPDATE balance = 5000, last_updated = NOW()',
+                            [payment.user_id]
+                        );
+                    }
+
+                    const [userRows] = await db.execute('SELECT whatsapp_number FROM users WHERE id = ? LIMIT 1', [payment.user_id]);
+                    if (userRows.length > 0 && userRows[0].whatsapp_number) {
+                        const userJid = `${userRows[0].whatsapp_number.replace(/\+/g, '')}@c.us`;
+                        try {
+                            await client.sendMessage(
+                                userJid,
+                                "Iminka waad ila hadli kartaa oo lacagta waa lagaa hayaa."
+                            );
+                        } catch (sendErr) {
+                            console.error('[WHATSAPP BOT] Failed to notify user of approval:', sendErr.message);
+                        }
+                    }
+
+                    await message.reply(`✅ Lacag-bixinta waa la aqbalay (Approved). Isticmaalaha waxaa loo ogeysiiyey qorshaha: ${planName}.`);
+                    return;
+
+                } else if (replyText === 'reject') {
+                    await db.execute('UPDATE whatsapp_pending_payments SET status = "rejected" WHERE id = ?', [payment.id]);
+                    await db.execute('UPDATE users SET payment_status = "rejected" WHERE id = ?', [payment.user_id]);
+
+                    const [userRows] = await db.execute('SELECT whatsapp_number FROM users WHERE id = ? LIMIT 1', [payment.user_id]);
+                    if (userRows.length > 0 && userRows[0].whatsapp_number) {
+                        const userJid = `${userRows[0].whatsapp_number.replace(/\+/g, '')}@c.us`;
+                        try {
+                            await client.sendMessage(
+                                userJid,
+                                "Lacagta lagaama hayo ee makuugu shubaa mid kale ama hadii aad cabasho qabto lahadal payments managerkan:"
+                            );
+                            try {
+                                const managerContact = await client.getContactById('252654810865@c.us');
+                                await client.sendMessage(userJid, managerContact);
+                            } catch (cErr) {
+                                console.error('[WHATSAPP BOT] Failed to send contact card:', cErr.message);
+                            }
+                        } catch (sendErr) {
+                            console.error('[WHATSAPP BOT] Failed to notify user of rejection:', sendErr.message);
+                        }
+                    }
+
+                    await message.reply("❌ Lacag-bixinta waa la diiday (Rejected). Isticmaalaha waa la ogeysiiyey.");
+                    return;
+                }
+            }
+        }
+    }
+
+    // B. Look up user in database
     const [users] = await db.execute(
         'SELECT id, name, is_suspended FROM users WHERE whatsapp_number = ? LIMIT 1',
         [normalizedPhone]
@@ -428,14 +668,7 @@ async function handleIncomingMessage(message) {
 
     if (users.length === 0) {
         if (!isGroup) {
-            await message.reply(
-                `*Kulama hadli karo* sababtoo ah waxaa la igu amray in aan la hadlo oo kaliya dadka ka diwaan gashan app-ka *Darkpen*.\n\n` +
-                `Si aad isu diwaangeliso, fadlan raac qodobadan fudud:\n\n` +
-                `1. *Lasoo deg App-ka:* Play Store-ka ku qor *Darkpen* si aad u soo degsato, ama raac link-gan:\n` +
-                `   🔗 https://play.google.com/store/apps/details?id=com.darkpen.app\n\n` +
-                `2. *Isu-diwaangeli:* Marka uu kuusoo dego, iska diwaangeli adigoo adeegsanaya lambarkan WhatsApp-ka ah ee aad hadda igala hadlayso.\n\n` +
-                `3. *Ku shubo Credit:* Ku shubo ugu yaraan *$0.50* si aad u hesho credit, ka dibna iigu soo laabo si aan kuu caawiyo.`
-            );
+            await handleUnregisteredRegistration(message, normalizedPhone);
         }
         return;
     }
@@ -448,6 +681,17 @@ async function handleIncomingMessage(message) {
     }
 
     const userId = user.id;
+
+    // A. Intercept if user has any pending payment request
+    const [pendingRows] = await db.execute(
+        'SELECT id FROM whatsapp_pending_payments WHERE user_id = ? AND status = "pending" LIMIT 1',
+        [userId]
+    );
+
+    if (pendingRows.length > 0) {
+        await message.reply("Codsigaaga ku shubashada waa uu socdaa, fadlan sug inta laga soo hubinayo.");
+        return;
+    }
 
     // ─── Password Reset Flow ──────────────────────────────────────────────────────
     const cleanBody = (message.body || '').toLowerCase().trim();
@@ -488,6 +732,84 @@ async function handleIncomingMessage(message) {
         } catch (err) {
             console.error('[WHATSAPP BOT] Password reset db update failed:', err.message);
             await message.reply("Waan ka xunnahay, cilad ayaa ku timid kaydinta furahaaga cusub. Fadlan mar kale isku day waxyar ka dib.");
+        }
+        return;
+    }
+
+    // ─── Top-Up Consent / Payment Flow ───
+    if (state && state.step === 'awaiting_topup_consent') {
+        if (cleanBody === 'haa') {
+            userStates.set(userId, { step: 'awaiting_plan_choice' });
+            await message.reply(
+                `Fadlan dooro qorshaha aad rabto (Qor lambarka qorshaha tusaale: 1, 2 ama 3):\n\n` +
+                `1. *Pay as you go:* $0.5 (100 Credits)\n` +
+                `2. *Monthly Basic:* $3 (Unlimited standard chat - 30 Days)\n` +
+                `3. *Monthly Premium:* $11 (Unlimited chat + premium support - 30 Days)`
+            );
+        } else if (cleanBody === 'maya') {
+            await message.reply("Haye, waa la baajiyey (Cancel).");
+            userStates.delete(userId);
+        } else {
+            await message.reply("Fadlan ku jawaab 'Haa' ama 'Maya'.");
+        }
+        return;
+    }
+
+    if (state && state.step === 'awaiting_plan_choice') {
+        if (['1', '2', '3'].includes(cleanBody)) {
+            userStates.set(userId, { step: 'awaiting_payment_sender_number', plan: cleanBody });
+            
+            let planDesc = '';
+            if (cleanBody === '1') planDesc = 'Pay as you go ($0.5)';
+            else if (cleanBody === '2') planDesc = 'Monthly Basic ($3)';
+            else if (cleanBody === '3') planDesc = 'Monthly Premium ($11)';
+
+            await message.reply(
+                `Waxaad dooratay: *${planDesc}*\n\n` +
+                `Fadlan lacagta ku soo dir mid ka mid ah lambaradan:\n` +
+                `• EVC Plus: *637930329*\n` +
+                `• eDahab: *659119779*\n\n` +
+                `Caawinaad:\n` +
+                `- EVC Plus: Garaac *712*637930329*lacagta#\n` +
+                `- eDahab: Garaac *711*659119779*lacagta#\n\n` +
+                `Markaad lacagta soo dirtid, fadlan halkan ku soo qor lambarka aad lacagta ka soo dirtay si aan u hubinno (Checking):`
+            );
+        } else {
+            await message.reply("Fadlan dooro lambar sax ah oo u dhexeeya 1, 2, ama 3:");
+        }
+        return;
+    }
+
+    if (state && state.step === 'awaiting_payment_sender_number') {
+        const senderNum = message.body.trim();
+        if (!senderNum) {
+            await message.reply("Fadlan qor lambar sax ah oo aad lacagta ka soo dirtay:");
+            return;
+        }
+
+        const planChoice = state.plan;
+        let planName = '';
+        if (planChoice === '1') planName = 'Pay as you go ($0.5)';
+        else if (planChoice === '2') planName = 'Monthly Basic ($3)';
+        else if (planChoice === '3') planName = 'Monthly Premium ($11)';
+
+        const adminJid = '252637930329@c.us';
+        const adminMsgText = `qorshe: ${planName}\nuser: ${user.name}\nnumber: ${senderNum}`;
+
+        try {
+            const adminMsg = await client.sendMessage(adminJid, adminMsgText);
+            const adminMsgId = adminMsg.id._serialized;
+
+            await db.execute(
+                'INSERT INTO whatsapp_pending_payments (user_id, admin_message_id, plan, phone_submitted, status) VALUES (?, ?, ?, ?, "pending")',
+                [userId, adminMsgId, planChoice, senderNum]
+            );
+
+            await message.reply("Codsigaaga ku shubashada waa la diray oo waa la hubinayaa. Fadlan sug inta laga soo tasdiqinayo.");
+            userStates.delete(userId);
+        } catch (err) {
+            console.error('[WHATSAPP BOT] Failed to notify admin/save database:', err.message);
+            await message.reply("Waan ka xunnahay, codsigaaga lama gudbin karo hadda. Fadlan mar kale isku day waxyar ka dib.");
         }
         return;
     }
@@ -611,8 +933,8 @@ async function handleIncomingMessage(message) {
                        (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id AND session_id IS NOT NULL) AS app_messages_count,
                        (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id AND session_id IS NULL) AS whatsapp_messages_count,
                        (SELECT balance FROM user_wallet WHERE user_id = u.id) AS credits,
-                       (SELECT type FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() AND (SELECT balance FROM user_wallet WHERE user_id = u.id) > 0 ORDER BY expiry_date DESC LIMIT 1) AS sub_type,
-                       (SELECT expiry_date FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() AND (SELECT balance FROM user_wallet WHERE user_id = u.id) > 0 ORDER BY expiry_date DESC LIMIT 1) AS sub_expiry
+                       (SELECT type FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1) AS sub_type,
+                       (SELECT expiry_date FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1) AS sub_expiry
                 FROM users u WHERE u.id = ?
             `, [userId]);
 
@@ -747,6 +1069,8 @@ async function handleIncomingMessage(message) {
 
         if (!hasBalance) {
             await message.reply('Dhibcahaagu kuma filna dhegeysiga codka (20 Credits).');
+            await message.reply('Makuugu shubaa credit? (Ku jawaab: Haa ama Maya)');
+            userStates.set(userId, { step: 'awaiting_topup_consent' });
             return;
         }
 
@@ -792,7 +1116,7 @@ async function handleIncomingMessage(message) {
     }
 
     const [sub] = await db.execute(
-        'SELECT * FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW() AND (SELECT balance FROM user_wallet WHERE user_id = user_subscriptions.user_id) > 0',
+        'SELECT * FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW()',
         [userId]
     );
     const hasActiveSub = sub.length > 0;
@@ -807,6 +1131,8 @@ async function handleIncomingMessage(message) {
         const balance = wallet.length > 0 ? wallet[0].balance : 0;
         if (balance < cost) {
             await message.reply('kushubo credit');
+            await message.reply('Makuugu shubaa credit? (Ku jawaab: Haa ama Maya)');
+            userStates.set(userId, { step: 'awaiting_topup_consent' });
             return;
         }
         await db.execute('UPDATE user_wallet SET balance = GREATEST(0, balance - ?) WHERE user_id = ?', [cost, userId]);

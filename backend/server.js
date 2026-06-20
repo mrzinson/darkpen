@@ -281,6 +281,16 @@ server.listen(PORT, () => {
             console.error('[WHATSAPP BOT LOAD ERROR]:', err.message);
         }
     }
+
+    // Run Telegram Bot if token is provided in environment
+    if (process.env.TELEGRAM_BOT_TOKEN) {
+        try {
+            const telegramBot = require('./services/telegramBot');
+            telegramBot.initialize();
+        } catch (err) {
+            console.error('[TELEGRAM BOT LOAD ERROR]:', err.message);
+        }
+    }
 });
 
 

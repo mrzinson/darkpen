@@ -384,8 +384,8 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
                        (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id AND session_id IS NOT NULL) AS app_messages_count,
                        (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id AND session_id IS NULL) AS whatsapp_messages_count,
                        (SELECT balance FROM user_wallet WHERE user_id = u.id) AS credits,
-                       (SELECT type FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() AND (SELECT balance FROM user_wallet WHERE user_id = u.id) > 0 ORDER BY expiry_date DESC LIMIT 1) AS sub_type,
-                       (SELECT expiry_date FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() AND (SELECT balance FROM user_wallet WHERE user_id = u.id) > 0 ORDER BY expiry_date DESC LIMIT 1) AS sub_expiry
+                       (SELECT type FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1) AS sub_type,
+                       (SELECT expiry_date FROM user_subscriptions WHERE user_id = u.id AND expiry_date > NOW() ORDER BY expiry_date DESC LIMIT 1) AS sub_expiry
                 FROM users u WHERE u.id = ?
             `, [userId]);
 
@@ -560,7 +560,7 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
     }
 
     // Check subscription
-    const [sub] = await db.execute('SELECT * FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW() AND (SELECT balance FROM user_wallet WHERE user_id = user_subscriptions.user_id) > 0', [userId]);
+    const [sub] = await db.execute('SELECT * FROM user_subscriptions WHERE user_id = ? AND expiry_date > NOW()', [userId]);
     const hasActiveSub = sub.length > 0;
 
     let usedFreeAI = false;
