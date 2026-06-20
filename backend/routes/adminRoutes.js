@@ -384,7 +384,11 @@ router.post('/payments/:id/approve', async (req, res) => {
             } else {
                 planName = 'Pay as you go (100 Credits)';
             }
-            const approveMsg = `Hambalyo! Lacag-bixintaada waa la ansixiyey. Koontadaada waxaa lagu shubay qorshaha aad dooratay (${planName}). Hadda waad isticmaali kartaa Darkpen.\n\nMakaa caawiyaa sida uu u shaqeeyo WhatsApp bot-ku? (Ku jawaab: Haa ama Maya)`;
+            const approveMsg =
+                `✅ *Hambalyo!*\n` +
+                `Lacag-bixintaadii waa la *ansixiyey*.\n` +
+                `📦 Qorshe: *${planName}*\n\n` +
+                `Makaa caawiyaa sida bot-ku u shaqeeyo? (Haa / Maya)`;
             let waSent = false;
             // Try local bot first
             try {
@@ -436,7 +440,10 @@ router.post('/payments/:id/reject', async (req, res) => {
         const [userRows] = await db.execute('SELECT name, whatsapp_number FROM users WHERE id = ? LIMIT 1', [p.user_id]);
         if (userRows.length > 0 && userRows[0].whatsapp_number) {
             const userPhone = userRows[0].whatsapp_number;
-            const rejectMsg = `Lacagta lagaama hayo ee makuugu shubaa mid kale ama hadii aad cabasho qabto lahadal payments managerkan: +252654810865`;
+            const rejectMsg =
+                `❌ *Lacagta lama hayo.*\n` +
+                `Fadlan ku soo dir lacag kale, ama la xiriir:\n` +
+                `📞 *+252654810865*`;
             let waRejSent = false;
             // Try local bot first
             try {
