@@ -352,11 +352,11 @@ router.post('/payments/:id/approve', async (req, res) => {
             );
         } else if (isPromoPeriod && p.amount >= 2.0 && p.amount < 3.0) {
             // ── PROMO Basic Subscription ($2.00 during promo period) ──────────
-            console.log(`[PAYMENT] PROMO BASIC: User ${p.user_id} paid $${p.amount} during promo period → 600 credits`);
+            console.log(`[PAYMENT] PROMO BASIC: User ${p.user_id} paid $${p.amount} during promo period → 800 credits`);
             await db.execute(`INSERT INTO ${subTable} (user_id, type, expiry_date) VALUES (?, "monthly_3", DATE_ADD(NOW(), INTERVAL 30 DAY))`, [p.user_id]);
-            // Set balance to Promo Basic limit (600 credits)
+            // Set balance to Promo Basic limit (800 credits)
             await db.execute(
-                `INSERT INTO ${walletTable} (user_id, balance) VALUES (?, 600) ON DUPLICATE KEY UPDATE balance = 600, last_updated = NOW()`,
+                `INSERT INTO ${walletTable} (user_id, balance) VALUES (?, 800) ON DUPLICATE KEY UPDATE balance = 800, last_updated = NOW()`,
                 [p.user_id]
             );
         } else if (p.amount >= 3.0) {
@@ -407,17 +407,12 @@ router.post('/payments/:id/approve', async (req, res) => {
             } else {
                 planName = 'Pay as you go (100 Credits)';
             }
-            const approveMsg =
-                `✅ *Hambalyo!*\n` +
-                `Lacag-bixintaadii waa la *ansixiyey*.\n` +
-                `📦 Qorshe: *${planName}*\n\n` +
-                `Makaa caawiyaa sida bot-ku u shaqeeyo? (Haa / Maya)`;
+            const approveMsg = `✅ Hambalyo waad isticmaali kartaa.`;
             let waSent = false;
             // Try local bot first
             try {
                 if (whatsappBot.getBotStatus && whatsappBot.getBotStatus() === 'connected') {
                     await whatsappBot.sendWhatsAppMessage(userJid, approveMsg);
-                    whatsappBot.setUserState(p.user_id, { step: 'awaiting_whatsapp_help_consent' });
                     waSent = true;
                 }
             } catch (wErr) {
@@ -427,7 +422,6 @@ router.post('/payments/:id/approve', async (req, res) => {
             if (!waSent) {
                 try {
                     await whatsappCloudBot.sendCloudMessage(userPhone.replace(/^\+/, ''), approveMsg);
-                    whatsappCloudBot.setUserState(p.user_id, { step: 'awaiting_whatsapp_help_consent' });
                 } catch (cErr) {
                     console.error('[ADMIN APPROVE] Cloud bot also failed:', cErr.message);
                 }
@@ -464,20 +458,12 @@ router.post('/payments/:id/reject', async (req, res) => {
         if (userRows.length > 0 && userRows[0].whatsapp_number) {
             const userPhone = userRows[0].whatsapp_number;
             const userJid = userRows[0].whatsapp_jid || userPhone;
-            const rejectMsg =
-                `❌ *Lacagta lama hayo.*\n` +
-                `Fadlan ku soo dir lacag kale, ama la xiriir:\n` +
-                `📞 *+252654810865*`;
+            const rejectMsg = `❌ Lama aqbalin lacagta.`;
             let waRejSent = false;
             // Try local bot first
             try {
                 if (whatsappBot.getBotStatus && whatsappBot.getBotStatus() === 'connected') {
                     await whatsappBot.sendWhatsAppMessage(userJid, rejectMsg);
-                    try {
-                        await whatsappBot.sendWhatsAppContact(userJid, '252654810865@c.us');
-                    } catch (cErr) {
-                        console.error('[ADMIN REJECT] Failed to send contact card:', cErr.message);
-                    }
                     waRejSent = true;
                 }
             } catch (wErr) {

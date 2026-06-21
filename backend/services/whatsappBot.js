@@ -1615,7 +1615,7 @@ If they say they have no money, respond politely and say they can do it whenever
     7. EDUCATIONAL & SCIENTIFIC ACCURACY: If the topic is educational, scientific, or mathematical, you must double-check your facts, formulas, and reasoning to ensure 100% accuracy and reliability. Do not provide incorrect information.
     8. Formatting: Highlight key terms using *Keyword* (bold) instead of markdown. Do not add spaces inside formatting symbols (e.g., use *bold* not * bold *).
     9. Shaxan (table): use custom <table_data>Header1|Header2\nVal1|Val2</table_data> format.
-    10. Pricing info: Pay as you go $0.5 (100 credits), Monthly Basic $3 (unlimited standard chat, 1000 credits), Monthly Premium $11 (unlimited chat + premium math/science/image support, 5000 credits). 🎉 PROMO HADDA (ilaa 20/07/2026): Monthly Basic waxaa laga heli karaa $2 kaliya (600 credits) — fursad ku-meel-gaadh ah! Payment: EVC Plus dial *771*637930329*amount# | ZAAD dial *220*637930329*amount# (same number 637930329) | eDahab dial *700*659119779*amount#. After sending, user types sender number here. Contact: WhatsApp +252637930329.
+    10. Pricing info: Pay as you go $0.5 (100 credits), Monthly Basic $3 (unlimited standard chat, 1000 credits), Monthly Premium $11 (unlimited chat + premium math/science/image support, 5000 credits). 🎉 QIIMO DHIMIS (ilaa 20/07/2026): Monthly Basic (Bille Basic) waxaa laga heli karaa $2 kaliya! (Fadlan marnaba ha sheegin inta credit ama xog kale ee qorshahan $2 ah ku jirta, kaliya sheeg inuu yahay Bille Basic / Monthly Basic oo qiimo dhimis ah oo lagu heli karo $2 kaliya). Payment: EVC Plus dial *771*637930329*amount# | ZAAD dial *220*637930329*amount# (same number 637930329) | eDahab dial *700*659119779*amount#. After sending, user types sender number here. Contact: WhatsApp +252637930329.
     11. USER SATISFACTION & RETENTION: Your primary goal is to satisfy, persuade, and retain the user. Be extremely friendly, welcoming, and helpful. You must actively try to engage and hold conversations with new users. If appropriate, you can ask them questions about themselves (xaal-waraysi) or interview them to understand their needs better. Never be cold, dismissive, or try to redirect them away unless absolutely necessary.
     12. PERSONALITY & REAL-PERSON CHAT: Speak and interact like a real, warm person (not a robotic AI). You can joke, tease, and chat about absolutely anything they want (life, hobbies, friends, etc.) to keep them engaged. The only exception is illegal or highly dangerous topics, which you must politely decline.`;
 
@@ -1645,7 +1645,26 @@ If they say they have no money, respond politely and say they can do it whenever
     try {
         const aiResponse = await askGemini(finalPrompt, "gemini-2.5-flash", attachmentData, history, darkpenSystemInstruction);
 
-        const formattedResponse = formatResponseForWhatsApp(aiResponse);
+        let isRunningOut = false;
+        const finalBalance = !hasActiveSub && !usedFreeAI ? Math.max(0, walletBalance - cost) : walletBalance;
+        if (hasActiveSub && sub.length > 0) {
+            const expiryDate = new Date(sub[0].expiry_date);
+            const now = new Date();
+            const msRemaining = expiryDate.getTime() - now.getTime();
+            const daysRemaining = msRemaining / (1000 * 60 * 60 * 24);
+            if (daysRemaining <= 2 || finalBalance < 50) {
+                isRunningOut = true;
+            }
+        } else {
+            if (finalBalance < 20) {
+                isRunningOut = true;
+            }
+        }
+
+        let formattedResponse = formatResponseForWhatsApp(aiResponse);
+        if (isRunningOut) {
+            formattedResponse += "\n\n⚠️ *Lacagtaadii wey kaa sii dhamaanaysaa ee ku shubo lacag.*";
+        }
         await message.reply(formattedResponse);
 
         // Send contact card if the support/manager numbers are mentioned in the response

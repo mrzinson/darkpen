@@ -897,7 +897,7 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
     7. EDUCATIONAL & SCIENTIFIC ACCURACY: If the topic is educational, scientific, or mathematical, you must double-check your facts, formulas, and reasoning to ensure 100% accuracy and reliability. Do not provide incorrect information.
     8. Formatting: Highlight key terms using *Keyword* (bold) instead of markdown. Do not add spaces inside formatting symbols (e.g., use *bold* not * bold *).
     9. Shaxan (table): use custom <table_data>Header1|Header2\nVal1|Val2</table_data> format.
-    10. Pricing info: Pay as you go $0.5 (100 credits), Monthly Basic $3 (unlimited standard chat, 1000 credits), Monthly Premium $11 (unlimited chat + premium math/science/image support, 5000 credits). 🎉 PROMO HADDA (ilaa 20/07/2026): Monthly Basic waxaa laga heli karaa $2 kaliya (600 credits) — fursad ku-meel-gaadh ah! Payment: EVC Plus dial *771*637930329*amount# | ZAAD dial *220*637930329*amount# (same number 637930329) | eDahab dial *700*659119779*amount#. After sending, user types sender number here. Contact: WhatsApp +252637930329.
+    10. Pricing info: Pay as you go $0.5 (100 credits), Monthly Basic $3 (unlimited standard chat, 1000 credits), Monthly Premium $11 (unlimited chat + premium math/science/image support, 5000 credits). 🎉 QIIMO DHIMIS (ilaa 20/07/2026): Monthly Basic (Bille Basic) waxaa laga heli karaa $2 kaliya! (Fadlan marnaba ha sheegin inta credit ama xog kale ee qorshahan $2 ah ku jirta, kaliya sheeg inuu yahay Bille Basic / Monthly Basic oo qiimo dhimis ah oo lagu heli karo $2 kaliya). Payment: EVC Plus dial *771*637930329*amount# | ZAAD dial *220*637930329*amount# (same number 637930329) | eDahab dial *700*659119779*amount#. After sending, user types sender number here. Contact: WhatsApp +252637930329.
     11. USER SATISFACTION: Your primary goal is to satisfy and persuade the user. Be helpful, warm, and accommodating. NEVER try to redirect the user away or respond in a way that frustrates them.
     12. PERSONALITY & HUMOR (KAFTAN): Be friendly, warm, and humorous. You can joke, tease, and play along with the user. If a user writes something rude, inappropriate, or sexual ("edeb darro"), reject it politely but with a lighthearted, playful, and teasing tone (kaftan diido ah), never being harsh or overly formal.`;
 
@@ -918,8 +918,28 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
     try {
         const aiResponse = await askGemini(finalPrompt, "gemini-2.5-flash", attachmentData, history, darkpenSystemInstruction);
 
+        let isRunningOut = false;
+        const [walletRows] = await db.execute('SELECT balance FROM user_wallet WHERE user_id = ?', [userId]);
+        const finalBalance = walletRows.length > 0 ? walletRows[0].balance : 0;
+        if (hasActiveSub && sub.length > 0) {
+            const expiryDate = new Date(sub[0].expiry_date);
+            const now = new Date();
+            const msRemaining = expiryDate.getTime() - now.getTime();
+            const daysRemaining = msRemaining / (1000 * 60 * 60 * 24);
+            if (daysRemaining <= 2 || finalBalance < 50) {
+                isRunningOut = true;
+            }
+        } else {
+            if (finalBalance < 20) {
+                isRunningOut = true;
+            }
+        }
+
         // Format response to replace HTML-style tags with WhatsApp-supported bold and emojis
-        const formattedResponse = formatResponseForWhatsApp(aiResponse);
+        let formattedResponse = formatResponseForWhatsApp(aiResponse);
+        if (isRunningOut) {
+            formattedResponse += "\n\n⚠️ *Lacagtaadii wey kaa sii dhamaanaysaa ee ku shubo lacag.*";
+        }
 
         // Send response via WhatsApp Cloud API
         await sendCloudMessage(from, formattedResponse);
