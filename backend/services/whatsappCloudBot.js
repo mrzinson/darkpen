@@ -798,7 +798,7 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
     4. Keep responses concise, direct, and helpful.
     5. Highlight key terms using *Keyword* (bold) instead of markdown.
     6. Shaxan (table): use custom <table_data>Header1|Header2\nVal1|Val2</table_data> format.
-    7. Pricing info: Pay as you go $0.5 (100 credits), Monthly Basic $3 (unlimited standard chat), Monthly Premium $11 (unlimited chat + premium math/science/image support). EVC Plus/eDahab numbers 637930329 or 659119779. Send screenshot to WhatsApp +252637930329 or team.darkpen@gmail.com.
+    7. Pricing info: Pay as you go $0.5 (100 credits), Monthly Basic $3 (unlimited standard chat), Monthly Premium $11 (unlimited chat + premium support). EVC Plus number is 637930329 (dial *771*637930329*amount#). ZAAD number is 637930329 — same as EVC (dial *220*637930329*amount#). eDahab number is 659119779 (dial *700*659119779*amount#). Send payment sender number to bot or contact WhatsApp manager +252637930329.
     8. USER SATISFACTION: Your primary goal is to satisfy and persuade the user. Be helpful, warm, and accommodating. NEVER try to redirect the user away or respond in a way that frustrates them.`;
 
     // 7. Call Gemini API
@@ -864,7 +864,7 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
     } catch (err) {
         console.error('[WHATSAPP CLOUD] Gemini generation error:', err);
         await sendCloudReaction(from, messageId, '').catch(() => {});
-        await sendCloudMessage(from, 'Waan ka xunnahay, darkpen cilad farsamo ayaa ku timid. Fadlan mar kale isku day waxyar ka dib.');
+        await sendCloudMessage(from, 'Waan ka xunnahay, Darkpen waxaa ku yimid cilad farsamo oo ku meel gaadh ah. Si aan hawshaadu u xanibmin, fadlan nagala hadal Telegram-ka: t.me/darkpenBot ama toos ula xidhiidh Maamulaha: +252637930329.');
     }
 }
 

@@ -597,7 +597,7 @@ Rules:
 4. Keep responses concise, direct, and helpful.
 5. Bold key terms using *Keyword*.
 6. Tables: use <table_data>Header1|Header2\\nVal1|Val2</table_data> format.
-7. Pricing: Pay as you go $0.5 (100 credits), Basic $3/month, Premium $11/month. EVC/eDahab: 637930329 or 659119779. Screenshot → WhatsApp +252637930329 or team.darkpen@gmail.com.
+7. Pricing: Pay as you go $0.5 (100 credits), Basic $3/month, Premium $11/month. EVC Plus: *771*637930329*amount# | ZAAD: *220*637930329*amount# | eDahab: *700*659119779*amount#. After sending, user types sender number. Contact: WhatsApp +252637930329.
 8. Be helpful, warm, accommodating. Never redirect the user away frustratingly.`;
 
     try {
@@ -619,7 +619,7 @@ Rules:
 
     } catch (err) {
         console.error('[TELEGRAM BOT] Gemini error:', err);
-        await bot.sendMessage(chatId, '⚠️ Waan ka xunnahay\\, cilad farsamo ayaa ku timid\\. Mar kale isku day\\.', { parse_mode: 'Markdown' });
+        await bot.sendMessage(chatId, '⚠️ Waan ka xunnahay\\, Darkpen waxaa ku yimid cilad farsamo oo ku meel gaadh ah\\. Si aan hawshaadu u xanibmin\\, fadlan la xidhiidh Maamulaha: +252637930329\\.', { parse_mode: 'Markdown' });
     }
 }
 
@@ -762,7 +762,7 @@ async function handleContactSharing(msg) {
         );
     } catch (err) {
         console.error('[TELEGRAM BOT] Link error:', err.message);
-        await bot.sendMessage(chatId, '❌ Cilad farsamo ayaa ku timid\\. Mar kale isku day\\.', {
+        await bot.sendMessage(chatId, '❌ Darkpen waxaa ku yimid cilad farsamo oo ku meel gaadh ah\\. Si aan hawshaadu u xanibmin\\, fadlan la xidhiidh Maamulaha: +252637930329\\.', {
             parse_mode: 'Markdown', reply_markup: { remove_keyboard: true }
         });
     }
@@ -897,7 +897,9 @@ async function handleRegistrationFlow(msg, state) {
                 `━━━━━━━━━━━━━━━\n` +
                 `✨ Hadda waad isticmaali kartaa Darkpen Bot\\!\n` +
                 `💳 Ku shubo *$0\\.50* \\(100 credits\\) si aad u bilowdo:\n` +
-                `EVC\\+/eDahab → *637930329* ama *659119779*\n` +
+                `EVC Plus: *\\*771\\*637930329\\*lacagta\\#*\n` +
+                `ZAAD: *\\*220\\*637930329\\*lacagta\\#*\n` +
+                `eDahab: *\\*700\\*659119779\\*lacagta\\#*\n` +
                 `Ka dib screenshot WhatsApp\\-ka u dir: *\\+252637930329*\n\n` +
                 `🤖 Su'aashaada iigu soo dir\\!`,
                 { parse_mode: 'Markdown' }

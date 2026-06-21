@@ -965,13 +965,13 @@ async function handleIncomingMessage(message) {
 
             await message.reply(
                 `Waxaad dooratay: *${planDesc}*\n\n` +
-                `Fadlan lacagta ku soo dir mid ka mid ah lambaradan:\n` +
-                `• EVC Plus: *637930329*\n` +
-                `• eDahab: *659119779*\n\n` +
-                `Caawinaad:\n` +
-                `- EVC Plus: Garaac *712*637930329*lacagta#\n` +
-                `- eDahab: Garaac *711*659119779*lacagta#\n\n` +
-                `Markaad lacagta soo dirtid, fadlan halkan ku soo qor lambarka aad lacagta ka soo dirtay si aan u hubinno (Checking):`
+                `Fadlan lacagta ku soo dir:\n` +
+                `• *EVC Plus:* Garaac *771*637930329*lacagta#\n` +
+                `• *ZAAD:* Garaac *220*637930329*lacagta#\n` +
+                `• *eDahab:* Garaac *700*659119779*lacagta#\n\n` +
+                `ℹ️ EVC Plus iyo ZAAD waxay wadaagaan isku number: *637930329*\n` +
+                `ℹ️ eDahab number: *659119779*\n\n` +
+                `Markaad lacagta soo dirtid, fadlan halkan ku soo qor *lambarka aad lacagta KA soo dirtay* (kama aha kan lacagta loo diray) si aan u hubinno:`
             );
         } else {
             await handleOutOfFlowQuery(message, userId, 'plan_choice', "I asked the user to select plan 1, 2, or 3. They must reply with '1', '2', or '3' to continue.");
@@ -991,18 +991,21 @@ async function handleIncomingMessage(message) {
             } else {
                 // Call Gemini to concisely explain/respond to their message
                 const systemPrompt = `You are an AI assistant for Darkpen.
-The user is currently trying to top up their account and was asked to enter the phone number they sent the money from.
+The user is currently trying to top up their account and was asked to enter the phone number they sent the money FROM (the sender number, not the receiver).
 Instead of entering a number, they sent this message: "${senderNum}".
 
 Instruction:
-1. Understand what they are saying/asking in this message (e.g. asking how to send money, saying they don't have money, etc.).
-2. Respond to them directly and warmly in the same language they used (usually Somali).
+1. Understand what they are saying/asking.
+2. Respond directly and warmly in the same language they used (usually Somali).
 3. Keep the response very concise and helpful.
-4. Remind them at the end that to complete the top-up, they must send the money and type the sender phone number here.
+4. Use ONLY these correct payment instructions:
+   - EVC Plus: dial *771*637930329*lacagta# (number: 637930329)
+   - ZAAD: dial *220*637930329*lacagta# (same number as EVC: 637930329)
+   - eDahab: dial *700*659119779*lacagta# (number: 659119779)
+5. Remind them: after sending money, they must type here the phone number they SENT FROM.
 
-Example:
-If they ask "How do I send?", explain briefly (EVC Plus dial *712*637930329*amount#) and ask them to enter the number after sending.
-If they say "I don't have money", respond politely and tell them they can do it whenever they are ready.`;
+If they ask how to send, explain briefly using the correct codes above.
+If they say they have no money, respond politely and say they can do it whenever ready.`;
                 try {
                     const aiResponse = await askGemini(senderNum, "gemini-2.5-flash", null, [], systemPrompt);
                     await message.reply(formatResponseForWhatsApp(aiResponse));
@@ -1441,7 +1444,7 @@ If they say "I don't have money", respond politely and tell them they can do it 
     4. Keep responses concise, direct, and helpful.
     5. Highlight key terms using *Keyword* (bold) instead of markdown.
     6. Shaxan (table): use custom <table_data>Header1|Header2\nVal1|Val2</table_data> format.
-    7. Pricing info: Pay as you go $0.5 (100 credits), Monthly Basic $3 (unlimited standard chat), Monthly Premium $11 (unlimited chat + premium math/science/image support). EVC Plus/eDahab numbers 637930329 or 659119779. Send screenshot to WhatsApp +252637930329 or team.darkpen@gmail.com.
+    7. Pricing info: Pay as you go $0.5 (100 credits), Monthly Basic $3 (unlimited standard chat), Monthly Premium $11 (unlimited chat + premium math/science/image support). Payment: EVC Plus dial *771*637930329*amount# | ZAAD dial *220*637930329*amount# (same number 637930329) | eDahab dial *700*659119779*amount#. After sending, user types sender number here. Contact: WhatsApp +252637930329.
     8. USER SATISFACTION: Your primary goal is to satisfy and persuade the user. Be helpful, warm, and accommodating. NEVER try to redirect the user away or respond in a way that frustrates them.
     9. PERSONALITY & HUMOR (KAFTAN): Be friendly, warm, and humorous. You can joke, tease, and play along with the user (kaftami kara). Do NOT limit yourself to educational topics. If the user wants to chat about life, relationships, connect, make friends, joke, or talk about anything, accommodate them warmly and play along. If a user writes something rude, inappropriate, or sexual ("edeb darro"), reject it politely but with a lighthearted, playful, and teasing tone (kaftan diido ah), never being harsh or overly formal.`;
 
