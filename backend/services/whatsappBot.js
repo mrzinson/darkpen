@@ -18,6 +18,9 @@ if (!fs.existsSync(uploadsDir)) {
 
 let client = null;
 let isInitializing = false;
+let readyTime = 0;
+const offlineMessageBuffer = new Map();
+let offlineProcessTimeout = null;
 
 // Destroy existing client/browser to free RAM before re-initializing
 async function destroyClient() {
@@ -355,7 +358,6 @@ exports.initialize = async () => {
                 '--no-default-browser-check',
                 '--disable-default-apps',
                 '--no-zygote',
-                '--single-process',
                 '--disable-extensions',
                 '--disable-accelerated-2d-canvas',
                 '--blink-settings=imagesEnabled=false',
@@ -422,7 +424,8 @@ exports.initialize = async () => {
         client.on('ready', () => {
             botStatus = 'connected';
             currentQRDataURL = null;
-            console.log('[WHATSAPP BOT] Client is ready and listening to messages!');
+            readyTime = Math.floor(Date.now() / 1000);
+            console.log('[WHATSAPP BOT] Client is ready and listening to messages! readyTime set to:', readyTime);
         });
 
         // Auth failure – auto-clear session and reconnect
@@ -495,6 +498,32 @@ exports.initialize = async () => {
         // Incoming messages
         client.on('message', async (message) => {
             try {
+                // Buffer and deduplicate offline messages received during initialization
+                if (readyTime > 0 && message.timestamp < readyTime) {
+                    console.log(`[WHATSAPP BOT] Offline message received from ${message.from} (timestamp: ${message.timestamp}, readyTime: ${readyTime}). Buffering...`);
+                    offlineMessageBuffer.set(message.from, message);
+
+                    if (!offlineProcessTimeout) {
+                        offlineProcessTimeout = setTimeout(async () => {
+                            console.log(`[WHATSAPP BOT] Processing ${offlineMessageBuffer.size} unique offline messages...`);
+                            const messagesToProcess = Array.from(offlineMessageBuffer.values());
+                            offlineMessageBuffer.clear();
+                            offlineProcessTimeout = null;
+
+                            for (const offlineMsg of messagesToProcess) {
+                                try {
+                                    console.log(`[WHATSAPP BOT] Processing offline message from ${offlineMsg.from}`);
+                                    await handleIncomingMessage(offlineMsg);
+                                } catch (err) {
+                                    console.error('[WHATSAPP BOT] Offline message handling error:', err);
+                                }
+                            }
+                        }, 4000); // 4-second accumulation window
+                    }
+                    return;
+                }
+
+                // Process real-time messages immediately
                 await handleIncomingMessage(message);
             } catch (err) {
                 console.error('[WHATSAPP BOT] Message handling error:', err);
