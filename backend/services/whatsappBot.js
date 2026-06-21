@@ -1587,7 +1587,7 @@ If they say they have no money, respond politely and say they can do it whenever
     } catch (err) {
         console.error('[WHATSAPP BOT] Gemini generation error:', err);
         await message.react('').catch(e => {});
-        await message.reply('Waan ka xunnahay, darkpen cilad farsamo ayaa ku timid. Fadlan mar kale isku day waxyar ka dib.');
+        await message.reply('Waan ka xunnahay, Darkpen waxaa ku yimid cilad farsamo oo ku meel gaadh ah. Si aan hawshaadu u xanibmin, fadlan nagala hadal Telegram-ka: t.me/darkpenBot ama toos ula xidhiidh Maamulaha: +252637930329.');
     }
 }
 
