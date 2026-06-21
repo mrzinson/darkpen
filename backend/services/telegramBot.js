@@ -265,57 +265,13 @@ async function handleIncomingMessage(msg) {
     const isGroup = msg.chat.type === 'group' || msg.chat.type === 'supergroup';
     const isOwner = chatId.toString() === (process.env.TELEGRAM_OWNER_CHAT_ID || '');
 
-    // Welcome message if bot is added to a group
-    if (msg.new_chat_members) {
-        const isBotAdded = msg.new_chat_members.some(member => member.id === botInfo.id);
-        if (isBotAdded) {
-            await bot.sendMessage(
-                chatId,
-                `*DARKPEN GROUP BOT* 🤖📚\n` +
-                `----------------------------------\n` +
-                `Haye dhammaan xubnaha group-ka! Waxaa igu soo biiray caawiyahaaga AI-da ee *Darkpen*.\n\n` +
-                `*SIDA LOOGU JAWAABO INTA LAGU JIRO GROUP-KA:*\n` +
-                `• Si aan kuugu jawaabo, fadlan farriintaada ku bilaab erayga *Darkpen* ama igu soo tag (@tag) si aan u aqoonsado su'aashaada.\n` +
-                `• Waxaad kaloo ii soo diri kartaa sawirro (MCQ, xisaab, ama sharaxaad) adigoo qoraalka sawirka la socda ku bilaabaya *Darkpen*.\n\n` +
-                `*XEERARKA GROUP-KA:*\n` +
-                `• Xubnaha group-ku waa inay ka fogaadaan farriimaha is-daba-joogga ah (spam). Farriimaha badan oo daqiiqad gudaheed ah waxay keeni karaan xannibaad ku-meel-gaadh ah.`
-            );
-        }
+    // Ignore all group chats and channel comment groups to save API costs
+    if (isGroup) {
         return;
     }
 
-    // Owner manual trigger commands (for testing/admin use)
-    if (msg.text && isOwner) {
-        if (msg.text.startsWith('/post_tip')) {
-            await triggerDailyTipGeneration(chatId);
-            return;
-        }
-        if (msg.text.startsWith('/post_poll')) {
-            await triggerSaturdayPollGeneration(chatId);
-            return;
-        }
-        if (msg.text.startsWith('/skip_today')) {
-            const schedulerFile = require('path').join(__dirname, '../uploads/telegram_scheduler.json');
-            try {
-                const state = JSON.parse(require('fs').readFileSync(schedulerFile, 'utf8'));
-                const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Africa/Mogadishu', year: 'numeric', month: '2-digit', day: '2-digit' });
-                const parts = formatter.formatToParts(new Date());
-                const dp = {}; parts.forEach(p => { dp[p.type] = p.value; });
-                const todayStr = `${dp.year}-${dp.month}-${dp.day}`;
-                state.lastDailyTipDate = todayStr;
-                state.lastSaturdayPollDate = todayStr;
-                require('fs').writeFileSync(schedulerFile, JSON.stringify(state));
-                await bot.sendMessage(chatId, '⏭️ Maanta\u2019s automatic post waa la joojiyay. Berri ayuu dib u bilaabi doonaa.');
-            } catch(e) {
-                await bot.sendMessage(chatId, '❌ Skip-garayntu way fashilantay: ' + e.message);
-            }
-            return;
-        }
-    }
-
-    // Intercept group messages for separate group handler
-    if (isGroup) {
-        await handleGroupMessage(msg);
+    // Welcome message if bot is added to a group (disabled)
+    if (msg.new_chat_members) {
         return;
     }
 
