@@ -282,8 +282,8 @@ server.listen(PORT, () => {
         }
     }
 
-    // Run Telegram Bot if token is provided in environment
-    if (process.env.TELEGRAM_BOT_TOKEN) {
+    // Run Telegram Bot if token is provided and running on Render or explicitly enabled
+    if (process.env.TELEGRAM_BOT_TOKEN && (process.env.RENDER === 'true' || process.env.ENABLE_TELEGRAM_BOT === 'true')) {
         try {
             const telegramBot = require('./services/telegramBot');
             telegramBot.initialize();
