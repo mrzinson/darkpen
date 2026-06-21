@@ -1101,10 +1101,18 @@ async function handleIncomingMessage(message) {
     if (state && state.step === 'awaiting_topup_consent') {
         if (isYesResponse(cleanBody)) {
             userStates.set(userId, { step: 'awaiting_plan_choice' });
+            const now = new Date();
+            const promoStart = new Date('2026-06-20T00:00:00+03:00');
+            const promoEnd   = new Date('2027-07-20T23:59:59+03:00');
+            const isPromoPeriod = now >= promoStart && now <= promoEnd;
+            const basicLabel = isPromoPeriod
+                ? `2. *Monthly Basic (Qiimo Dhimis):* $2 (Unlimited standard chat - 30 Days)`
+                : `2. *Monthly Basic:* $3 (Unlimited standard chat - 30 Days)`;
+
             await message.reply(
                 `Fadlan dooro qorshaha aad rabto (Qor lambarka qorshaha tusaale: 1, 2 ama 3):\n\n` +
                 `1. *Pay as you go:* $0.5 (100 Credits)\n` +
-                `2. *Monthly Basic:* $3 (Unlimited standard chat - 30 Days)\n` +
+                `${basicLabel}\n` +
                 `3. *Monthly Premium:* $11 (Unlimited chat + premium support - 30 Days)`
             );
         } else if (isNoResponse(cleanBody)) {
@@ -1120,17 +1128,30 @@ async function handleIncomingMessage(message) {
         if (['1', '2', '3'].includes(cleanBody)) {
             userStates.set(userId, { step: 'awaiting_payment_sender_number', plan: cleanBody });
             
+            const now = new Date();
+            const promoStart = new Date('2026-06-20T00:00:00+03:00');
+            const promoEnd   = new Date('2027-07-20T23:59:59+03:00');
+            const isPromoPeriod = now >= promoStart && now <= promoEnd;
+
             let planDesc = '';
-            if (cleanBody === '1') planDesc = 'Pay as you go ($0.5)';
-            else if (cleanBody === '2') planDesc = 'Monthly Basic ($3)';
-            else if (cleanBody === '3') planDesc = 'Monthly Premium ($11)';
+            let amount = '0.5';
+            if (cleanBody === '1') {
+                planDesc = 'Pay as you go ($0.5)';
+                amount = '0.5';
+            } else if (cleanBody === '2') {
+                planDesc = isPromoPeriod ? 'Monthly Basic (Qiimo Dhimis - $2)' : 'Monthly Basic ($3)';
+                amount = isPromoPeriod ? '2' : '3';
+            } else if (cleanBody === '3') {
+                planDesc = 'Monthly Premium ($11)';
+                amount = '11';
+            }
 
             await message.reply(
                 `Waxaad dooratay: *${planDesc}*\n\n` +
                 `Fadlan lacagta ku soo dir:\n` +
-                `• *EVC Plus:* Garaac *771*637930329*lacagta#\n` +
-                `• *ZAAD:* Garaac *220*637930329*lacagta#\n` +
-                `• *eDahab:* Garaac *700*659119779*lacagta#\n\n` +
+                `• *EVC Plus:* Garaac *771*637930329*${amount}#\n` +
+                `• *ZAAD:* Garaac *220*637930329*${amount}#\n` +
+                `• *eDahab:* Garaac *700*659119779*${amount}#\n\n` +
                 `ℹ️ EVC Plus iyo ZAAD waxay wadaagaan isku number: *637930329*\n` +
                 `ℹ️ eDahab number: *659119779*\n\n` +
                 `Markaad lacagta soo dirtid, fadlan halkan ku soo qor *lambarka aad lacagta KA soo dirtay* (kama aha kan lacagta loo diray) si aan u hubinno:`
@@ -1615,7 +1636,7 @@ If they say they have no money, respond politely and say they can do it whenever
     7. EDUCATIONAL & SCIENTIFIC ACCURACY: If the topic is educational, scientific, or mathematical, you must double-check your facts, formulas, and reasoning to ensure 100% accuracy and reliability. Do not provide incorrect information.
     8. Formatting: Highlight key terms using *Keyword* (bold) instead of markdown. Do not add spaces inside formatting symbols (e.g., use *bold* not * bold *).
     9. Shaxan (table): use custom <table_data>Header1|Header2\nVal1|Val2</table_data> format.
-    10. Pricing info: Pay as you go $0.5 (100 credits), Monthly Basic $3 (unlimited standard chat, 1000 credits), Monthly Premium $11 (unlimited chat + premium math/science/image support, 5000 credits). 🎉 QIIMO DHIMIS (ilaa 20/07/2026): Monthly Basic (Bille Basic) waxaa laga heli karaa $2 kaliya! (Fadlan marnaba ha sheegin inta credit ama xog kale ee qorshahan $2 ah ku jirta, kaliya sheeg inuu yahay Bille Basic / Monthly Basic oo qiimo dhimis ah oo lagu heli karo $2 kaliya). Payment: EVC Plus dial *771*637930329*amount# | ZAAD dial *220*637930329*amount# (same number 637930329) | eDahab dial *700*659119779*amount#. After sending, user types sender number here. Contact: WhatsApp +252637930329.
+    10. Pricing info: Pay as you go $0.5 (100 credits), Monthly Basic $3 (unlimited standard chat, 1000 credits), Monthly Premium $11 (unlimited chat + premium math/science/image support, 5000 credits). 🎉 QIIMO DHIMIS (ilaa 20/07/2027): Monthly Basic (Bille Basic) waxaa laga heli karaa $2 kaliya! (Fadlan marnaba ha sheegin inta credit ama xog kale ee qorshahan $2 ah ku jirta, kaliya sheeg inuu yahay Bille Basic / Monthly Basic oo qiimo dhimis ah oo lagu heli karo $2 kaliya). Payment: EVC Plus dial *771*637930329*amount# | ZAAD dial *220*637930329*amount# (same number 637930329) | eDahab dial *700*659119779*amount#. After sending, user types sender number here. Contact: WhatsApp +252637930329.
     11. USER SATISFACTION & RETENTION: Your primary goal is to satisfy, persuade, and retain the user. Be extremely friendly, welcoming, and helpful. You must actively try to engage and hold conversations with new users. If appropriate, you can ask them questions about themselves (xaal-waraysi) or interview them to understand their needs better. Never be cold, dismissive, or try to redirect them away unless absolutely necessary.
     12. PERSONALITY & REAL-PERSON CHAT: Speak and interact like a real, warm person (not a robotic AI). You can joke, tease, and chat about absolutely anything they want (life, hobbies, friends, etc.) to keep them engaged. The only exception is illegal or highly dangerous topics, which you must politely decline.`;
 

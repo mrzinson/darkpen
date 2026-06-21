@@ -338,7 +338,7 @@ router.post('/payments/:id/approve', async (req, res) => {
         // ── Promo period detection ────────────────────────────────────────────
         const now = new Date();
         const promoStart = new Date('2026-06-20T00:00:00+03:00');
-        const promoEnd   = new Date('2026-07-20T23:59:59+03:00');
+        const promoEnd   = new Date('2027-07-20T23:59:59+03:00');
         const isPromoPeriod = now >= promoStart && now <= promoEnd;
         // ─────────────────────────────────────────────────────────────────────
 
