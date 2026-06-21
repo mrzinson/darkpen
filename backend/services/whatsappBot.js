@@ -17,6 +17,20 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 let client = null;
+let isInitializing = false;
+
+// Destroy existing client/browser to free RAM before re-initializing
+async function destroyClient() {
+    if (client) {
+        try {
+            console.log('[WHATSAPP BOT] Destroying existing client to free memory...');
+            await client.destroy();
+        } catch (e) {
+            console.error('[WHATSAPP BOT] Error destroying client:', e.message);
+        }
+        client = null;
+    }
+}
 
 // QR Code and bot status tracking
 let botStatus = 'initializing'; // 'initializing' | 'qr_ready' | 'connected' | 'disconnected' | 'error'
@@ -249,6 +263,17 @@ class MySQLRemoteAuthStore {
 
 // ─── Initialize function ───────────────────────────────────────────────────────
 exports.initialize = async () => {
+    // Guard against multiple concurrent initializations
+    if (isInitializing) {
+        console.log('[WHATSAPP BOT] Already initializing, skipping duplicate call.');
+        return;
+    }
+    isInitializing = true;
+    botStatus = 'initializing';
+
+    // Destroy any leftover client/browser first to free RAM
+    await destroyClient();
+
     try {
         console.log('[WHATSAPP BOT] Initializing...');
 
@@ -400,17 +425,30 @@ exports.initialize = async () => {
             console.log('[WHATSAPP BOT] Client is ready and listening to messages!');
         });
 
-        // Auth failure – RemoteAuth will delete the session from store automatically
-        client.on('auth_failure', (message) => {
+        // Auth failure – auto-clear session and reconnect
+        client.on('auth_failure', async (msg) => {
             botStatus = 'error';
-            console.error('[WHATSAPP BOT] Authentication failure:', message);
+            isInitializing = false;
+            console.error('[WHATSAPP BOT] Authentication failure:', msg);
+            // Clear bad session from DB so next start shows fresh QR
+            try {
+                await db.execute('DELETE FROM whatsapp_sessions WHERE session_key = ?', ['darkpen']);
+                console.log('[WHATSAPP BOT] Bad session cleared from DB.');
+            } catch (dbErr) {
+                console.error('[WHATSAPP BOT] Failed to clear bad session:', dbErr.message);
+            }
+            console.log('[WHATSAPP BOT] Reconnecting in 15 seconds...');
+            setTimeout(() => { exports.initialize().catch(e => console.error('[WHATSAPP BOT] Reconnect failed:', e.message)); }, 15000);
         });
 
-        // Disconnected
-        client.on('disconnected', (reason) => {
+        // Disconnected – auto-reconnect
+        client.on('disconnected', async (reason) => {
             botStatus = 'disconnected';
             currentQRDataURL = null;
+            isInitializing = false;
             console.log(`[WHATSAPP BOT] Disconnected: ${reason}`);
+            console.log('[WHATSAPP BOT] Auto-reconnecting in 30 seconds...');
+            setTimeout(() => { exports.initialize().catch(e => console.error('[WHATSAPP BOT] Reconnect failed:', e.message)); }, 30000);
         });
 
         // Incoming calls – reject and reply
@@ -467,14 +505,31 @@ exports.initialize = async () => {
         startProactiveChecker();
 
         // Boot client
-        client.initialize().catch(error => {
+        client.initialize().then(() => {
+            isInitializing = false;
+        }).catch(async (error) => {
+            isInitializing = false;
             botStatus = 'error';
             console.error('[WHATSAPP BOT] Initialization failed during client.initialize():', error);
+            const errMsg = String(error.message || '').toLowerCase();
+            // If session is corrupted, clear it and retry
+            if (errMsg.includes('zip') || errMsg.includes('session') || errMsg.includes('corrupt') || errMsg.includes('extract') || errMsg.includes('tar')) {
+                console.log('[WHATSAPP BOT] Corrupted session detected — clearing from DB...');
+                try {
+                    await db.execute('DELETE FROM whatsapp_sessions WHERE session_key = ?', ['darkpen']);
+                    console.log('[WHATSAPP BOT] Session cleared. Retrying in 10 seconds...');
+                } catch (dbErr) {
+                    console.error('[WHATSAPP BOT] Failed to clear corrupt session:', dbErr.message);
+                }
+            }
+            setTimeout(() => { exports.initialize().catch(e => console.error('[WHATSAPP BOT] Retry failed:', e.message)); }, 15000);
         });
 
     } catch (error) {
+        isInitializing = false;
         botStatus = 'error';
         console.error('[WHATSAPP BOT] Initialization failed:', error);
+        setTimeout(() => { exports.initialize().catch(e => console.error('[WHATSAPP BOT] Retry failed:', e.message)); }, 30000);
     }
 };
 
