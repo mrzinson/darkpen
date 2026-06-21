@@ -47,28 +47,30 @@ async function checkRateLimit(userId, from) {
 // Helper to check if user requests manager contact routing
 function checkManagerRequest(text) {
     const clean = String(text || '').toLowerCase().trim();
-    const isPaymentManager = clean.includes('managerka payments') ||
-                             clean.includes('managerka payment') ||
-                             clean.includes('payment manager') ||
-                             clean.includes('payments manager') ||
-                             clean.includes('managerka lacagta') ||
-                             clean.includes('managerka lacagaha') ||
-                             clean.includes('maamulaha lacagta') ||
-                             clean.includes('maamulaha lacagaha') ||
-                             clean.includes('maamulaha paymentska');
-                             
-    const isGeneralManager = clean.includes('manager') ||
-                             clean.includes('managerka') ||
-                             clean.includes('maamule') ||
-                             clean.includes('maamulaha') ||
-                             clean.includes('admin') ||
-                             clean.includes('adminka') ||
-                             clean.includes('owner') ||
-                             clean.includes('ownerka');
-                             
+    // Only intercept if the query is specifically asking for contact info, number, or is a single keyword
+    const asksForContact = clean.includes('number') || 
+                           clean.includes('nambar') || 
+                           clean.includes('contact') || 
+                           clean.includes('xidhiidh') || 
+                           clean.includes('watsap') || 
+                           clean.includes('whatsapp') ||
+                           clean === 'manager' ||
+                           clean === 'managerka' ||
+                           clean === 'maamule' ||
+                           clean === 'maamulaha' ||
+                           clean === 'admin' ||
+                           clean === 'adminka' ||
+                           clean === 'owner' ||
+                           clean === 'ownerka';
+
+    if (!asksForContact) return null;
+
+    const isPaymentManager = clean.includes('payment') ||
+                             clean.includes('lacagta') ||
+                             clean.includes('lacagaha');
+
     if (isPaymentManager) return 'payment';
-    if (isGeneralManager) return 'general';
-    return null;
+    return 'general';
 }
 
 // Helper to check if user is giving correction feedback to the AI
@@ -183,6 +185,33 @@ async function sendCloudMessage(to, text) {
             preview_url: false,
             body: text
         }
+    });
+}
+
+// Send Contact Card
+async function sendCloudContactCard(to, phone, name) {
+    console.log(`[WHATSAPP CLOUD] Sending contact card for ${name} (${phone}) to ${to}...`);
+    const cleanPhone = phone.replace('+', '');
+    return await callMetaAPI('messages', {
+        messaging_product: "whatsapp",
+        to: to,
+        type: "contacts",
+        contacts: [
+            {
+                name: {
+                    formatted_name: name,
+                    first_name: name,
+                    last_name: ""
+                },
+                phones: [
+                    {
+                        phone: `+${cleanPhone}`,
+                        type: "WORK",
+                        wa_id: cleanPhone
+                    }
+                ]
+            }
+        ]
     });
 }
 
@@ -730,7 +759,7 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
 
     let usedFreeAI = false;
     if (!hasActiveSub && !voiceCostApplied) {
-        usedFreeAI = await tryUseFreeAI(userId, hasImage ? 'image' : 'text');
+        usedFreeAI = await tryUseFreeAI(userId, hasImage ? 'image' : 'text', cost);
     }
 
     // If free trial not used, check and deduct wallet balance
@@ -785,7 +814,9 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
     const darkpenSystemInstruction = `You are Darkpen, a highly intelligent and friendly AI assistant developed by ZinsonAI (owned by Hamze Mohamuud Ali Zinson).
     
     Rules:
-    1. IDENTITY: NEVER prepend any self-introduction banner (e.g. "Hello! Waxaan ahay Darkpen...") to your replies. Only mention your name or creator if the user explicitly asks "Who are you?", "Who made you?", "Cidaa ku samaysay?" or similar direct identity questions. Do NOT volunteer this information.
+    1. IDENTITY & CAPABILITIES: 
+       - NEVER prepend any self-introduction banner (e.g. "Hello! Waxaan ahay Darkpen...") to your replies. Only mention your name or creator if the user explicitly asks "Who are you?", "Who made you?", "Cidaa ku samaysay?" or similar direct identity questions.
+       - If the user asks what you do, how you can help, your capabilities, or similar questions (e.g., "maxaad qabataa", "maxad iga caawin kartaa", "what can you do"): Explain your capabilities in a beautiful, structured Somali message with rich emojis. Highlight that you are excellent at education (waxbarashada), having studied over 10,000 curriculum books and resolved 50,000+ exams. At the end of the message, you MUST append: "Hadaad ubaahan tahay macluumaad dheeraad ah la xidhiidh managerkayga (+252637930329)" so that the manager's contact card can be sent to them.
     2. LANGUAGE CONSISTENCY:
        - You MUST respond in the EXACT same language that the user spoke to you (Somali when asked in Somali, English when asked in English, etc.).
        - If an image is provided, analyze it and reply in the same language.
@@ -795,11 +826,17 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
          * ONLY output the question numbers and correct options (e.g. 1. B \n 2. C \n 3. True).
          * Do NOT explain or show steps unless specifically asked to "explain" or "sharax".
        - If it is an open-ended/math question, show a brief step-by-step solution.
-    4. Keep responses concise, direct, and helpful.
-    5. Highlight key terms using *Keyword* (bold) instead of markdown.
-    6. Shaxan (table): use custom <table_data>Header1|Header2\nVal1|Val2</table_data> format.
-    7. Pricing info: Pay as you go $0.5 (100 credits), Monthly Basic $3 (unlimited standard chat), Monthly Premium $11 (unlimited chat + premium support). EVC Plus number is 637930329 (dial *771*637930329*amount#). ZAAD number is 637930329 — same as EVC (dial *220*637930329*amount#). eDahab number is 659119779 (dial *700*659119779*amount#). Send payment sender number to bot or contact WhatsApp manager +252637930329.
-    8. USER SATISFACTION: Your primary goal is to satisfy and persuade the user. Be helpful, warm, and accommodating. NEVER try to redirect the user away or respond in a way that frustrates them.`;
+    4. CONCISENESS BY DEFAULT: Keep your responses short, concise, and easy to understand. Avoid long explanations unless:
+       - The user explicitly asks for an explanation (e.g., "sharax", "explain", "faahfaahi").
+       - The topic is complex and cannot be answered briefly without losing essential meaning.
+    5. ENGAGING QUESTIONS: ALWAYS end your response with an engaging, thought-provoking, and exciting question related to the topic of discussion to keep the conversation active and interesting.
+    6. SLANG & TYPOS: You must be highly intelligent and understanding of Somalised slang, abbreviations, typos, and casual text message shorthand. Even if the user's question is brief, fragmented, or difficult to understand, use context and intelligent prediction to understand their true intent and provide a helpful response.
+    7. EDUCATIONAL & SCIENTIFIC ACCURACY: If the topic is educational, scientific, or mathematical, you must double-check your facts, formulas, and reasoning to ensure 100% accuracy and reliability. Do not provide incorrect information.
+    8. Formatting: Highlight key terms using *Keyword* (bold) instead of markdown. Do not add spaces inside formatting symbols (e.g., use *bold* not * bold *).
+    9. Shaxan (table): use custom <table_data>Header1|Header2\nVal1|Val2</table_data> format.
+    10. Pricing info: Pay as you go $0.5 (100 credits), Monthly Basic $3 (unlimited standard chat), Monthly Premium $11 (unlimited chat + premium math/science/image support). Payment: EVC Plus dial *771*637930329*amount# | ZAAD dial *220*637930329*amount# (same number 637930329) | eDahab dial *700*659119779*amount#. After sending, user types sender number here. Contact: WhatsApp +252637930329.
+    11. USER SATISFACTION: Your primary goal is to satisfy and persuade the user. Be helpful, warm, and accommodating. NEVER try to redirect the user away or respond in a way that frustrates them.
+    12. PERSONALITY & HUMOR (KAFTAN): Be friendly, warm, and humorous. You can joke, tease, and play along with the user. If a user writes something rude, inappropriate, or sexual ("edeb darro"), reject it politely but with a lighthearted, playful, and teasing tone (kaftan diido ah), never being harsh or overly formal.`;
 
     // 7. Call Gemini API
     // Build final prompt - smart image detection
@@ -823,6 +860,29 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
 
         // Send response via WhatsApp Cloud API
         await sendCloudMessage(from, formattedResponse);
+
+        // Send contact card if the support/manager numbers are mentioned in the response
+        if (formattedResponse.includes('+252637930329') || formattedResponse.includes('637930329')) {
+            try {
+                await sendCloudContactCard(from, '252637930329', 'Manager General');
+            } catch (err) {
+                console.error('[WHATSAPP CLOUD] Failed to send manager contact card:', err.message);
+            }
+        }
+        if (formattedResponse.includes('+252654810865') || formattedResponse.includes('654810865')) {
+            try {
+                await sendCloudContactCard(from, '252654810865', 'Manager Payments');
+            } catch (err) {
+                console.error('[WHATSAPP CLOUD] Failed to send payment manager contact card:', err.message);
+            }
+        }
+        if (formattedResponse.includes('+252659119779') || formattedResponse.includes('659119779')) {
+            try {
+                await sendCloudContactCard(from, '252659119779', 'Support Team');
+            } catch (err) {
+                console.error('[WHATSAPP CLOUD] Failed to send support contact card:', err.message);
+            }
+        }
 
         // Send a final reaction to message indicating completion (40% chance)
         if (Math.random() < 0.4) {
@@ -905,17 +965,24 @@ function formatResponseForWhatsApp(text) {
     // 1. Convert markdown headers (# Title, ## Title, etc.) to WhatsApp bold titles
     formatted = formatted.replace(/^(#{1,6})\s+(.+)$/gm, '*$2*');
 
-    // 2. Convert markdown bold (**bold**) to WhatsApp bold (*bold*)
-    formatted = formatted.replace(/\*\*([\s\S]*?)\*\*/g, '*$1*');
-
-    // 3. Convert markdown underline/italic (__italic__) to WhatsApp italic (_italic_)
-    formatted = formatted.replace(/__([\s\S]*?)__/g, '_$1_');
-
-    // 4. Convert markdown list items (* item or - item) to bullet points (• item)
-    // This prevents WhatsApp from interpreting '* ' as the start of a bold block across lines.
+    // 2. Convert markdown list items (* item or - item) to bullet points (• item)
+    // This must be done BEFORE resolving bold tags to avoid messing up lists.
     formatted = formatted.replace(/^\s*[\*\-]\s+/gm, '• ');
 
-    // 5. Remove syntax highlighting language from code blocks (e.g. ```javascript -> ```)
+    // 3. Clean up triple stars (bold-italic in markdown) -> *_text_* (bold italic in WhatsApp)
+    formatted = formatted.replace(/\*\*\*+\s*([^\*]+?)\s*\*\*\*+/g, '*_$1_*');
+
+    // 4. Convert markdown bold (**bold**) to WhatsApp bold (*bold*) and strip spaces inside
+    formatted = formatted.replace(/\*\*+\s*([^\*]+?)\s*\*\*+/g, '*$1*');
+
+    // 5. Clean up any single asterisks that have spaces inside like * bold * -> *bold*
+    formatted = formatted.replace(/(?<!\*)\*\s*([^\*]+?)\s*\*(?!\*)/g, '*$1*');
+
+    // 6. Convert markdown underline/italic (__italic__) to WhatsApp italic (_italic_)
+    formatted = formatted.replace(/__([\s\S]*?)__/g, '_$1_');
+    formatted = formatted.replace(/_\s*([^_]+?)\s*_/g, '_$1_');
+
+    // 7. Remove syntax highlighting language from code blocks (e.g. ```javascript -> ```)
     formatted = formatted.replace(/```[a-zA-Z0-9-]+\n/g, '```\n');
     
     return formatted;

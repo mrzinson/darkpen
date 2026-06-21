@@ -220,7 +220,7 @@ exports.initialize = async () => {
         });
 
         startProactiveChecker();
-        startSchedulerChecker();
+        // startSchedulerChecker(); // DISABLED: Auto post generation turned off to save API costs
 
     } catch (err) {
         botStatus = 'error';
@@ -1135,118 +1135,6 @@ Rules:
 }
 
 // ─── Trigger Daily Tip Generation ────────────────────────────────────────────
-async function triggerDailyTipGeneration(ownerChatId) {
-    try {
-        const loadingMsg = await bot.sendMessage(ownerChatId, '🤖 _Waxaa la soo saarayaa Daily Tip..._', { parse_mode: 'Markdown' });
-        
-        const today = new Date().toLocaleDateString('so-SO', { timeZone: 'Africa/Mogadishu', weekday: 'long', day: 'numeric', month: 'long' });
-        
-        const prompt = `Generate an extremely useful, interesting and well-structured daily tip for Somali students and tech users.
-Focus on one of: AI tools, study hacks, Darkpen app features, productivity, or a mindblowing tech fact.
-Write in Somali. Use short punchy sentences. Include at least 3 specific bullet points. Be specific not generic.
-Output raw text only with *bold* for key phrases. No hashtags.`;
-        const systemInstruction = 'You are Darkpen AI, a premium Somali educational assistant. Generate high-quality daily tips in Somali. Be specific, practical and engaging. Use *bold* for key terms.';
-        
-        const content = await askGemini(prompt, 'gemini-2.5-flash', null, [], systemInstruction);
-        const formatted = formatResponseForTelegram(content);
-        
-        // Build beautiful channel post
-        const channelPost = `╔══════════════════╗
-🌅 *DARKPEN DAILY TIP*
-${today}
-╚══════════════════╝
-
-${formatted}
-
-━━━━━━━━━━━━━━━━━━
-📲 *Darkpen App* — Barashada Cusub
-🔗 t.me/darkpenBot`;
-        
-        const postId = 'tip_' + Date.now();
-        pendingPosts.set(postId, { type: 'tip', content: channelPost });
-        
-        try { await bot.deleteMessage(ownerChatId, loadingMsg.message_id); } catch(e) {}
-        
-        await bot.sendMessage(ownerChatId, 
-            `📢 *PREVIEW — Daily Tip*\n\nHalkan hoose ayaa channelka loo dhigi doonaa:\n\n${channelPost}\n\n👇 *Dooro:*`,
-            {
-                parse_mode: 'Markdown',
-                reply_markup: {
-                    inline_keyboard: [[
-                        { text: '✅ Ogolow — Post Channel', callback_data: `approve_${postId}` },
-                        { text: '❌ Diid', callback_data: `reject_${postId}` }
-                    ]]
-                }
-            }
-        );
-    } catch (err) {
-        console.error('[TELEGRAM BOT] Daily tip gen error:', err);
-        await bot.sendMessage(ownerChatId, `❌ Qalad: ${err.message}`);
-    }
-}
-
-// ─── Trigger Saturday Poll Generation ────────────────────────────────────────
-async function triggerSaturdayPollGeneration(ownerChatId) {
-    try {
-        const loadingMsg = await bot.sendMessage(ownerChatId, '📊 _Waxaa la soo saarayaa Saturday Poll..._', { parse_mode: 'Markdown' });
-        
-        const prompt = `Generate a fun, thought-provoking and engaging Telegram poll question with exactly 3 options in Somali.
-The poll MUST be one of these styles:
-- Darkpen vs ChatGPT/Gemini comparison (competitive, funny)
-- What feature should Darkpen add next?
-- AI usage habits of Somali students
-- Tech prediction about AI in Somalia
-Make the question punchy and controversial enough to get votes.
-Output ONLY a valid JSON object:
-{"question": "...", "options": ["...", "...", "..."]}`;
-        const systemInstruction = 'Output ONLY valid JSON. No markdown, no explanation, no code fences.';
-        
-        const aiResp = await askGemini(prompt, 'gemini-2.5-flash', null, [], systemInstruction);
-        
-        let pollData;
-        try {
-            const cleanJson = aiResp.replace(/```json|```/g, '').trim();
-            pollData = JSON.parse(cleanJson);
-        } catch (e) {
-            pollData = {
-                question: 'Darkpen iyo ChatGPT — Kee baad isticmaashaa marka aad barato?',
-                options: ['🇸🇴 Darkpen — mid Soomaali ah!', '🤖 ChatGPT — caalamiga', '👀 Labadaba waaan isticmaale']
-            };
-        }
-        
-        const postId = 'poll_' + Date.now();
-        pendingPosts.set(postId, {
-            type: 'poll',
-            question: pollData.question,
-            options: pollData.options
-        });
-        
-        try { await bot.deleteMessage(ownerChatId, loadingMsg.message_id); } catch(e) {}
-        
-        const previewText = `📊 *PREVIEW — Saturday Poll*
-
-*Su'aasha:*
-${pollData.question}
-
-*Dookhyada:*
-${pollData.options.map((o, i) => `${i+1}. ${o}`).join('\n')}
-
-👇 *Dooro:*`;
-        
-        await bot.sendMessage(ownerChatId, previewText, {
-            parse_mode: 'Markdown',
-            reply_markup: {
-                inline_keyboard: [[
-                    { text: '✅ Ogolow — Post Group+Channel', callback_data: `approve_${postId}` },
-                    { text: '❌ Diid', callback_data: `reject_${postId}` }
-                ]]
-            }
-        });
-    } catch (err) {
-        console.error('[TELEGRAM BOT] Saturday poll gen error:', err);
-        await bot.sendMessage(ownerChatId, `❌ Qalad: ${err.message}`);
-    }
-}
 
 // ─── Handle Callback Query (Moderation Buttons) ──────────────────────────────
 async function handleCallbackQuery(callbackQuery) {

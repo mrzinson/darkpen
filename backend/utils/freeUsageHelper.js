@@ -1,7 +1,7 @@
 const db = require('../config/db');
 
-const FREE_TEXT_LIMIT = 15;
-const FREE_IMAGE_LIMIT = 3;
+const FREE_TEXT_LIMIT = 10; // 10 Credits limit for text messages
+const FREE_IMAGE_LIMIT = 30; // 30 Credits limit for images (3 images at 10 credits each)
 
 async function ensureFreeUsageRow(userId) {
     await db.execute(
@@ -11,16 +11,16 @@ async function ensureFreeUsageRow(userId) {
     );
 }
 
-async function tryUseFreeAI(userId, kind) {
+async function tryUseFreeAI(userId, kind, cost = 1) {
     const column = kind === 'image' ? 'free_image_used' : 'free_text_used';
     const limit = kind === 'image' ? FREE_IMAGE_LIMIT : FREE_TEXT_LIMIT;
 
-    // Try to update first to avoid redundant database calls for existing users (99% of requests)
+    // Try to update first, checking if the current usage plus cost is within limit
     const [result] = await db.execute(
         `UPDATE user_free_ai_usage
-         SET ${column} = ${column} + 1
-         WHERE user_id = ? AND ${column} < ?`,
-        [userId, limit]
+         SET ${column} = ${column} + ?
+         WHERE user_id = ? AND ${column} + ? <= ?`,
+        [cost, userId, cost, limit]
     );
 
     if (result.affectedRows > 0) {
@@ -37,9 +37,9 @@ async function tryUseFreeAI(userId, kind) {
     if (insertResult.affectedRows > 0) {
         const [retryResult] = await db.execute(
             `UPDATE user_free_ai_usage
-             SET ${column} = ${column} + 1
-             WHERE user_id = ? AND ${column} < ?`,
-            [userId, limit]
+             SET ${column} = ${column} + ?
+             WHERE user_id = ? AND ${column} + ? <= ?`,
+            [cost, userId, cost, limit]
         );
         return retryResult.affectedRows > 0;
     }
