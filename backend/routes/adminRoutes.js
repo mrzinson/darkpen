@@ -324,12 +324,23 @@ router.post('/payments/:id/approve', async (req, res) => {
         await db.execute('UPDATE payments SET status = "approved" WHERE id = ?', [id]);
         
         // 1. Hubi inta ay lacagtu tahay
-        // $0.5 (5,000) = 100 Credits
-        // $3 (30,000) = 1 Month Basic
-        // $11 (110,000) = 1 Month Premium
-        
+        // Qiimaha caadiga ah:
+        //   $0.50 = 100 Credits
+        //   $3.00 = 1 Month Basic (1000 credits)
+        //   $11.00 = 1 Month Premium (5000 credits)
+        //
+        // PROMO (20/06/2026 – 20/07/2026):
+        //   $2.00 = 1 Month Basic PROMO (600 credits)
+
         const walletTable = p.service_type === 'shukaansi' ? 'shukaansi_wallet' : 'user_wallet';
         const subTable = p.service_type === 'shukaansi' ? 'shukaansi_subscriptions' : 'user_subscriptions';
+
+        // ── Promo period detection ────────────────────────────────────────────
+        const now = new Date();
+        const promoStart = new Date('2026-06-20T00:00:00+03:00');
+        const promoEnd   = new Date('2026-07-20T23:59:59+03:00');
+        const isPromoPeriod = now >= promoStart && now <= promoEnd;
+        // ─────────────────────────────────────────────────────────────────────
 
         if (p.amount >= 11.0) {
             // Premium Subscription ($11.00)
@@ -339,8 +350,17 @@ router.post('/payments/:id/approve', async (req, res) => {
                 `INSERT INTO ${walletTable} (user_id, balance) VALUES (?, 5000) ON DUPLICATE KEY UPDATE balance = 5000, last_updated = NOW()`,
                 [p.user_id]
             );
+        } else if (isPromoPeriod && p.amount >= 2.0 && p.amount < 3.0) {
+            // ── PROMO Basic Subscription ($2.00 during promo period) ──────────
+            console.log(`[PAYMENT] PROMO BASIC: User ${p.user_id} paid $${p.amount} during promo period → 600 credits`);
+            await db.execute(`INSERT INTO ${subTable} (user_id, type, expiry_date) VALUES (?, "monthly_3", DATE_ADD(NOW(), INTERVAL 30 DAY))`, [p.user_id]);
+            // Set balance to Promo Basic limit (600 credits)
+            await db.execute(
+                `INSERT INTO ${walletTable} (user_id, balance) VALUES (?, 600) ON DUPLICATE KEY UPDATE balance = 600, last_updated = NOW()`,
+                [p.user_id]
+            );
         } else if (p.amount >= 3.0) {
-            // Basic Subscription ($3.00)
+            // Basic Subscription ($3.00) — normal pricing
             await db.execute(`INSERT INTO ${subTable} (user_id, type, expiry_date) VALUES (?, "monthly_3", DATE_ADD(NOW(), INTERVAL 30 DAY))`, [p.user_id]);
             // Set balance to Basic limit (1000 credits)
             await db.execute(
@@ -380,6 +400,8 @@ router.post('/payments/:id/approve', async (req, res) => {
             let planName = '';
             if (p.amount >= 11.0) {
                 planName = 'Monthly Premium';
+            } else if (isPromoPeriod && p.amount >= 2.0 && p.amount < 3.0) {
+                planName = 'Monthly Basic 🎉 (Qiimaha Promo - $2)';
             } else if (p.amount >= 3.0) {
                 planName = 'Monthly Basic';
             } else {

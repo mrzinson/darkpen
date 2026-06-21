@@ -46,6 +46,9 @@ const registrationStates = new Map();
 // Cache of recently processed message IDs to prevent duplicates
 const processedMessageIds = new Set();
 
+// Debounce message queues for private chats
+const whatsappMessageQueues = new Map();
+
 // Rate limiting maps
 const userMsgTimestamps = new Map();
 const unregMsgTimestamps = new Map();
@@ -802,9 +805,84 @@ function startProactiveChecker() {
     }, 60000);
 }
 
+// ─── Debounced message handler ───────────────────────────────────────────────
+async function handleDebouncedMessage(message) {
+    const sender = message.from;
+    
+    // React with 👀 immediately so the user knows we saw it
+    await message.react('👀').catch(err => console.error('[WHATSAPP BOT] Failed to react 👀:', err.message));
+    
+    if (!whatsappMessageQueues.has(sender)) {
+        whatsappMessageQueues.set(sender, {
+            messages: [],
+            timer: null
+        });
+    }
+    
+    const queue = whatsappMessageQueues.get(sender);
+    
+    // Clear existing timer if any
+    if (queue.timer) {
+        clearTimeout(queue.timer);
+    }
+    
+    // Add current message to the list
+    queue.messages.push(message);
+    
+    // Start a new 3-second timer
+    queue.timer = setTimeout(async () => {
+        // Timer fired! Process the combined messages.
+        const userQueue = whatsappMessageQueues.get(sender);
+        if (!userQueue || userQueue.messages.length === 0) return;
+        
+        const accumulated = userQueue.messages;
+        whatsappMessageQueues.delete(sender); // Clear queue for this user
+        
+        // If only 1 message was sent, just process it directly
+        if (accumulated.length === 1) {
+            const singleMsg = accumulated[0];
+            singleMsg.isDebounced = true;
+            await handleIncomingMessage(singleMsg);
+            return;
+        }
+        
+        // If multiple messages, combine them!
+        const baseMsg = accumulated[accumulated.length - 1];
+        
+        // Concatenate all message bodies/captions
+        const combinedText = accumulated
+            .map(m => m.body || '')
+            .filter(t => t.trim().length > 0)
+            .join('\n');
+            
+        baseMsg.body = combinedText;
+        baseMsg.isDebounced = true;
+        
+        // Also check if any message in the group had media (just in case they sent image then text)
+        const mediaMsg = accumulated.find(m => m.hasMedia);
+        if (mediaMsg) {
+            baseMsg.hasMedia = true;
+            baseMsg.type = mediaMsg.type;
+            baseMsg.downloadMedia = () => mediaMsg.downloadMedia();
+        }
+        
+        console.log(`[WHATSAPP BOT] Processing combined message from ${sender}: "${combinedText}"`);
+        await handleIncomingMessage(baseMsg);
+    }, 3000);
+}
+
 // ─── Main message handler ─────────────────────────────────────────────────────
 async function handleIncomingMessage(message) {
     if (message.fromMe) return;
+
+    // Debounce messages in private chats to aggregate multi-part/fast typing messages
+    const isGroup = message.from.endsWith('@g.us');
+    if (!isGroup && !message.isDebounced) {
+        handleDebouncedMessage(message).catch(err => {
+            console.error('[WHATSAPP BOT] Debouncer error:', err.message);
+        });
+        return;
+    }
 
     // Deduplicate incoming messages using serialization ID
     const msgId = message.id && message.id._serialized;
@@ -843,8 +921,6 @@ async function handleIncomingMessage(message) {
     if (!allowedTypes.includes(message.type)) {
         return;
     }
-
-    const isGroup = message.from.endsWith('@g.us');
 
     // Extract sender number using getContact() if possible to resolve JIDs/LIDs cleanly, falling back to message fields
     const senderRaw = isGroup ? (message.author || '') : message.from;
@@ -1354,8 +1430,10 @@ If they say they have no money, respond politely and say they can do it whenever
         }
     }
 
-    // React with 👀
-    await message.react('👀').catch(err => console.error('[WHATSAPP BOT] Failed to react 👀:', err.message));
+    // React with 👀 (if not already done during debouncing)
+    if (!message.isDebounced) {
+        await message.react('👀').catch(err => console.error('[WHATSAPP BOT] Failed to react 👀:', err.message));
+    }
 
     // 3. Rate limiting
     const now = new Date();
@@ -1537,9 +1615,9 @@ If they say they have no money, respond politely and say they can do it whenever
     7. EDUCATIONAL & SCIENTIFIC ACCURACY: If the topic is educational, scientific, or mathematical, you must double-check your facts, formulas, and reasoning to ensure 100% accuracy and reliability. Do not provide incorrect information.
     8. Formatting: Highlight key terms using *Keyword* (bold) instead of markdown. Do not add spaces inside formatting symbols (e.g., use *bold* not * bold *).
     9. Shaxan (table): use custom <table_data>Header1|Header2\nVal1|Val2</table_data> format.
-    10. Pricing info: Pay as you go $0.5 (100 credits), Monthly Basic $3 (unlimited standard chat), Monthly Premium $11 (unlimited chat + premium math/science/image support). Payment: EVC Plus dial *771*637930329*amount# | ZAAD dial *220*637930329*amount# (same number 637930329) | eDahab dial *700*659119779*amount#. After sending, user types sender number here. Contact: WhatsApp +252637930329.
-    11. USER SATISFACTION: Your primary goal is to satisfy and persuade the user. Be helpful, warm, and accommodating. NEVER try to redirect the user away or respond in a way that frustrates them.
-    12. PERSONALITY & HUMOR (KAFTAN): Be friendly, warm, and humorous. You can joke, tease, and play along with the user. If a user writes something rude, inappropriate, or sexual ("edeb darro"), reject it politely but with a lighthearted, playful, and teasing tone (kaftan diido ah), never being harsh or overly formal.`;
+    10. Pricing info: Pay as you go $0.5 (100 credits), Monthly Basic $3 (unlimited standard chat, 1000 credits), Monthly Premium $11 (unlimited chat + premium math/science/image support, 5000 credits). 🎉 PROMO HADDA (ilaa 20/07/2026): Monthly Basic waxaa laga heli karaa $2 kaliya (600 credits) — fursad ku-meel-gaadh ah! Payment: EVC Plus dial *771*637930329*amount# | ZAAD dial *220*637930329*amount# (same number 637930329) | eDahab dial *700*659119779*amount#. After sending, user types sender number here. Contact: WhatsApp +252637930329.
+    11. USER SATISFACTION & RETENTION: Your primary goal is to satisfy, persuade, and retain the user. Be extremely friendly, welcoming, and helpful. You must actively try to engage and hold conversations with new users. If appropriate, you can ask them questions about themselves (xaal-waraysi) or interview them to understand their needs better. Never be cold, dismissive, or try to redirect them away unless absolutely necessary.
+    12. PERSONALITY & REAL-PERSON CHAT: Speak and interact like a real, warm person (not a robotic AI). You can joke, tease, and chat about absolutely anything they want (life, hobbies, friends, etc.) to keep them engaged. The only exception is illegal or highly dangerous topics, which you must politely decline.`;
 
     // 9. Call Gemini API
     const chat = await message.getChat();

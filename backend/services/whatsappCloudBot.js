@@ -12,6 +12,9 @@ const userStates = new Map();
 // Cache of recently processed message IDs to prevent duplicates
 const processedMessageIds = new Set();
 
+// Debounce message queues for private chats
+const whatsappCloudMessageQueues = new Map();
+
 // Rate limiting maps
 const userMsgTimestamps = new Map();
 
@@ -296,14 +299,72 @@ exports.handleWebhookPost = (req, res) => {
             mediaMime = message.audio.mime_type;
         }
 
-        // Process message in background
-        processIncomingMessage(from, messageId, type, messageText, mediaId, mediaMime).catch(err => {
-            console.error('[WHATSAPP CLOUD] Error processing incoming message:', err);
+        // Debounce and process message in background
+        handleCloudDebouncedMessage(from, messageId, type, messageText, mediaId, mediaMime).catch(err => {
+            console.error('[WHATSAPP CLOUD] Debounce processing error:', err.message);
         });
     } catch (err) {
         console.error('[WHATSAPP CLOUD] Webhook parse error:', err.message);
     }
 };
+
+// ─── Debounced message handler ───────────────────────────────────────────────
+async function handleCloudDebouncedMessage(from, messageId, type, messageText, mediaId, mediaMime) {
+    // React with 👀 immediately so the user knows we saw it
+    await sendCloudReaction(from, messageId, '👀').catch(() => {});
+    
+    if (!whatsappCloudMessageQueues.has(from)) {
+        whatsappCloudMessageQueues.set(from, {
+            messages: [],
+            timer: null
+        });
+    }
+    
+    const queue = whatsappCloudMessageQueues.get(from);
+    if (queue.timer) {
+        clearTimeout(queue.timer);
+    }
+    
+    queue.messages.push({ messageId, type, messageText, mediaId, mediaMime });
+    
+    queue.timer = setTimeout(async () => {
+        const userQueue = whatsappCloudMessageQueues.get(from);
+        if (!userQueue || userQueue.messages.length === 0) return;
+        
+        const accumulated = userQueue.messages;
+        whatsappCloudMessageQueues.delete(from);
+        
+        if (accumulated.length === 1) {
+            const single = accumulated[0];
+            await processIncomingMessage(from, single.messageId, single.type, single.messageText, single.mediaId, single.mediaMime, true).catch(err => {
+                console.error('[WHATSAPP CLOUD] Debounced message processing error:', err.message);
+            });
+            return;
+        }
+        
+        const base = accumulated[accumulated.length - 1];
+        const combinedText = accumulated
+            .map(m => m.messageText || '')
+            .filter(t => t.trim().length > 0)
+            .join('\n');
+            
+        // Look if any message had media
+        const mediaMsg = accumulated.find(m => m.mediaId);
+        let finalType = base.type;
+        let finalMediaId = base.mediaId;
+        let finalMediaMime = base.mediaMime;
+        if (mediaMsg) {
+            finalType = mediaMsg.type;
+            finalMediaId = mediaMsg.mediaId;
+            finalMediaMime = mediaMsg.mediaMime;
+        }
+        
+        console.log(`[WHATSAPP CLOUD] Processing combined message from ${from}: "${combinedText}"`);
+        await processIncomingMessage(from, base.messageId, finalType, combinedText, finalMediaId, finalMediaMime, true).catch(err => {
+            console.error('[WHATSAPP CLOUD] Combined message processing error:', err.message);
+        });
+    }, 3000);
+}
 
 function isYesResponse(text) {
     const clean = text.toLowerCase().trim().replace(/[?!.]/g, '');
@@ -330,7 +391,7 @@ function isNoResponse(text) {
 }
 
 // Main processing logic
-async function processIncomingMessage(from, messageId, type, messageText, mediaId, mediaMime) {
+async function processIncomingMessage(from, messageId, type, messageText, mediaId, mediaMime, isDebounced = false) {
     console.log(`[WHATSAPP CLOUD] Received message: from=${from}, type=${type}, body="${messageText}"`);
 
     const normalizedPhone = normalizePhoneNumber(from);
@@ -620,8 +681,10 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
     }
 
 
-    // React with 👀 to indicate we received and are processing the message
-    await sendCloudReaction(from, messageId, '👀');
+    // React with 👀 to indicate we received and are processing the message (if not already done)
+    if (!isDebounced) {
+        await sendCloudReaction(from, messageId, '👀');
+    }
 
 
     // 2. Enforce Rate Limiting
@@ -834,7 +897,7 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
     7. EDUCATIONAL & SCIENTIFIC ACCURACY: If the topic is educational, scientific, or mathematical, you must double-check your facts, formulas, and reasoning to ensure 100% accuracy and reliability. Do not provide incorrect information.
     8. Formatting: Highlight key terms using *Keyword* (bold) instead of markdown. Do not add spaces inside formatting symbols (e.g., use *bold* not * bold *).
     9. Shaxan (table): use custom <table_data>Header1|Header2\nVal1|Val2</table_data> format.
-    10. Pricing info: Pay as you go $0.5 (100 credits), Monthly Basic $3 (unlimited standard chat), Monthly Premium $11 (unlimited chat + premium math/science/image support). Payment: EVC Plus dial *771*637930329*amount# | ZAAD dial *220*637930329*amount# (same number 637930329) | eDahab dial *700*659119779*amount#. After sending, user types sender number here. Contact: WhatsApp +252637930329.
+    10. Pricing info: Pay as you go $0.5 (100 credits), Monthly Basic $3 (unlimited standard chat, 1000 credits), Monthly Premium $11 (unlimited chat + premium math/science/image support, 5000 credits). 🎉 PROMO HADDA (ilaa 20/07/2026): Monthly Basic waxaa laga heli karaa $2 kaliya (600 credits) — fursad ku-meel-gaadh ah! Payment: EVC Plus dial *771*637930329*amount# | ZAAD dial *220*637930329*amount# (same number 637930329) | eDahab dial *700*659119779*amount#. After sending, user types sender number here. Contact: WhatsApp +252637930329.
     11. USER SATISFACTION: Your primary goal is to satisfy and persuade the user. Be helpful, warm, and accommodating. NEVER try to redirect the user away or respond in a way that frustrates them.
     12. PERSONALITY & HUMOR (KAFTAN): Be friendly, warm, and humorous. You can joke, tease, and play along with the user. If a user writes something rude, inappropriate, or sexual ("edeb darro"), reject it politely but with a lighthearted, playful, and teasing tone (kaftan diido ah), never being harsh or overly formal.`;
 
