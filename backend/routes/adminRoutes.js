@@ -312,6 +312,61 @@ router.get('/payments', async (req, res) => {
     }
 });
 
+router.get('/payments/test-whatsapp-notify/:phone', async (req, res) => {
+    try {
+        const { phone } = req.params;
+        const approveMsg = `✅ Hambalyo waad isticmaali kartaa. (Test Notification)`;
+        console.log(`[TEST WHATSAPP] Sending test message to: ${phone}`);
+        
+        let localSent = false;
+        let localError = null;
+        try {
+            if (whatsappBot.getBotStatus && whatsappBot.getBotStatus() === 'connected') {
+                await whatsappBot.sendWhatsAppMessage(phone, approveMsg);
+                localSent = true;
+            } else {
+                localError = `Local bot status: ${whatsappBot.getBotStatus ? whatsappBot.getBotStatus() : 'unknown'}`;
+            }
+        } catch (e) {
+            localError = e.message;
+        }
+
+        let cloudSent = false;
+        let cloudResult = null;
+        let cloudError = null;
+        try {
+            cloudResult = await whatsappCloudBot.sendCloudMessage(phone.replace(/^\+/, ''), approveMsg);
+            if (cloudResult) {
+                cloudSent = true;
+            } else {
+                cloudError = 'Meta API returned null (check credentials or format)';
+            }
+        } catch (e) {
+            cloudError = e.message;
+        }
+
+        res.json({
+            phone,
+            localBot: {
+                status: whatsappBot.getBotStatus ? whatsappBot.getBotStatus() : 'unknown',
+                sent: localSent,
+                error: localError
+            },
+            cloudBot: {
+                sent: cloudSent,
+                result: cloudResult,
+                error: cloudError,
+                credentials: {
+                    hasToken: !!process.env.META_WA_ACCESS_TOKEN,
+                    hasPhoneId: !!process.env.META_WA_PHONE_NUMBER_ID
+                }
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.post('/payments/:id/approve', async (req, res) => {
     try {
         const { id } = req.params;
@@ -421,14 +476,22 @@ router.post('/payments/:id/approve', async (req, res) => {
             // Fallback to Cloud Bot
             if (!waSent) {
                 try {
-                    await whatsappCloudBot.sendCloudMessage(userPhone.replace(/^\+/, ''), approveMsg);
+                    const result = await whatsappCloudBot.sendCloudMessage(userPhone.replace(/^\+/, ''), approveMsg);
+                    if (result) {
+                        waSent = true;
+                    }
                 } catch (cErr) {
                     console.error('[ADMIN APPROVE] Cloud bot also failed:', cErr.message);
                 }
             }
         }
 
-        res.json({ message: 'Lacag-bixinta waa la oggolaaday, xogta user-ka waa la cusboonaysiiyay!' });
+        let notice = '';
+        if (userRows && userRows.length > 0 && userRows[0].whatsapp_number && !waSent) {
+            notice = ' (Laakiin farriinta ogeysiiska WhatsApp-ku waa uu fashilmay)';
+        }
+
+        res.json({ message: `Lacag-bixinta waa la oggolaaday, xogta user-ka waa la cusboonaysiiyay!${notice}` });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Cilad ayaa dhacday approval-ka' });
@@ -472,14 +535,22 @@ router.post('/payments/:id/reject', async (req, res) => {
             // Fallback to Cloud Bot
             if (!waRejSent) {
                 try {
-                    await whatsappCloudBot.sendCloudMessage(userPhone.replace(/^\+/, ''), rejectMsg);
+                    const result = await whatsappCloudBot.sendCloudMessage(userPhone.replace(/^\+/, ''), rejectMsg);
+                    if (result) {
+                        waRejSent = true;
+                    }
                 } catch (cErr) {
                     console.error('[ADMIN REJECT] Cloud bot also failed:', cErr.message);
                 }
             }
         }
 
-        res.json({ message: 'Lacag-bixinta waa la diiday!' });
+        let notice = '';
+        if (userRows && userRows.length > 0 && userRows[0].whatsapp_number && !waRejSent) {
+            notice = ' (Laakiin farriinta ogeysiiska WhatsApp-ku waa uu fashilmay)';
+        }
+
+        res.json({ message: `Lacag-bixinta waa la diiday!${notice}` });
     } catch (error) {
         res.status(500).json({ message: 'Cilad ayaa dhacday' });
     }
