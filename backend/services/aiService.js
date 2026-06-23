@@ -54,11 +54,10 @@ exports.askGemini = async (prompt, modelName = "gemini-2.5-flash", attachment = 
     const fallbackModels = Array.from(new Set([
         targetModel, 
         "gemini-2.5-flash-lite",
-        "gemini-2.0-flash-lite", 
         "gemini-2.5-flash", 
-        "gemini-2.0-flash", 
-        "gemini-1.5-flash", 
-        "gemini-flash-latest"
+        "gemini-flash-latest",
+        "gemini-flash-lite-latest",
+        "gemini-pro-latest"
     ]));
     let lastError = null;
 
@@ -121,11 +120,10 @@ exports.askGeminiStream = async (prompt, modelName = "gemini-2.5-flash", attachm
     const fallbackModels = Array.from(new Set([
         targetModel, 
         "gemini-2.5-flash-lite",
-        "gemini-2.0-flash-lite", 
         "gemini-2.5-flash", 
-        "gemini-2.0-flash", 
-        "gemini-1.5-flash", 
-        "gemini-flash-latest"
+        "gemini-flash-latest",
+        "gemini-flash-lite-latest",
+        "gemini-pro-latest"
     ]));
     let lastError = null;
 
@@ -321,7 +319,7 @@ exports.transcribeAudio = async (filePath, mimeType = "audio/mp4") => {
     const audioBuffer = fs.readFileSync(filePath);
     const base64Audio = audioBuffer.toString('base64');
 
-    const fallbackModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-flash-latest"];
+    const fallbackModels = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-flash-lite-latest", "gemini-pro-latest"];
     let lastError = null;
 
     for (const currentModel of fallbackModels) {
