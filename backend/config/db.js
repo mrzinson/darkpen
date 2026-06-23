@@ -21,7 +21,10 @@ setInterval(async () => {
     try {
         await promisePool.query('SELECT 1');
     } catch (err) {
-        console.error('[DB Keep-Alive Error]:', err.message);
+        // Ignore normal closed socket errors during keep-alive pinging
+        if (err.code !== 'ECONNRESET' && err.code !== 'PROTOCOL_CONNECTION_LOST') {
+            console.error('[DB Keep-Alive Error]:', err.message);
+        }
     }
 }, 15000);
 

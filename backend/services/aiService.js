@@ -5,7 +5,9 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function retryWithBackoff(fn, retries = 3, delay = 600) {
+const modelCircuitBreaker = new Map(); // modelName -> timestamp when it can be tried again
+
+async function retryWithBackoff(fn, retries = 3, delay = 400) {
     let lastError = null;
     for (let i = 0; i < retries; i++) {
         try {
@@ -59,9 +61,20 @@ exports.askGemini = async (prompt, modelName = "gemini-2.5-flash", attachment = 
         "gemini-flash-lite-latest",
         "gemini-pro-latest"
     ]));
-    let lastError = null;
 
-    for (const currentModel of fallbackModels) {
+    // Filter out models that are currently disabled by the circuit breaker due to high demand
+    const activeModels = fallbackModels.filter(m => {
+        const disabledUntil = modelCircuitBreaker.get(m);
+        if (disabledUntil && Date.now() < disabledUntil) {
+            console.log(`[GEMINI SERVICE] Skipping ${m} due to active circuit breaker (experiencing high demand).`);
+            return false;
+        }
+        return true;
+    });
+    const modelsToTry = activeModels.length > 0 ? activeModels : fallbackModels;
+
+    let lastError = null;
+    for (const currentModel of modelsToTry) {
         try {
             console.log(`[GEMINI SERVICE] Attempting generateContent with model: ${currentModel}`);
             const model = genAI.getGenerativeModel({ 
@@ -100,6 +113,18 @@ exports.askGemini = async (prompt, modelName = "gemini-2.5-flash", attachment = 
         } catch (error) {
             console.warn(`[GEMINI SERVICE WARNING] Model ${currentModel} failed: ${error.message}`);
             lastError = error;
+
+            // Trip circuit breaker for 3 minutes if model failed due to high demand / service unavailable (503)
+            const status = error.status || (error.statusText ? parseInt(error.statusText) : null);
+            const is503 = status === 503 || (error.message && (
+                error.message.includes('503') || 
+                error.message.includes('Service Unavailable') || 
+                error.message.includes('high demand')
+            ));
+            if (is503) {
+                console.warn(`[GEMINI SERVICE] Tripping circuit breaker for ${currentModel} for 3 minutes due to high demand.`);
+                modelCircuitBreaker.set(currentModel, Date.now() + 3 * 60000);
+            }
         }
     }
 
@@ -125,9 +150,20 @@ exports.askGeminiStream = async (prompt, modelName = "gemini-2.5-flash", attachm
         "gemini-flash-lite-latest",
         "gemini-pro-latest"
     ]));
-    let lastError = null;
 
-    for (const currentModel of fallbackModels) {
+    // Filter out models that are currently disabled by the circuit breaker due to high demand
+    const activeModels = fallbackModels.filter(m => {
+        const disabledUntil = modelCircuitBreaker.get(m);
+        if (disabledUntil && Date.now() < disabledUntil) {
+            console.log(`[GEMINI SERVICE] Skipping stream ${m} due to active circuit breaker (experiencing high demand).`);
+            return false;
+        }
+        return true;
+    });
+    const modelsToTry = activeModels.length > 0 ? activeModels : fallbackModels;
+
+    let lastError = null;
+    for (const currentModel of modelsToTry) {
         try {
             console.log(`[GEMINI SERVICE] Attempting generateContentStream with model: ${currentModel}`);
             const model = genAI.getGenerativeModel({ 
@@ -165,6 +201,18 @@ exports.askGeminiStream = async (prompt, modelName = "gemini-2.5-flash", attachm
         } catch (error) {
             console.warn(`[GEMINI SERVICE WARNING] Model stream ${currentModel} failed: ${error.message}`);
             lastError = error;
+
+            // Trip circuit breaker for 3 minutes if model failed due to high demand / service unavailable (503)
+            const status = error.status || (error.statusText ? parseInt(error.statusText) : null);
+            const is503 = status === 503 || (error.message && (
+                error.message.includes('503') || 
+                error.message.includes('Service Unavailable') || 
+                error.message.includes('high demand')
+            ));
+            if (is503) {
+                console.warn(`[GEMINI SERVICE] Tripping circuit breaker for stream ${currentModel} for 3 minutes due to high demand.`);
+                modelCircuitBreaker.set(currentModel, Date.now() + 3 * 60000);
+            }
         }
     }
 
@@ -320,9 +368,20 @@ exports.transcribeAudio = async (filePath, mimeType = "audio/mp4") => {
     const base64Audio = audioBuffer.toString('base64');
 
     const fallbackModels = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-flash-lite-latest", "gemini-pro-latest"];
-    let lastError = null;
 
-    for (const currentModel of fallbackModels) {
+    // Filter out models that are currently disabled by the circuit breaker due to high demand
+    const activeModels = fallbackModels.filter(m => {
+        const disabledUntil = modelCircuitBreaker.get(m);
+        if (disabledUntil && Date.now() < disabledUntil) {
+            console.log(`[GEMINI SERVICE] Skipping audio transcription model ${m} due to active circuit breaker (experiencing high demand).`);
+            return false;
+        }
+        return true;
+    });
+    const modelsToTry = activeModels.length > 0 ? activeModels : fallbackModels;
+
+    let lastError = null;
+    for (const currentModel of modelsToTry) {
         try {
             console.log(`[GEMINI SERVICE] Attempting audio transcription with model: ${currentModel}`);
             const model = genAI.getGenerativeModel({ model: currentModel });
@@ -352,6 +411,18 @@ exports.transcribeAudio = async (filePath, mimeType = "audio/mp4") => {
         } catch (error) {
             console.warn(`[GEMINI SERVICE WARNING] Transcription failed with model ${currentModel}: ${error.message}`);
             lastError = error;
+
+            // Trip circuit breaker for 3 minutes if model failed due to high demand / service unavailable (503)
+            const status = error.status || (error.statusText ? parseInt(error.statusText) : null);
+            const is503 = status === 503 || (error.message && (
+                error.message.includes('503') || 
+                error.message.includes('Service Unavailable') || 
+                error.message.includes('high demand')
+            ));
+            if (is503) {
+                console.warn(`[GEMINI SERVICE] Tripping circuit breaker for transcription model ${currentModel} for 3 minutes due to high demand.`);
+                modelCircuitBreaker.set(currentModel, Date.now() + 3 * 60000);
+            }
         }
     }
 
