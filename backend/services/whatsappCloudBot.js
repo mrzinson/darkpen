@@ -299,72 +299,16 @@ exports.handleWebhookPost = (req, res) => {
             mediaMime = message.audio.mime_type;
         }
 
-        // Debounce and process message in background
-        handleCloudDebouncedMessage(from, messageId, type, messageText, mediaId, mediaMime).catch(err => {
-            console.error('[WHATSAPP CLOUD] Debounce processing error:', err.message);
+        // Process message in background immediately (no debounce delay)
+        processIncomingMessage(from, messageId, type, messageText, mediaId, mediaMime, false).catch(err => {
+            console.error('[WHATSAPP CLOUD] Processing error:', err.message);
         });
     } catch (err) {
         console.error('[WHATSAPP CLOUD] Webhook parse error:', err.message);
     }
 };
 
-// ─── Debounced message handler ───────────────────────────────────────────────
-async function handleCloudDebouncedMessage(from, messageId, type, messageText, mediaId, mediaMime) {
-    // React with 👀 immediately so the user knows we saw it
-    await sendCloudReaction(from, messageId, '👀').catch(() => {});
-    
-    if (!whatsappCloudMessageQueues.has(from)) {
-        whatsappCloudMessageQueues.set(from, {
-            messages: [],
-            timer: null
-        });
-    }
-    
-    const queue = whatsappCloudMessageQueues.get(from);
-    if (queue.timer) {
-        clearTimeout(queue.timer);
-    }
-    
-    queue.messages.push({ messageId, type, messageText, mediaId, mediaMime });
-    
-    queue.timer = setTimeout(async () => {
-        const userQueue = whatsappCloudMessageQueues.get(from);
-        if (!userQueue || userQueue.messages.length === 0) return;
-        
-        const accumulated = userQueue.messages;
-        whatsappCloudMessageQueues.delete(from);
-        
-        if (accumulated.length === 1) {
-            const single = accumulated[0];
-            await processIncomingMessage(from, single.messageId, single.type, single.messageText, single.mediaId, single.mediaMime, true).catch(err => {
-                console.error('[WHATSAPP CLOUD] Debounced message processing error:', err.message);
-            });
-            return;
-        }
-        
-        const base = accumulated[accumulated.length - 1];
-        const combinedText = accumulated
-            .map(m => m.messageText || '')
-            .filter(t => t.trim().length > 0)
-            .join('\n');
-            
-        // Look if any message had media
-        const mediaMsg = accumulated.find(m => m.mediaId);
-        let finalType = base.type;
-        let finalMediaId = base.mediaId;
-        let finalMediaMime = base.mediaMime;
-        if (mediaMsg) {
-            finalType = mediaMsg.type;
-            finalMediaId = mediaMsg.mediaId;
-            finalMediaMime = mediaMsg.mediaMime;
-        }
-        
-        console.log(`[WHATSAPP CLOUD] Processing combined message from ${from}: "${combinedText}"`);
-        await processIncomingMessage(from, base.messageId, finalType, combinedText, finalMediaId, finalMediaMime, true).catch(err => {
-            console.error('[WHATSAPP CLOUD] Combined message processing error:', err.message);
-        });
-    }, 3000);
-}
+
 
 function isYesResponse(text) {
     const clean = text.toLowerCase().trim().replace(/[?!.]/g, '');
@@ -681,10 +625,7 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
     }
 
 
-    // React with 👀 to indicate we received and are processing the message (if not already done)
-    if (!isDebounced) {
-        await sendCloudReaction(from, messageId, '👀');
-    }
+
 
 
     // 2. Enforce Rate Limiting
@@ -864,7 +805,7 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
     // 6. Get History
     let history = [];
     const [historyRes] = await db.execute(
-        'SELECT sender, message FROM messages_private WHERE user_id = ? AND session_id IS NULL ORDER BY created_at DESC LIMIT 5',
+        'SELECT sender, message FROM messages_private WHERE user_id = ? AND session_id IS NULL ORDER BY id DESC LIMIT 5',
         [userId]
     );
 
@@ -967,7 +908,7 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
             }
         }
 
-        // Send a final reaction to message indicating completion (40% chance)
+        // Emoji reaction (40% chance)
         if (Math.random() < 0.4) {
             const reactions = ['👍', '❤️', '😂', '😮', '😢'];
             let chosenReaction = reactions[0]; // default '👍'
@@ -978,21 +919,21 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
                 chosenReaction = '😂';
             }
             await sendCloudReaction(from, messageId, chosenReaction).catch(() => {});
-        } else {
-            // Remove 👀 reaction
-            await sendCloudReaction(from, messageId, '').catch(() => {});
         }
 
-        // Save messages to database
-        db.execute(
-            'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, NULL, "user", ?)',
-            [userId, finalPrompt]
-        ).catch(err => console.error('[WHATSAPP CLOUD] DB save user msg error:', err.message));
-
-        db.execute(
-            'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, NULL, "ai", ?)',
-            [userId, aiResponse]
-        ).catch(err => console.error('[WHATSAPP CLOUD] DB save AI response error:', err.message));
+        // Save messages to database sequentially using await to prevent out-of-order IDs and identical timestamps
+        try {
+            await db.execute(
+                'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, NULL, "user", ?)',
+                [userId, finalPrompt]
+            );
+            await db.execute(
+                'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, NULL, "ai", ?)',
+                [userId, aiResponse]
+            );
+        } catch (dbErr) {
+            console.error('[WHATSAPP CLOUD] DB save messages error:', dbErr.message);
+        }
 
         // Log usage
         logAIUsage(

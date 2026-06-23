@@ -424,13 +424,13 @@ exports.askAI = async (req, res) => {
 
         const historyPromise = chatType === 'shukaansi'
             ? db.execute(
-                'SELECT sender, message FROM shukaansi_messages WHERE user_id = ? ORDER BY created_at DESC LIMIT 6',
+                'SELECT sender, message FROM shukaansi_messages WHERE user_id = ? ORDER BY id DESC LIMIT 6',
                 [userId]
               )
             : db.execute(
                 sessionId 
-                    ? 'SELECT sender, message FROM messages_private WHERE user_id = ? AND session_id = ? ORDER BY created_at DESC LIMIT 5'
-                    : 'SELECT sender, message FROM messages_private WHERE user_id = ? AND session_id IS NULL ORDER BY created_at DESC LIMIT 5',
+                    ? 'SELECT sender, message FROM messages_private WHERE user_id = ? AND session_id = ? ORDER BY id DESC LIMIT 5'
+                    : 'SELECT sender, message FROM messages_private WHERE user_id = ? AND session_id IS NULL ORDER BY id DESC LIMIT 5',
                 sessionId ? [userId, sessionId] : [userId]
               );
 
@@ -565,17 +565,15 @@ exports.askAI = async (req, res) => {
                     const aiLogger = require('../utils/aiLogger');
                     aiLogger.logAIUsage(userId, modelName, message || "[Attachment]", aiResponseText, 'shukaansi');
                 } else {
-                    // Save User and AI messages for private chat in parallel
-                    await Promise.all([
-                        db.execute(
-                            'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "user", ?)',
-                            [userId, sessionId || null, message || "[Attachment]"]
-                        ),
-                        db.execute(
-                            'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "ai", ?)',
-                            [userId, sessionId || null, aiResponseText]
-                        )
-                    ]);
+                    // Save User and AI messages for private chat sequentially to prevent out-of-order IDs and identical timestamps
+                    await db.execute(
+                        'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "user", ?)',
+                        [userId, sessionId || null, message || "[Attachment]"]
+                    );
+                    await db.execute(
+                        'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "ai", ?)',
+                        [userId, sessionId || null, aiResponseText]
+                    );
 
                     // Log AI usage!
                     const aiLogger = require('../utils/aiLogger');
@@ -612,9 +610,9 @@ exports.getChatHistory = async (req, res) => {
             `SELECT * FROM (
                 SELECT id, user_id, sender, message, created_at, session_id, image_url AS image FROM messages_private 
                 WHERE user_id = ? AND session_id = ? 
-                ORDER BY created_at DESC 
+                ORDER BY id DESC 
                 LIMIT ? OFFSET ?
-            ) sub ORDER BY created_at ASC`,
+            ) sub ORDER BY id ASC`,
             [userId, sessionId, limit.toString(), offset.toString()]
         );
         res.json({ messages, page, limit });

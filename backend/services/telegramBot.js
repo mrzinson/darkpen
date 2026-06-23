@@ -528,7 +528,7 @@ async function handleIncomingMessage(msg) {
 
     // ── 10. Chat history ──────────────────────────────────────────────────────
     const [histRows] = await db.execute(
-        'SELECT sender, message FROM messages_private WHERE user_id=? AND session_id="telegram" ORDER BY created_at DESC LIMIT 5',
+        'SELECT sender, message FROM messages_private WHERE user_id=? AND session_id="telegram" ORDER BY id DESC LIMIT 5',
         [userId]
     );
     const history = histRows.reverse().map(r => ({
@@ -564,11 +564,13 @@ Rules:
         // Replace 👀 with ❤️ after responding
         await reactToMessage(chatId, msgId, '❤️');
 
-        // Async DB saves
-        db.execute('INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, "telegram", "user", ?)', [userId, finalPrompt])
-            .catch(e => console.error('[TELEGRAM BOT] DB user msg:', e.message));
-        db.execute('INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, "telegram", "ai", ?)', [userId, aiResp])
-            .catch(e => console.error('[TELEGRAM BOT] DB ai msg:', e.message));
+        // Sequential DB saves to prevent out-of-order IDs and identical timestamps
+        try {
+            await db.execute('INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, "telegram", "user", ?)', [userId, finalPrompt]);
+            await db.execute('INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, "telegram", "ai", ?)', [userId, aiResp]);
+        } catch (dbErr) {
+            console.error('[TELEGRAM BOT] DB save messages error:', dbErr.message);
+        }
         logAIUsage(userId, 'gemini-1.5-flash', finalPrompt, aiResp,
             voiceCostApplied ? 'voice' : isPhoto ? 'image' : 'education', 'telegram')
             .catch(e => console.error('[TELEGRAM BOT] Logging:', e.message));

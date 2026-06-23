@@ -805,84 +805,16 @@ function startProactiveChecker() {
     }, 60000);
 }
 
-// ─── Debounced message handler ───────────────────────────────────────────────
-async function handleDebouncedMessage(message) {
-    const sender = message.from;
-    
-    // React with 👀 immediately so the user knows we saw it
-    await message.react('👀').catch(err => console.error('[WHATSAPP BOT] Failed to react 👀:', err.message));
-    
-    if (!whatsappMessageQueues.has(sender)) {
-        whatsappMessageQueues.set(sender, {
-            messages: [],
-            timer: null
-        });
-    }
-    
-    const queue = whatsappMessageQueues.get(sender);
-    
-    // Clear existing timer if any
-    if (queue.timer) {
-        clearTimeout(queue.timer);
-    }
-    
-    // Add current message to the list
-    queue.messages.push(message);
-    
-    // Start a new 3-second timer
-    queue.timer = setTimeout(async () => {
-        // Timer fired! Process the combined messages.
-        const userQueue = whatsappMessageQueues.get(sender);
-        if (!userQueue || userQueue.messages.length === 0) return;
-        
-        const accumulated = userQueue.messages;
-        whatsappMessageQueues.delete(sender); // Clear queue for this user
-        
-        // If only 1 message was sent, just process it directly
-        if (accumulated.length === 1) {
-            const singleMsg = accumulated[0];
-            singleMsg.isDebounced = true;
-            await handleIncomingMessage(singleMsg);
-            return;
-        }
-        
-        // If multiple messages, combine them!
-        const baseMsg = accumulated[accumulated.length - 1];
-        
-        // Concatenate all message bodies/captions
-        const combinedText = accumulated
-            .map(m => m.body || '')
-            .filter(t => t.trim().length > 0)
-            .join('\n');
-            
-        baseMsg.body = combinedText;
-        baseMsg.isDebounced = true;
-        
-        // Also check if any message in the group had media (just in case they sent image then text)
-        const mediaMsg = accumulated.find(m => m.hasMedia);
-        if (mediaMsg) {
-            baseMsg.hasMedia = true;
-            baseMsg.type = mediaMsg.type;
-            baseMsg.downloadMedia = () => mediaMsg.downloadMedia();
-        }
-        
-        console.log(`[WHATSAPP BOT] Processing combined message from ${sender}: "${combinedText}"`);
-        await handleIncomingMessage(baseMsg);
-    }, 3000);
-}
-
 // ─── Main message handler ─────────────────────────────────────────────────────
 async function handleIncomingMessage(message) {
     if (message.fromMe) return;
 
-    // Debounce messages in private chats to aggregate multi-part/fast typing messages
+    // Start typing state immediately asynchronously so the user sees "typing..." right away
+    message.getChat().then(chat => {
+        chat.sendStateTyping().catch(err => console.error('[WHATSAPP BOT] Failed to send typing:', err.message));
+    }).catch(err => console.error('[WHATSAPP BOT] Failed to get chat:', err.message));
+
     const isGroup = message.from.endsWith('@g.us');
-    if (!isGroup && !message.isDebounced) {
-        handleDebouncedMessage(message).catch(err => {
-            console.error('[WHATSAPP BOT] Debouncer error:', err.message);
-        });
-        return;
-    }
 
     // Deduplicate incoming messages using serialization ID
     const msgId = message.id && message.id._serialized;
@@ -1451,10 +1383,7 @@ If they say they have no money, respond politely and say they can do it whenever
         }
     }
 
-    // React with 👀 (if not already done during debouncing)
-    if (!message.isDebounced) {
-        await message.react('👀').catch(err => console.error('[WHATSAPP BOT] Failed to react 👀:', err.message));
-    }
+
 
     // 3. Rate limiting
     const now = new Date();
@@ -1604,7 +1533,7 @@ If they say they have no money, respond politely and say they can do it whenever
     // 7. Get chat history
     let history = [];
     const [historyRes] = await db.execute(
-        'SELECT sender, message FROM messages_private WHERE user_id = ? AND session_id IS NULL ORDER BY created_at DESC LIMIT 5',
+        'SELECT sender, message FROM messages_private WHERE user_id = ? AND session_id IS NULL ORDER BY id DESC LIMIT 5',
         [userId]
     );
     history = historyRes.reverse().map(msg => ({
@@ -1642,9 +1571,7 @@ If they say they have no money, respond politely and say they can do it whenever
 
     // 9. Call Gemini API
     const chat = await message.getChat();
-    await chat.sendStateTyping();
-    const delayMs = Math.floor(Math.random() * 700) + 500;
-    await new Promise(resolve => setTimeout(resolve, delayMs));
+    await chat.sendStateTyping().catch(err => console.error('[WHATSAPP BOT] Failed to send typing:', err.message));
 
     // Build final prompt - smart image detection
     const hasCaption = messageText && messageText.trim().length > 0;
@@ -1725,16 +1652,19 @@ If they say they have no money, respond politely and say they can do it whenever
         }
         await message.react(chosenReaction).catch(err => console.error('[WHATSAPP BOT] Failed to update reaction:', err.message));
 
-        // Save to DB asynchronously
-        db.execute(
-            'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, NULL, "user", ?)',
-            [userId, finalPrompt]
-        ).catch(err => console.error('[WHATSAPP BOT] DB save user msg error:', err.message));
-
-        db.execute(
-            'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, NULL, "ai", ?)',
-            [userId, aiResponse]
-        ).catch(err => console.error('[WHATSAPP BOT] DB save AI response error:', err.message));
+        // Save to DB sequentially to prevent out-of-order IDs and identical timestamps
+        try {
+            await db.execute(
+                'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, NULL, "user", ?)',
+                [userId, finalPrompt]
+            );
+            await db.execute(
+                'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, NULL, "ai", ?)',
+                [userId, aiResponse]
+            );
+        } catch (dbErr) {
+            console.error('[WHATSAPP BOT] DB save messages error:', dbErr.message);
+        }
 
         logAIUsage(
             userId,
