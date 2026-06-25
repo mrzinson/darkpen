@@ -399,19 +399,107 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
         [normalizedPhone]
     );
 
-    // If user not registered:
+    // If user not registered — start registration flow
     if (users.length === 0) {
-        await sendCloudMessage(
-            from,
-            `*Kulama hadli karo* sababtoo ah waxaa la igu amray in aan la hadlo oo kaliya dadka ka diwaan gashan app-ka *Darkpen*.\n\n` +
-            `Si aad isu diwaangeliso, fadlan raac qodobadan fudud:\n\n` +
-            `1. *Lasoo deg App-ka:* Play Store-ka ku qor *Darkpen* si aad u soo degsato, ama raac link-gan:\n` +
-            `   🔗 https://play.google.com/store/apps/details?id=com.darkpen.app\n\n` +
-            `2. *Isu-diwaangeli:* Marka uu kuusoo dego, iska diwaangeli adigoo adeegsanaya lambarkan WhatsApp-ka ah ee aad hadda igala hadlayso.\n\n` +
-            `3. *Ku shubo Credit:* Ku shubo ugu yaraan *$0.50* si aad u hesho credit, ka dibna iigu soo laabo si aan kuu caawiyo.`
-        );
+        const regState = userStates.get(`reg_${from}`);
+
+        // Step 0: New visitor — ask if they want to register
+        if (!regState) {
+            userStates.set(`reg_${from}`, { step: 'ask_register' });
+            await sendCloudMessage(
+                from,
+                `👋 *Ahlan, ku soo dhawow Darkpen AI!*\n\n` +
+                `Waxaan ahay AI-ka casriga ah ee kaa caawinaya waxbarashada, imtixaannada, iyo su'aalaha kasta.\n\n` +
+                `Ma diiwaangelisaa si aad si buuxda iigu isticmaasho? (Haa / Maya)`
+            );
+            return;
+        }
+
+        // Step 1: User said yes — ask for name
+        if (regState.step === 'ask_register') {
+            if (isYesResponse(messageText)) {
+                userStates.set(`reg_${from}`, { step: 'awaiting_name' });
+                await sendCloudMessage(from, `✅ Wanaagsan! Waxaan kaa codsanayaa macluumaad yar.\n\n👤 Fadlan ii qor *magacaaga buuxa* (tusaale: Axmed Xasan):`);
+            } else if (isNoResponse(messageText)) {
+                userStates.delete(`reg_${from}`);
+                await sendCloudMessage(from, `Awright! Markasta oo aad rabto inaad isdiiwaangeliso, igu soo qor.\n\nAllaha kaa gargaaro! 🙏`);
+            } else {
+                await sendCloudMessage(from, `Fadlan *Haa* ama *Maya* ii qor. 😊\n\nMa diiwaangelisaa?`);
+            }
+            return;
+        }
+
+        // Step 2: Collect name
+        if (regState.step === 'awaiting_name') {
+            const name = messageText.trim();
+            if (!name || name.length < 2 || name.length > 100) {
+                await sendCloudMessage(from, `Magacaagu waa inuu ahaado 2 xaraf ama ka badan. Fadlan mar kale qor magacaaga:`);
+                return;
+            }
+            userStates.set(`reg_${from}`, { step: 'awaiting_username', name });
+            await sendCloudMessage(from, `👌 Wanaagsan, *${name}*!\n\n🔤 Hadda dooro *username* (magaca gaarka ah) ee aad rabto:\n_(Waa inuu ahaado 3-30 xaraf: a-z, 0-9, ama _)_\n\nTusaale: axmed_2026`);
+            return;
+        }
+
+        // Step 3: Collect username
+        if (regState.step === 'awaiting_username') {
+            const username = messageText.trim().toLowerCase().replace(/^@+/, '');
+            const usernameError = (() => {
+                if (!username || username.length < 3 || username.length > 30) return 'Username-ku waa inuu ahaadaa 3-30 xaraf.';
+                if (!/^[a-z0-9_]+$/.test(username)) return 'Username-ku waa inuu ahaadaa xaraf: a-z, 0-9 ama _.';
+                if (/^_+$/.test(username)) return 'Username sax ah dooro.';
+                return null;
+            })();
+            if (usernameError) {
+                await sendCloudMessage(from, `⚠️ ${usernameError}\n\nFadlan mar kale dooro username:`);
+                return;
+            }
+            // Check if username taken
+            const [taken] = await db.execute('SELECT id FROM users WHERE username = ? LIMIT 1', [username]);
+            if (taken.length > 0) {
+                await sendCloudMessage(from, `❌ Username-kan *${username}* hore ayaa la isticmaalaa. Fadlan mid kale dooro:`);
+                return;
+            }
+            userStates.set(`reg_${from}`, { ...regState, step: 'awaiting_reg_password', username });
+            await sendCloudMessage(from, `✅ Username *${username}* waa la helay!\n\n🔒 Hadda samee *password* adag:\n_(Ugu yaraan 8 xaraf)_`);
+            return;
+        }
+
+        // Step 4: Collect password & create account
+        if (regState.step === 'awaiting_reg_password') {
+            const passwordError = validatePassword(messageText);
+            if (passwordError) {
+                await sendCloudMessage(from, `⚠️ ${passwordError}\n\nFadlan mar kale qor password:`);
+                return;
+            }
+            try {
+                const hashedPassword = await bcrypt.hash(messageText.trim(), 12);
+                await db.execute(
+                    `INSERT INTO users (name, username, password, whatsapp_number, role, is_verified, is_suspended)
+                     VALUES (?, ?, ?, ?, 'user', 1, 0)`,
+                    [regState.name, regState.username, hashedPassword, normalizedPhone]
+                );
+                userStates.delete(`reg_${from}`);
+                await sendCloudMessage(
+                    from,
+                    `🎉 *Waad ku guulaysatay diiwaangelinta!*\n\n` +
+                    `📋 *Xogta akoonkaaga:*\n` +
+                    `• *Magac:* ${regState.name}\n` +
+                    `• *Username:* @${regState.username}\n` +
+                    `• *Lambarka:* ${normalizedPhone}\n\n` +
+                    `Hadda waxaad ila hadli kartaa anigoo ahaa AI-gaaga gaarka ah. Maxaan kuu qabtaa? 🚀`
+                );
+            } catch (err) {
+                console.error('[WHATSAPP CLOUD] Registration DB error:', err.message);
+                userStates.delete(`reg_${from}`);
+                await sendCloudMessage(from, `❌ Waan ka xunnahay, cilad ayaa ku timid. Fadlan dib isku day.\n\nHaddii ay sii wadato, la xiriir maamulaha: +252637930329`);
+            }
+            return;
+        }
+
         return;
     }
+
 
     const user = users[0];
 
