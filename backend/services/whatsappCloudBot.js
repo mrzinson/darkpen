@@ -374,6 +374,10 @@ exports.handleWebhookPost = (req, res) => {
                 return;
             }
             processedMessageIds.add(messageId);
+            // ✅ Instantly send 👀 reaction so user knows message was received
+            sendCloudReaction(from, messageId, '👀').catch(err => {
+                console.warn('[WHATSAPP CLOUD] Could not send seen reaction:', err.message);
+            });
             if (processedMessageIds.size > 200) {
                 const oldestId = processedMessageIds.values().next().value;
                 processedMessageIds.delete(oldestId);
@@ -1211,7 +1215,20 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
     6. SLANG & TYPOS: You must be highly intelligent and understanding of Somalised slang, abbreviations, typos, and casual text message shorthand. Even if the user's question is brief, fragmented, or difficult to understand, use context and intelligent prediction to understand their true intent and provide a helpful response.
     7. EDUCATIONAL & SCIENTIFIC ACCURACY: If the topic is educational, scientific, or mathematical, you must double-check your facts, formulas, and reasoning to ensure 100% accuracy and reliability. Do not provide incorrect information.
     8. Formatting: Highlight key terms using *Keyword* (bold) instead of markdown. Do not add spaces inside formatting symbols (e.g., use *bold* not * bold *).
-    9. Shaxan (table): use custom <table_data>Header1|Header2\nVal1|Val2</table_data> format.
+    9. Shaxan (Table): Marka aad xog shax ah soo bandhigayso (tusaale: liiska xanuunada oo kasta leh magac, sababta, qaabka iwm), isticmaal qaabkan cad oo WhatsApp-ku si fiican u soo bandhiyo — kaga fogaan markdown shaxanka (| col |). Tusaale:
+    *1. Tuberculosis (TB)*
+    ━━━━━━━━━━━━━━━━━━━━━━
+    🔹 *Sababta:* Mycobacterium tuberculosis
+    🔹 *Qaabka:* Hawada (respiratory)
+    🔹 *Daaweynta:* Antibiotics 6 bilood
+    ━━━━━━━━━━━━━━━━━━━━━━
+    *2. Malaria*
+    ━━━━━━━━━━━━━━━━━━━━━━
+    🔹 *Sababta:* Plasmodium parasite
+    🔹 *Qaabka:* Kaneecada
+    🔹 *Daaweynta:* Antimalarial drugs
+    ━━━━━━━━━━━━━━━━━━━━━━
+    Isticmaal emoji ku habboon qolofta sida 🦠 caabuqa, 🧪 daawada, iwm si ay u muuqato fiican.
     10. Pricing info: Pay as you go $0.5 (100 credits), Monthly Basic $3 (unlimited standard chat, 1000 credits), Monthly Premium $11 (unlimited chat + premium math/science/image support, 5000 credits). 🎉 QIIMO DHIMIS (ilaa 20/07/2027): Monthly Basic (Bille Basic) waxaa laga heli karaa $2 kaliya! (Fadlan marnaba ha sheegin inta credit ama xog kale ee qorshahan $2 ah ku jirta, kaliya sheeg inuu yahay Bille Basic / Monthly Basic oo qiimo dhimis ah oo lagu heli karo $2 kaliya). Payment: EVC Plus dial *771*637930329*amount# | ZAAD dial *220*637930329*amount# (same number 637930329) | eDahab dial *700*659119779*amount#. After sending, user types sender number here. Contact: WhatsApp +252637930329.
     11. USER SATISFACTION: Your primary goal is to satisfy and persuade the user. Be helpful, warm, and accommodating. NEVER try to redirect the user away or respond in a way that frustrates them.
     12. PERSONALITY & HUMOR (KAFTAN): Be friendly, warm, and humorous. You can joke, tease, and play along with the user. If a user writes something rude, inappropriate, or sexual ("edeb darro"), reject it politely but with a lighthearted, playful, and teasing tone (kaftan diido ah), never being harsh or overly formal.`;
@@ -1341,22 +1358,47 @@ function formatResponseForWhatsApp(text) {
     // Replace <callout>content</callout> with *$1*
     formatted = formatted.replace(/<callout>([\s\S]*?)<\/callout>/gi, '*$1*');
     
-    // Format custom table data into a clean WhatsApp-friendly list
+    // Remove any legacy <table_data> tags if AI still sends them (fallback to plain text)
     formatted = formatted.replace(/<table_data>([\s\S]*?)<\/table_data>/gi, (match, tableContent) => {
         const lines = tableContent.trim().split('\n');
         if (lines.length === 0) return '';
         const headers = lines[0].split('|').map(h => h.trim());
         const rows = lines.slice(1).map(line => line.split('|').map(c => c.trim()));
-        
-        let output = '\n*Xogta Shaxda:*\n';
-        rows.forEach(row => {
-            output += '------------------\n';
-            row.forEach((col, idx) => {
-                const header = headers[idx] || '';
-                output += `• *${header}:* ${col}\n`;
+        const divider = '━━━━━━━━━━━━━━━━━━━━━━';
+        let output = '';
+        rows.forEach((row, rowIdx) => {
+            output += `\n*${rowIdx + 1}.* `;
+            const firstVal = row[0] || '';
+            output += `*${firstVal}*\n${divider}\n`;
+            row.slice(1).forEach((col, idx) => {
+                const header = headers[idx + 1] || '';
+                if (col) output += `🔹 *${header}:* ${col}\n`;
             });
+            output += `${divider}\n`;
         });
-        output += '------------------\n';
+        return output;
+    });
+
+    // 0. Convert raw markdown pipe tables into clean card-style WhatsApp format
+    // Detects blocks of lines that look like | col | col | and separator rows like |---|---|
+    formatted = formatted.replace(/((?:^\|.+\|[ \t]*\n?)+)/gm, (tableBlock) => {
+        const allLines = tableBlock.trim().split('\n').map(l => l.trim());
+        const dataLines = allLines.filter(l => l.startsWith('|') && !l.match(/^\|[\s\-:]+\|/));
+        if (dataLines.length < 2) return tableBlock; // Not a real table, leave as-is
+        const headers = dataLines[0].split('|').map(h => h.trim()).filter(Boolean);
+        const rows = dataLines.slice(1).map(l => l.split('|').map(c => c.trim()).filter(Boolean));
+        if (rows.length === 0) return tableBlock;
+        const divider = '━━━━━━━━━━━━━━━━━━━━━━';
+        let output = '\n';
+        rows.forEach((row, rowIdx) => {
+            const title = row[0] || `Item ${rowIdx + 1}`;
+            output += `*${rowIdx + 1}. ${title}*\n${divider}\n`;
+            row.slice(1).forEach((col, idx) => {
+                const header = headers[idx + 1] || '';
+                if (col) output += `🔹 *${header}:* ${col}\n`;
+            });
+            output += `${divider}\n\n`;
+        });
         return output;
     });
 
