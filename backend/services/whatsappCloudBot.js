@@ -1201,13 +1201,26 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
        - If an image is provided, analyze it and reply in the same language.
     3. EXAMS, IMAGES & QUESTIONS:
        - When analyzing an image, you MUST carefully verify the details, double-check all calculations or question options, and perform a self-validation check to ensure your answer is completely correct. Do not rush or make assumptions.
-       - If the image contains MCQ, True/False, or exam questions (especially if there are multiple questions):
-         * Format each question with plenty of spacing (empty lines) between them.
-         * For each question, you MUST write the question itself in bold (e.g. *1. Su'aasha halkan*).
-         * Place the answer directly below the question.
-         * Prefix the answer with "Jawaab: " (or if the question is in Arabic, use "الجواب: ", and if in English use "Answer: ").
-         * Make sure the answers are extremely clear, well-structured, and easy to understand.
-       - If it is an open-ended/math question, show a brief step-by-step solution.
+       - If the image contains exam questions, identify the question TYPE first, then format as follows:
+
+        A) MCQ (Multiple Choice / doorasho): Use ULTRA-COMPACT summary only — do NOT write the question text. Just list: *1 = A, 2 = C, 3 = B, 4 = D* (one line or stacked, number = correct letter). Example:
+           *Jawaabaha:*
+           1 = A
+           2 = C
+           3 = B
+           4 = D
+
+        B) TRUE/FALSE (Run/Been / Saxan-Qaldaan): Use ULTRA-COMPACT summary only — do NOT write the question text. Just list: *1 = Run, 2 = Been, 3 = Run* (number = Run ama Been). Example:
+           *Jawaabaha:*
+           1 = Run
+           2 = Been
+           3 = Run
+           4 = Run
+
+        C) Open-ended / Descriptive / Math: For these ONLY, write each question in bold, then place the answer directly below it prefixed with "Jawaab: " (or "الجواب: " for Arabic, "Answer: " for English). Show brief step-by-step if math.
+
+        - NEVER mix the formats. MCQ stays compact. True/False stays compact. Only open-ended gets full bold question + answer.
+        - Always double-check every single answer before responding.
     4. CONCISENESS BY DEFAULT: Keep your responses short, concise, and easy to understand. Avoid long explanations unless:
        - The user explicitly asks for an explanation (e.g., "sharax", "explain", "faahfaahi").
        - The topic is complex and cannot be answered briefly without losing essential meaning.
@@ -1239,7 +1252,15 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
     let finalPrompt;
     if (attachmentData && !hasCaption) {
         // Image with no caption: detect quiz vs normal image
-        finalPrompt = `Fiiri sawirkan. Kahor intaadan jawaabin, si fiican u akhri oo u falanqee su'aalaha ku jira, kuna samee xaqiijin labaad (double check) si aad u hubiso in jawaabtu tahay 100% sax ah oo aysan ku jirin wax qalad ah. Haddii sawirku ka kooban yahay su'aalo MCQ, saxan/qaldaan, ama su'aalo imtixaan: ku jawaab adigoo meel bannaan oo ku filan (space) uga tagaya su'aalaha u dhaxeeya. Su'aal kasta ku soo qaado adigoo bold ka dhigaya su'aasha, jawaabtana hoos dhig adigoo ka horreysiinaya "Jawaab: " (ama "الجواب: " haddii ay Carabi tahay) si fiican oo loo fahmi karo. Haddii ay yihiin su'aalo furan ama xisaab: u xal tallaabo-tallaabo ah oo kooban. Ku jawaab luuqadda qoraalka sawirka ku dhex jira.`;
+        finalPrompt = `Fiiri sawirkan. Kahor intaadan jawaabin, si fiican u akhri oo u falanqee su'aalaha ku jira, kuna samee xaqiijin labaad (double check) si aad u hubiso in jawaabtu tahay 100% sax ah oo aysan ku jirin wax qalad ah.
+
+Haddii su'aaluhu yihiin MCQ (doorasho): si kooban u soo koobi kaliya lambarada iyo xarfaha jawaabta: "1 = A, 2 = C, 3 = B" iwm. Su'aasha ha qorin.
+
+Haddii su'aaluhu yihiin Run/Been (True/False): si kooban u soo koobi kaliya: "1 = Run, 2 = Been, 3 = Run" iwm. Su'aasha ha qorin.
+
+Haddii su'aaluhu yihiin furan (open-ended) ama xisaab: su'aal kasta ku soo qaado adigoo bold ka dhigaya, jawaabtana hoos dhig adigoo ka horreysiinaya "Jawaab: " (ama "الجواب: " haddii ay Carabi tahay).
+
+Ku jawaab luuqadda qoraalka sawirka ku dhex jira.`;
     } else if (attachmentData && hasCaption) {
         // Image with caption: append verification instruction
         finalPrompt = `${messageText}\n\n[Fadlan si fiican u hubi sawirka iyo xogta si aad u keento jawaab 100% sax ah oo aad uga fogaato khaladaadka.]`;
