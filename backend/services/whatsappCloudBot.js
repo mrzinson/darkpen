@@ -1,5 +1,50 @@
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
+
+function sendTelegramAdminNotification(text) {
+    return new Promise((resolve) => {
+        const token = process.env.TELEGRAM_BOT_TOKEN;
+        const chatId = process.env.TELEGRAM_OWNER_CHAT_ID;
+        if (!token || !chatId) {
+            console.warn('[TELEGRAM NOTIFY] Missing TELEGRAM_BOT_TOKEN or TELEGRAM_OWNER_CHAT_ID in environment.');
+            return resolve(false);
+        }
+
+        const data = JSON.stringify({
+            chat_id: chatId,
+            text: text,
+            parse_mode: 'HTML'
+        });
+
+        const options = {
+            hostname: 'api.telegram.org',
+            port: 443,
+            path: `/bot${token}/sendMessage`,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': data.length
+            }
+        };
+
+        const req = https.request(options, (res) => {
+            let responseBody = '';
+            res.on('data', (chunk) => responseBody += chunk);
+            res.on('end', () => {
+                resolve(true);
+            });
+        });
+
+        req.on('error', (err) => {
+            console.error('[TELEGRAM NOTIFY] Request error:', err.message);
+            resolve(false);
+        });
+
+        req.write(data);
+        req.end();
+    });
+}
 const db = require('../config/db');
 const { askGemini, transcribeAudio } = require('./aiService');
 const { normalizePhoneNumber, validatePassword } = require('./verificationService');
@@ -390,6 +435,11 @@ function isNoResponse(text) {
 async function processIncomingMessage(from, messageId, type, messageText, mediaId, mediaMime, isDebounced = false) {
     console.log(`[WHATSAPP CLOUD] Received message: from=${from}, type=${type}, body="${messageText}"`);
 
+    if (from.includes('@g.us') || from.includes('-') || from.includes('group')) {
+        console.log(`[WHATSAPP CLOUD] Group message detected (${from}). Ignoring.`);
+        return;
+    }
+
     const normalizedPhone = normalizePhoneNumber(from);
     if (!normalizedPhone) return;
 
@@ -409,8 +459,8 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
             await sendCloudMessage(
                 from,
                 `👋 *Ahlan, ku soo dhawow Darkpen AI!*\n\n` +
-                `Waxaan ahay AI-ka casriga ah ee kaa caawinaya waxbarashada, imtixaannada, iyo su'aalaha kasta.\n\n` +
-                `Ma diiwaangelisaa si aad si buuxda iigu isticmaasho? (Haa / Maya)`
+                `Waxaan ahay caawiyahaaga waxbarashada ee ku shaqeeya sirdoonka macmalka ah. Diiwaangelintan waxay kaa caawin doontaa oo keliya inaad hadhow ku gasho abka Darkpen (Darkpen App) ee moobilka.\n\n` +
+                `Ma rabtaa inaan hadda ku diiwaangeliyo? (Haa / Maya)`
             );
             return;
         }
@@ -424,7 +474,7 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
                 userStates.delete(`reg_${from}`);
                 await sendCloudMessage(from, `Awright! Markasta oo aad rabto inaad isdiiwaangeliso, igu soo qor.\n\nAllaha kaa gargaaro! 🙏`);
             } else {
-                await sendCloudMessage(from, `Fadlan *Haa* ama *Maya* ii qor. 😊\n\nMa diiwaangelisaa?`);
+                await sendCloudMessage(from, `Fadlan ku jawaab *Haa* si aan kuu diiwaangeliyo, ama *Maya*.\n\nXogtan waxay kaa caawinaysaa oo keliya inaad hadhow ku gasho App-ka Darkpen. Ma ku diiwaangeliyaa?`);
             }
             return;
         }
@@ -487,7 +537,7 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
                     `• *Magac:* ${regState.name}\n` +
                     `• *Username:* @${regState.username}\n` +
                     `• *Lambarka:* ${normalizedPhone}\n\n` +
-                    `Hadda waxaad ila hadli kartaa anigoo ahaa AI-gaaga gaarka ah. Maxaan kuu qabtaa? 🚀`
+                    `Xogtaan waxay kaa caawin doontaa inaad hadhow ku gasho abka Darkpen (Darkpen App) ee moobilka. Hadda waxaad ila hadli kartaa anigoo ah AI-gaaga gaarka ah. Maxaan kuu qabtaa? 🚀`
                 );
             } catch (err) {
                 console.error('[WHATSAPP CLOUD] Registration DB error:', err.message);
@@ -515,7 +565,154 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
         return;
     }
 
-    const userId = user.id;
+        const userId = user.id;
+
+    // Check if the user is in the payment topup flow
+    const regState = userStates.get(`reg_${from}`);
+    if (regState && ['awaiting_topup_consent', 'awaiting_plan_choice', 'awaiting_payment_sender_number'].includes(regState.step)) {
+        const cleanBody = messageText.toLowerCase().trim().replace(/[?!.]/g, '');
+        
+        // Check pending payments before proceeding
+        const [pendingRows] = await db.execute(
+            'SELECT id FROM payments WHERE user_id = ? AND status = "pending" LIMIT 1',
+            [userId]
+        );
+        if (pendingRows.length > 0) {
+            await sendCloudMessage(from, "Codsigaaga ku shubashada waa uu socdaa, fadlan sug inta laga soo hubinayo.");
+            userStates.delete(`reg_${from}`);
+            return;
+        }
+
+        if (regState.step === 'awaiting_topup_consent') {
+            if (isYesResponse(messageText)) {
+                userStates.set(`reg_${from}`, { step: 'awaiting_plan_choice' });
+                
+                const now = new Date();
+                const promoStart = new Date('2026-06-20T00:00:00+03:00');
+                const promoEnd   = new Date('2027-07-20T23:59:59+03:00');
+                const isPromoPeriod = now >= promoStart && now <= promoEnd;
+                const basicLabel = isPromoPeriod
+                    ? `2. *Monthly Basic (Qiimo Dhimis):* $2 (Unlimited standard chat - 30 Days)`
+                    : `2. *Monthly Basic:* $3 (Unlimited standard chat - 30 Days)`;
+
+                await sendCloudMessage(
+                    from,
+                    `Fadlan dooro qorshaha aad rabto (Qor lambarka qorshaha tusaale: 1, 2 ama 3):\n\n` +
+                    `1. *Pay as you go:* $0.5 (100 Credits)\n` +
+                    `${basicLabel}\n` +
+                    `3. *Monthly Premium:* $11 (Unlimited chat + premium support - 30 Days)`
+                );
+            } else if (isNoResponse(messageText)) {
+                await sendCloudMessage(from, "Haye, waa la baajiyey (Cancel). Maxaan kale oo aan kuu qabtaa?");
+                userStates.delete(`reg_${from}`);
+            } else {
+                await sendCloudMessage(
+                    from,
+                    `Fadlan ku jawaab *Haa* si aad u sii wadato ku shubashada, ama *Maya* si aad u baajiso.`
+                );
+            }
+            return;
+        }
+
+        if (regState.step === 'awaiting_plan_choice') {
+            if (['1', '2', '3'].includes(cleanBody)) {
+                userStates.set(`reg_${from}`, { step: 'awaiting_payment_sender_number', plan: cleanBody });
+                
+                const now = new Date();
+                const promoStart = new Date('2026-06-20T00:00:00+03:00');
+                const promoEnd   = new Date('2027-07-20T23:59:59+03:00');
+                const isPromoPeriod = now >= promoStart && now <= promoEnd;
+
+                let planDesc = '';
+                let amount = '0.5';
+                if (cleanBody === '1') {
+                    planDesc = 'Pay as you go ($0.5)';
+                    amount = '0.5';
+                } else if (cleanBody === '2') {
+                    planDesc = isPromoPeriod ? 'Monthly Basic (Qiimo Dhimis - $2)' : 'Monthly Basic ($3)';
+                    amount = isPromoPeriod ? '2' : '3';
+                } else if (cleanBody === '3') {
+                    planDesc = 'Monthly Premium ($11)';
+                    amount = '11';
+                }
+
+                await sendCloudMessage(
+                    from,
+                    `Waxaad dooratay: *${planDesc}*\n\n` +
+                    `Fadlan lacagta ku soo dir:\n` +
+                    `• *EVC Plus:* Garaac *771*637930329*${amount}#\n` +
+                    `• *ZAAD:* Garaac *220*637930329*${amount}#\n` +
+                    `• *eDahab:* Garaac *700*659119779*${amount}#\n\n` +
+                    `ℹ️ EVC Plus iyo ZAAD waxay wadaagaan isku number: *637930329*\n` +
+                    `ℹ️ eDahab number: *659119779*\n\n` +
+                    `Markaad lacagta soo dirtid, fadlan halkan ku soo qor *lambarka aad lacagta KA soo dirtay* (tusaale: 63#######) si aan u hubinno:`
+                );
+            } else {
+                await sendCloudMessage(from, `Fadlan dooro lambarka qorshaha saxda ah (1, 2 ama 3):`);
+            }
+            return;
+        }
+
+        if (regState.step === 'awaiting_payment_sender_number') {
+            const senderNum = messageText.trim();
+            const isNumeric = /^\+?[\d\s.-]{6,15}$/.test(senderNum);
+            
+            if (!isNumeric) {
+                regState.invalidCount = (regState.invalidCount || 0) + 1;
+                if (regState.invalidCount > 2) {
+                    await sendCloudMessage(from, "Markaad lacagta soo dirto, fadlan ila soo hadal oo lambarka saxda ah soo qor. Diiwaangelintii waa la joojiyay.");
+                    userStates.delete(`reg_${from}`);
+                } else {
+                    await sendCloudMessage(from, "Fadlan qor lambarka aad lacagta ka soo dirtay (tusaale: 63#######):");
+                }
+                return;
+            }
+
+            const planChoice = regState.plan;
+            let planName = '';
+            let amount = 0.50;
+            if (planChoice === '1') {
+                planName = 'Pay as you go ($0.5)';
+                amount = 0.50;
+            } else if (planChoice === '2') {
+                const now = new Date();
+                const promoStart = new Date('2026-06-20T00:00:00+03:00');
+                const promoEnd   = new Date('2027-07-20T23:59:59+03:00');
+                const isPromoPeriod = now >= promoStart && now <= promoEnd;
+                planName = isPromoPeriod ? 'Monthly Basic ($2 PROMO)' : 'Monthly Basic ($3)';
+                amount = isPromoPeriod ? 2.00 : 3.00;
+            } else if (planChoice === '3') {
+                planName = 'Monthly Premium ($11)';
+                amount = 11.00;
+            }
+
+            try {
+                // Save to database
+                await db.execute(
+                    'INSERT INTO payments (user_id, amount, reference_number, service_type, status) VALUES (?, ?, ?, "general", "pending")',
+                    [userId, amount, senderNum]
+                );
+
+                // Notify admin via Telegram!
+                const tgMessage = `🔔 <b>DALAB LACAGEED OO CUSUB (WhatsApp Bot)!</b>\n\n` +
+                    `👤 <b>Macaamilka:</b> ${user.name || 'Unknown'}\n` +
+                    `💰 <b>Lacagta:</b> $${amount}\n` +
+                    `📋 <b>Qorshaha:</b> ${planName}\n` +
+                    `📞 <b>Lambarka u soo diray:</b> ${senderNum}\n` +
+                    `📅 <b>Taariikhda:</b> ${new Date().toLocaleString('en-US')}\n\n` +
+                    `<i>Fadlan gal Admin Dashboard si aad u xaqiijiso ama u diido.</i>`;
+                
+                await sendTelegramAdminNotification(tgMessage);
+
+                await sendCloudMessage(from, "Codsigaaga ku shubashada lacagta waa la diray oo waa la hubinayaa. Fadlan sug inta laga soo tasdiqinayo. Waad mahadsan tahay! 🙏");
+                userStates.delete(`reg_${from}`);
+            } catch (err) {
+                console.error('[WHATSAPP CLOUD] Payment submission error:', err.message);
+                await sendCloudMessage(from, "Waan ka xunnahay, codsigaaga lama gudbin karo hadda. Fadlan mar kale isku day waxyar ka dib.");
+            }
+            return;
+        }
+    }
 
     // Check rate limit (10 msgs in 1 min -> 10 min block)
     if (await checkRateLimit(userId, from)) {
@@ -764,6 +961,32 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
         return;
     }
 
+    // ─── WhatsApp Payment Request Flow ─────────────────────────────────────────────
+    const isPaymentRequest = 
+        cleanBody === 'shubo' ||
+        cleanBody.includes('ku shubo') ||
+        cleanBody.includes('kushubo') ||
+        cleanBody.includes('shubo lacag') ||
+        cleanBody.includes('ku shubo lacag') ||
+        cleanBody.includes('lacag shubo') ||
+        cleanBody.includes('top up') ||
+        cleanBody.includes('topup') ||
+        cleanBody.includes('payment') ||
+        cleanBody.includes('pricing') ||
+        cleanBody.includes('qiimaha') ||
+        cleanBody.includes('qorshaha');
+
+    if (isPaymentRequest) {
+        // Start the topup consent flow
+        userStates.set(`reg_${from}`, { step: 'awaiting_topup_consent' });
+        await sendCloudMessage(
+            from,
+            `💳 *Ku shubo lacag si aad u sii wadato hadalka.*\n\n` +
+            `Ma rabtaa inaan kuu bilaabo habka ku shubashada lacagta? (Ku jawaab: *Haa* ama *Maya*)`
+        );
+        return;
+    }
+
 
 
 
@@ -844,7 +1067,11 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
         const hasBalance = wallet.length > 0 && wallet[0].balance >= 20;
 
         if (!hasBalance) {
-            await sendCloudMessage(from, 'Dhibcahaagu kuma filna dhegeysiga codka (20 Credits).');
+            await sendCloudMessage(
+                from,
+                `💳 *Dhibcahaagu way dhammaadeen (Dhegeysiga codku wuxuu rabaa 20 Credits).*\n\nFadlan ku shubo lacag si aan kuula sii hadlo oo aan kuugu caawiyo waxbarashadaada.\n\n*Ma kuugu shubaa lacagta?* (Ku jawaab: *Haa* ama *Maya*)`
+            );
+            userStates.set(`reg_${from}`, { step: 'awaiting_topup_consent' });
             return;
         }
 
@@ -912,7 +1139,11 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
         const balance = wallet.length > 0 ? wallet[0].balance : 0;
 
         if (balance < cost) {
-            await sendCloudMessage(from, '💳 *Credit-kaagu kuma filna!*\n\nKu shubo credit si aad u sii wadato isticmaalka.');
+            await sendCloudMessage(
+                from,
+                `💳 *Dhibcahaagu way dhammaadeen.*\n\nFadlan ku shubo lacag si aan kuula sii hadlo oo aan kuugu caawiyo waxbarashadaada.\n\n*Ma kuugu shubaa lacagta?* (Ku jawaab: *Haa* ama *Maya*)`
+            );
+            userStates.set(`reg_${from}`, { step: 'awaiting_topup_consent' });
             return;
         }
 
@@ -966,9 +1197,12 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
        - If an image is provided, analyze it and reply in the same language.
     3. EXAMS, IMAGES & QUESTIONS:
        - When analyzing an image, you MUST carefully verify the details, double-check all calculations or question options, and perform a self-validation check to ensure your answer is completely correct. Do not rush or make assumptions.
-       - If the image contains MCQ, True/False, or exam questions:
-         * ONLY output the question numbers and correct options (e.g. 1. B \n 2. C \n 3. True).
-         * Do NOT explain or show steps unless specifically asked to "explain" or "sharax".
+       - If the image contains MCQ, True/False, or exam questions (especially if there are multiple questions):
+         * Format each question with plenty of spacing (empty lines) between them.
+         * For each question, you MUST write the question itself in bold (e.g. *1. Su'aasha halkan*).
+         * Place the answer directly below the question.
+         * Prefix the answer with "Jawaab: " (or if the question is in Arabic, use "الجواب: ", and if in English use "Answer: ").
+         * Make sure the answers are extremely clear, well-structured, and easy to understand.
        - If it is an open-ended/math question, show a brief step-by-step solution.
     4. CONCISENESS BY DEFAULT: Keep your responses short, concise, and easy to understand. Avoid long explanations unless:
        - The user explicitly asks for an explanation (e.g., "sharax", "explain", "faahfaahi").
@@ -988,7 +1222,7 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
     let finalPrompt;
     if (attachmentData && !hasCaption) {
         // Image with no caption: detect quiz vs normal image
-        finalPrompt = `Fiiri sawirkan. Kahor intaadan jawaabin, si fiican u akhri oo u falanqee su'aalaha ku jira, kuna samee xaqiijin labaad (double check) si aad u hubiso in jawaabtu tahay 100% sax ah oo aysan ku jirin wax qalad ah. Haddii sawirku ka kooban yahay suaalo MCQ, saxan/qaldaan, ama suaalo imtixaan: KALIYA soo qor jawaabaha kooban (lambarka + jawaabta) — HA SHARXIN. Haddii ay yihiin suaalo furan ama xisaab: si kooban u xali. Ku jawaab luuqadda qoraalka sawirka ku dhex jira.`;
+        finalPrompt = `Fiiri sawirkan. Kahor intaadan jawaabin, si fiican u akhri oo u falanqee su'aalaha ku jira, kuna samee xaqiijin labaad (double check) si aad u hubiso in jawaabtu tahay 100% sax ah oo aysan ku jirin wax qalad ah. Haddii sawirku ka kooban yahay su'aalo MCQ, saxan/qaldaan, ama su'aalo imtixaan: ku jawaab adigoo meel bannaan oo ku filan (space) uga tagaya su'aalaha u dhaxeeya. Su'aal kasta ku soo qaado adigoo bold ka dhigaya su'aasha, jawaabtana hoos dhig adigoo ka horreysiinaya "Jawaab: " (ama "الجواب: " haddii ay Carabi tahay) si fiican oo loo fahmi karo. Haddii ay yihiin su'aalo furan ama xisaab: u xal tallaabo-tallaabo ah oo kooban. Ku jawaab luuqadda qoraalka sawirka ku dhex jira.`;
     } else if (attachmentData && hasCaption) {
         // Image with caption: append verification instruction
         finalPrompt = `${messageText}\n\n[Fadlan si fiican u hubi sawirka iyo xogta si aad u keento jawaab 100% sax ah oo aad uga fogaato khaladaadka.]`;

@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
+const https = require('https');
 
 const whatsappCloudBot = require('../services/whatsappCloudBot');
 const {
@@ -129,7 +130,7 @@ exports.signup = async (req, res) => {
         }
 
         if (!whatsappNumber) {
-            return res.status(400).json({ message: 'Fadlan geli number sax ah, tusaale +25261XXXXXXX.' });
+            return res.status(400).json({ message: 'Fadlan geli number sax ah, tusaale +25263XXXXXXX.' });
         }
 
         const passwordError = validatePassword(password);
@@ -270,36 +271,57 @@ exports.registerStudent = async (req, res) => {
     }
 };
 
-// 5. Lacag Bixinta (Payment Submission)
 // Helper to notify admins on new payment
 async function notifyAdminsNewPayment(user, reference_number, amount) {
     try {
-        const [admins] = await db.execute('SELECT whatsapp_number, whatsapp_jid FROM users WHERE role = "admin" AND whatsapp_number IS NOT NULL');
-        if (admins.length === 0) return;
+        const token = process.env.TELEGRAM_BOT_TOKEN;
+        const chatId = process.env.TELEGRAM_OWNER_CHAT_ID;
         
-        const message = `🔔 *DALAB LACAGEED OO CUSUB!*
-        
-👤 *Macaamilka:* ${user.name} (@${user.username})
-💰 *Lacagta:* $${amount}
-📋 *Reference:* ${reference_number}
-📅 *Taariikhda:* ${new Date().toLocaleString('en-US')}
-
-_Fadlan gal Admin Dashboard si aad u xaqiijiso ama u diido._`;
-
-        for (const admin of admins) {
-            let cleanPhone = admin.whatsapp_number.replace(/\D/g, '');
-            if (!cleanPhone) continue;
-            
-            // Send via Cloud Bot only
-            try {
-                await whatsappCloudBot.sendCloudMessage(cleanPhone, message);
-                console.log(`[PAYMENT NOTIFICATION] Sent WhatsApp message to admin ${cleanPhone} via cloud bot`);
-            } catch (err) {
-                console.warn(`[PAYMENT NOTIFICATION] Cloud bot failed for admin ${cleanPhone}:`, err.message);
-            }
+        if (!token || !chatId) {
+            console.warn('[PAYMENT NOTIFICATION] Telegram Bot token or Owner Chat ID missing in environment variables.');
+            return;
         }
+
+        const tgMessage = `🔔 <b>DALAB LACAGEED OO CUSUB (Web App)!</b>\n\n` +
+            `👤 <b>Macaamilka:</b> ${user.name} (@${user.username})\n` +
+            `💰 <b>Lacagta:</b> $${amount}\n` +
+            `📋 <b>Reference:</b> ${reference_number}\n` +
+            `📅 <b>Taariikhda:</b> ${new Date().toLocaleString('en-US')}\n\n` +
+            `<i>Fadlan gal Admin Dashboard si aad u xaqiijiso ama u diido.</i>`;
+
+        const data = JSON.stringify({
+            chat_id: chatId,
+            text: tgMessage,
+            parse_mode: 'HTML'
+        });
+
+        const options = {
+            hostname: 'api.telegram.org',
+            port: 443,
+            path: `/bot${token}/sendMessage`,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': data.length
+            }
+        };
+
+        const req = https.request(options, (res) => {
+            let responseBody = '';
+            res.on('data', (chunk) => responseBody += chunk);
+            res.on('end', () => {
+                console.log(`[PAYMENT NOTIFICATION] Sent Telegram message to admin ${chatId}`);
+            });
+        });
+
+        req.on('error', (err) => {
+            console.error('[PAYMENT NOTIFICATION] Telegram notification request error:', err.message);
+        });
+
+        req.write(data);
+        req.end();
     } catch (e) {
-        console.error('Failed to notify admins via WhatsApp:', e.message);
+        console.error('Failed to notify admins via Telegram:', e.message);
     }
 }
 
