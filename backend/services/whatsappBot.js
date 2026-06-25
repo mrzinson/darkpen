@@ -1,4 +1,4 @@
-const { Client, RemoteAuth } = require('whatsapp-web.js');
+const { Client, LocalAuth, RemoteAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const QRCode = require('qrcode');
 const fs = require('fs');
@@ -9,6 +9,7 @@ const { normalizePhoneNumber, validatePassword } = require('./verificationServic
 const bcrypt = require('bcrypt');
 const { tryUseFreeAI } = require('../utils/freeUsageHelper');
 const { logAIUsage } = require('../utils/aiLogger');
+const TaskQueue = require('../utils/taskQueue');
 
 // Create temp directory for voice notes if it doesn't exist
 const uploadsDir = path.join(__dirname, '../uploads');
@@ -36,23 +37,97 @@ async function destroyClient() {
 }
 
 // QR Code and bot status tracking
+class TimestampedMap extends Map {
+    constructor() {
+        super();
+        this.timestamps = new Map();
+    }
+    set(key, value) {
+        super.set(key, value);
+        this.timestamps.set(key, Date.now());
+        return this;
+    }
+    delete(key) {
+        this.timestamps.delete(key);
+        return super.delete(key);
+    }
+    clear() {
+        this.timestamps.clear();
+        super.clear();
+    }
+}
+
 let botStatus = 'initializing'; // 'initializing' | 'qr_ready' | 'connected' | 'disconnected' | 'error'
 let currentQRDataURL = null;    // Base64 QR image for the /api/whatsapp/qr endpoint
 
 // Password reset states map (userId -> { step })
-const userStates = new Map();
+const userStates = new TimestampedMap();
 // Registration states map (phone -> { step, name, password })
-const registrationStates = new Map();
+const registrationStates = new TimestampedMap();
 // Cache of recently processed message IDs to prevent duplicates
 const processedMessageIds = new Set();
 
-// Debounce message queues for private chats
+// Per-user serial queue — serializes messages from the same user to prevent
+// DB race conditions. Different users are handled fully in parallel.
+const messageQueue = new TaskQueue();
+// Legacy map kept for backwards-compat (unused)
 const whatsappMessageQueues = new Map();
 
 // Rate limiting maps
 const userMsgTimestamps = new Map();
 const unregMsgTimestamps = new Map();
 const groupWarningsSent = new Set();
+
+// Periodically clean up memory leaks in in-memory state & rate limit maps
+setInterval(() => {
+    try {
+        const now = Date.now();
+        const thirtyMinutesAgo = now - 30 * 60000;
+
+        // Clean userStates
+        for (const [key, timestamp] of userStates.timestamps.entries()) {
+            if (timestamp < thirtyMinutesAgo) {
+                userStates.delete(key);
+            }
+        }
+
+        // Clean registrationStates
+        for (const [key, timestamp] of registrationStates.timestamps.entries()) {
+            if (timestamp < thirtyMinutesAgo) {
+                registrationStates.delete(key);
+            }
+        }
+
+        // Clean userMsgTimestamps
+        for (const [userId, times] of userMsgTimestamps.entries()) {
+            const activeTimes = times.filter(t => t > now - 60000);
+            if (activeTimes.length === 0) {
+                userMsgTimestamps.delete(userId);
+            } else {
+                userMsgTimestamps.set(userId, activeTimes);
+            }
+        }
+
+        // Clean unregMsgTimestamps
+        for (const [key, val] of unregMsgTimestamps.entries()) {
+            if (Array.isArray(val)) {
+                const activeTimes = val.filter(t => t > now - 60000);
+                if (activeTimes.length === 0) {
+                    unregMsgTimestamps.delete(key);
+                } else {
+                    unregMsgTimestamps.set(key, activeTimes);
+                }
+            } else if (typeof val === 'number') {
+                // Block timestamp
+                if (val <= now) {
+                    unregMsgTimestamps.delete(key);
+                }
+            }
+        }
+    } catch (err) {
+        console.error('[WHATSAPP BOT MEMORY CLEANUP ERROR]:', err.message);
+    }
+}, 5 * 60000).unref();
 
 // Helper to check rate limit for registered users (10 msgs in 1 min -> 10 min block)
 async function checkRateLimit(userId, message) {
@@ -366,7 +441,7 @@ exports.initialize = async () => {
                 '--disable-extensions',
                 '--disable-accelerated-2d-canvas',
                 '--blink-settings=imagesEnabled=false',
-                '--js-flags=--max-old-space-size=120',
+                '--js-flags=--max-old-space-size=1024',
                 '--disable-features=IsolateOrigins,site-per-process',
                 '--renderer-process-limit=1',
                 '--password-store=basic',
@@ -381,19 +456,33 @@ exports.initialize = async () => {
             console.warn('[WHATSAPP BOT] No Chrome found! Bot may fail.');
         }
 
-        // 4. Resolve dataPath and create RemoteAuth store backed by MySQL
+        // 4. Resolve dataPath
         const dataPath = path.resolve(process.cwd(), '.wwebjs_auth');
-        const store = new MySQLRemoteAuthStore(db, dataPath);
-
-        // 5. Create WhatsApp client with RemoteAuth
-        //    RemoteAuth handles session backup/restore automatically via the store
-        client = new Client({
-            authStrategy: new RemoteAuth({
-                clientId: 'darkpen',   // used as the session key in the DB
+        
+        // Choose auth strategy (default to local for performance and database stability)
+        const authStrategyStr = (process.env.WHATSAPP_AUTH_STRATEGY || 'local').toLowerCase().trim();
+        let authStrategy;
+        
+        if (authStrategyStr === 'remote') {
+            console.log('[WHATSAPP BOT] Using RemoteAuth strategy (storing session in MySQL)...');
+            const store = new MySQLRemoteAuthStore(db, dataPath);
+            authStrategy = new RemoteAuth({
+                clientId: 'darkpen',
                 dataPath: dataPath,
                 store: store,
-                backupSyncIntervalMs: 300000,  // back up every 5 minutes while connected
-            }),
+                backupSyncIntervalMs: 300000, // back up every 5 minutes while connected
+            });
+        } else {
+            console.log('[WHATSAPP BOT] Using LocalAuth strategy (storing session in local filesystem)...');
+            authStrategy = new LocalAuth({
+                clientId: 'darkpen',
+                dataPath: dataPath
+            });
+        }
+
+        // 5. Create WhatsApp client
+        client = new Client({
+            authStrategy: authStrategy,
             puppeteer: puppeteerOptions,
             authTimeoutMs: 0,  // no timeout – keep waiting for QR scan
         });
@@ -518,9 +607,13 @@ exports.initialize = async () => {
                             for (const offlineMsg of messagesToProcess) {
                                 try {
                                     console.log(`[WHATSAPP BOT] Processing offline message from ${offlineMsg.from}`);
-                                    await handleIncomingMessage(offlineMsg);
+                                    // Use sender JID as queue key so each sender is serialized
+                                    const senderKey = offlineMsg.author || offlineMsg.from;
+                                    messageQueue.push(senderKey, () => handleIncomingMessage(offlineMsg)).catch(err => {
+                                        console.error('[WHATSAPP BOT] Offline message handling error:', err);
+                                    });
                                 } catch (err) {
-                                    console.error('[WHATSAPP BOT] Offline message handling error:', err);
+                                    console.error('[WHATSAPP BOT] Offline message enqueue error:', err);
                                 }
                             }
                         }, 4000); // 4-second accumulation window
@@ -528,10 +621,14 @@ exports.initialize = async () => {
                     return;
                 }
 
-                // Process real-time messages immediately
-                await handleIncomingMessage(message);
+                // Process real-time messages via per-user queue (serializes same-user messages,
+                // caps global concurrency to prevent Gemini overload with thousands of users)
+                const senderKey = message.author || message.from;
+                messageQueue.push(senderKey, () => handleIncomingMessage(message)).catch(err => {
+                    console.error('[WHATSAPP BOT] Message handling error:', err);
+                });
             } catch (err) {
-                console.error('[WHATSAPP BOT] Message handling error:', err);
+                console.error('[WHATSAPP BOT] Message event error:', err);
             }
         });
 
@@ -1823,3 +1920,6 @@ exports.getUserState = (userId) => {
 exports.deleteUserState = (userId) => {
     userStates.delete(userId);
 };
+
+exports.getClient = () => client;
+

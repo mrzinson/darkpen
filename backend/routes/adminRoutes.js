@@ -8,7 +8,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const adminAuth = require('../middleware/adminAuth');
 const { clearEmbeddingsCache } = require('../services/aiService');
-const whatsappBot = require('../services/whatsappBot');
+
 const whatsappCloudBot = require('../services/whatsappCloudBot');
 const storageService = require('../services/storageService');
 
@@ -242,31 +242,16 @@ router.post('/users/:id/whatsapp-report', async (req, res) => {
           `🔒 *Status-ka:* ${statusText}\n\n` +
           `Mahadsanid, sii wad isticmaalka Darkpen! 🚀`;
           
-        // Send message using the WhatsApp bot helpers with fallback
+        // Send via Cloud Bot
         let sent = false;
         let sendError = null;
-
-        // Try regular local whatsappBot first
         try {
-            if (whatsappBot.getBotStatus && whatsappBot.getBotStatus() === 'connected') {
-                await whatsappBot.sendWhatsAppMessage(user.whatsapp_jid || user.whatsapp_number, reportMessage);
-                sent = true;
-            }
+            const cleanPhone = user.whatsapp_number.replace(/\+/g, '').trim();
+            await whatsappCloudBot.sendCloudMessage(cleanPhone, reportMessage);
+            sent = true;
         } catch (err) {
-            console.warn('[ADMIN REPORT] whatsappBot send failed, trying cloud bot:', err.message);
+            console.error('[ADMIN REPORT] whatsappCloudBot send failed:', err.message);
             sendError = err;
-        }
-
-        // Try whatsappCloudBot fallback
-        if (!sent) {
-            try {
-                const cleanPhone = user.whatsapp_number.replace(/\+/g, '').trim();
-                await whatsappCloudBot.sendCloudMessage(cleanPhone, reportMessage);
-                sent = true;
-            } catch (err) {
-                console.error('[ADMIN REPORT] whatsappCloudBot send failed:', err.message);
-                sendError = err;
-            }
         }
 
         if (!sent) {
@@ -319,17 +304,7 @@ router.get('/payments/test-whatsapp-notify/:phone', async (req, res) => {
         console.log(`[TEST WHATSAPP] Sending test message to: ${phone}`);
         
         let localSent = false;
-        let localError = null;
-        try {
-            if (whatsappBot.getBotStatus && whatsappBot.getBotStatus() === 'connected') {
-                await whatsappBot.sendWhatsAppMessage(phone, approveMsg);
-                localSent = true;
-            } else {
-                localError = `Local bot status: ${whatsappBot.getBotStatus ? whatsappBot.getBotStatus() : 'unknown'}`;
-            }
-        } catch (e) {
-            localError = e.message;
-        }
+        let localError = 'Local QR bot removed — Cloud API only';
 
         let cloudSent = false;
         let cloudResult = null;
@@ -348,7 +323,7 @@ router.get('/payments/test-whatsapp-notify/:phone', async (req, res) => {
         res.json({
             phone,
             localBot: {
-                status: whatsappBot.getBotStatus ? whatsappBot.getBotStatus() : 'unknown',
+                status: 'disabled',
                 sent: localSent,
                 error: localError
             },
@@ -462,27 +437,16 @@ router.post('/payments/:id/approve', async (req, res) => {
             } else {
                 planName = 'Pay as you go (100 Credits)';
             }
-            const approveMsg = `✅ Hambalyo waad isticmaali kartaa.`;
+                    const approveMsg = `✅ Hambalyo waad isticmaali kartaa.`;
             let waSent = false;
-            // Try local bot first
+            // Send via Cloud Bot
             try {
-                if (whatsappBot.getBotStatus && whatsappBot.getBotStatus() === 'connected') {
-                    await whatsappBot.sendWhatsAppMessage(userJid, approveMsg);
+                const result = await whatsappCloudBot.sendCloudMessage(userPhone.replace(/^\+/, ''), approveMsg);
+                if (result) {
                     waSent = true;
                 }
-            } catch (wErr) {
-                console.error('[ADMIN APPROVE] Local bot failed:', wErr.message);
-            }
-            // Fallback to Cloud Bot
-            if (!waSent) {
-                try {
-                    const result = await whatsappCloudBot.sendCloudMessage(userPhone.replace(/^\+/, ''), approveMsg);
-                    if (result) {
-                        waSent = true;
-                    }
-                } catch (cErr) {
-                    console.error('[ADMIN APPROVE] Cloud bot also failed:', cErr.message);
-                }
+            } catch (cErr) {
+                console.error('[ADMIN APPROVE] Cloud bot failed:', cErr.message);
             }
         }
 
@@ -523,25 +487,14 @@ router.post('/payments/:id/reject', async (req, res) => {
             const userJid = userRows[0].whatsapp_jid || userPhone;
             const rejectMsg = `❌ Lama aqbalin lacagta.`;
             let waRejSent = false;
-            // Try local bot first
+            // Send via Cloud Bot
             try {
-                if (whatsappBot.getBotStatus && whatsappBot.getBotStatus() === 'connected') {
-                    await whatsappBot.sendWhatsAppMessage(userJid, rejectMsg);
+                const result = await whatsappCloudBot.sendCloudMessage(userPhone.replace(/^\+/, ''), rejectMsg);
+                if (result) {
                     waRejSent = true;
                 }
-            } catch (wErr) {
-                console.error('[ADMIN REJECT] Local bot failed:', wErr.message);
-            }
-            // Fallback to Cloud Bot
-            if (!waRejSent) {
-                try {
-                    const result = await whatsappCloudBot.sendCloudMessage(userPhone.replace(/^\+/, ''), rejectMsg);
-                    if (result) {
-                        waRejSent = true;
-                    }
-                } catch (cErr) {
-                    console.error('[ADMIN REJECT] Cloud bot also failed:', cErr.message);
-                }
+            } catch (cErr) {
+                console.error('[ADMIN REJECT] Cloud bot failed:', cErr.message);
             }
         }
 
@@ -1583,7 +1536,6 @@ router.get('/admin-logs', async (req, res) => {
 // 1. WhatsApp Bot Overview Stats
 router.get('/whatsapp/stats', async (req, res) => {
     try {
-        const localStatus = whatsappBot.getBotStatus ? whatsappBot.getBotStatus() : 'disabled';
         const cloudActive = !!(process.env.META_WA_PHONE_NUMBER_ID && process.env.META_WA_ACCESS_TOKEN);
 
         // Inta qof ee maanta lasoo hadlay (unique user_ids today)
@@ -1643,7 +1595,7 @@ router.get('/whatsapp/stats', async (req, res) => {
 
         res.json({
             status: {
-                localBot: localStatus,
+                localBot: 'disabled',
                 cloudBot: cloudActive ? 'active' : 'inactive'
             },
             todayUsersCount: todayUsers,
@@ -1705,31 +1657,6 @@ router.get('/whatsapp/users', async (req, res) => {
 // 3. WhatsApp Groups list
 router.get('/whatsapp/groups', async (req, res) => {
     try {
-        // Fetch live groups if bot is connected
-        if (whatsappBot.getBotGroups) {
-            const liveGroups = await whatsappBot.getBotGroups();
-            if (liveGroups.length > 0) {
-                // Update / insert them into whatsapp_group_stats
-                for (const g of liveGroups) {
-                    await db.execute(`
-                        INSERT INTO whatsapp_group_stats (group_id, group_name, status)
-                        VALUES (?, ?, 'active')
-                        ON DUPLICATE KEY UPDATE 
-                            group_name = VALUES(group_name),
-                            status = 'active'
-                    `, [g.group_id, g.group_name]);
-                }
-                // Mark groups not in the live list as inactive (if bot is connected, groups not returned must be inactive/left)
-                const liveGroupIds = liveGroups.map(lg => lg.group_id);
-                const placeholders = liveGroupIds.map(() => '?').join(',');
-                await db.execute(`
-                    UPDATE whatsapp_group_stats 
-                    SET status = 'inactive' 
-                    WHERE group_id NOT IN (${placeholders})
-                `, liveGroupIds);
-            }
-        }
-
         const [groups] = await db.execute('SELECT * FROM whatsapp_group_stats ORDER BY last_activity DESC');
         res.json(groups);
     } catch (error) {

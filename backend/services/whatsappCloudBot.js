@@ -6,17 +6,68 @@ const { normalizePhoneNumber, validatePassword } = require('./verificationServic
 const bcrypt = require('bcrypt');
 const { tryUseFreeAI } = require('../utils/freeUsageHelper');
 const { logAIUsage } = require('../utils/aiLogger');
+const TaskQueue = require('../utils/taskQueue');
+
+class TimestampedMap extends Map {
+    constructor() {
+        super();
+        this.timestamps = new Map();
+    }
+    set(key, value) {
+        super.set(key, value);
+        this.timestamps.set(key, Date.now());
+        return this;
+    }
+    delete(key) {
+        this.timestamps.delete(key);
+        return super.delete(key);
+    }
+    clear() {
+        this.timestamps.clear();
+        super.clear();
+    }
+}
 
 // Password reset states map (userId -> { step })
-const userStates = new Map();
+const userStates = new TimestampedMap();
 // Cache of recently processed message IDs to prevent duplicates
 const processedMessageIds = new Set();
 
-// Debounce message queues for private chats
+// Per-user serial queue — serializes messages from the same user to prevent
+// DB race conditions. Different users are handled fully in parallel.
+const messageQueue = new TaskQueue();
+// Legacy map kept for backwards-compat (unused)
 const whatsappCloudMessageQueues = new Map();
 
 // Rate limiting maps
 const userMsgTimestamps = new Map();
+
+// Periodically clean up memory leaks in in-memory state & rate limit maps
+setInterval(() => {
+    try {
+        const now = Date.now();
+        const thirtyMinutesAgo = now - 30 * 60000;
+
+        // Clean userStates
+        for (const [key, timestamp] of userStates.timestamps.entries()) {
+            if (timestamp < thirtyMinutesAgo) {
+                userStates.delete(key);
+            }
+        }
+
+        // Clean userMsgTimestamps
+        for (const [userId, times] of userMsgTimestamps.entries()) {
+            const activeTimes = times.filter(t => t > now - 60000);
+            if (activeTimes.length === 0) {
+                userMsgTimestamps.delete(userId);
+            } else {
+                userMsgTimestamps.set(userId, activeTimes);
+            }
+        }
+    } catch (err) {
+        console.error('[WHATSAPP CLOUD BOT MEMORY CLEANUP ERROR]:', err.message);
+    }
+}, 5 * 60000).unref();
 
 // Helper to check rate limit for registered users (10 msgs in 1 min -> 10 min block)
 async function checkRateLimit(userId, from) {
@@ -299,8 +350,9 @@ exports.handleWebhookPost = (req, res) => {
             mediaMime = message.audio.mime_type;
         }
 
-        // Process message in background immediately (no debounce delay)
-        processIncomingMessage(from, messageId, type, messageText, mediaId, mediaMime, false).catch(err => {
+        // Enqueue message through per-user serial queue (same user = serialized,
+        // global cap prevents overloading Gemini under heavy traffic)
+        messageQueue.push(from, () => processIncomingMessage(from, messageId, type, messageText, mediaId, mediaMime)).catch(err => {
             console.error('[WHATSAPP CLOUD] Processing error:', err.message);
         });
     } catch (err) {
@@ -772,7 +824,7 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
         const balance = wallet.length > 0 ? wallet[0].balance : 0;
 
         if (balance < cost) {
-            await sendCloudMessage(from, 'kushubo credit');
+            await sendCloudMessage(from, '💳 *Credit-kaagu kuma filna!*\n\nKu shubo credit si aad u sii wadato isticmaalka.');
             return;
         }
 
@@ -857,7 +909,7 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
     }
 
     try {
-        const aiResponse = await askGemini(finalPrompt, "gemini-2.5-flash", attachmentData, history, darkpenSystemInstruction);
+        const aiResponse = await askGemini(finalPrompt, "gemini-3.1-flash-lite", attachmentData, history, darkpenSystemInstruction);
 
         let isRunningOut = false;
         const [walletRows] = await db.execute('SELECT balance FROM user_wallet WHERE user_id = ?', [userId]);
@@ -938,7 +990,7 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
         // Log usage
         logAIUsage(
             userId, 
-            'gemini-1.5-flash', 
+            'gemini-3.1-flash-lite', 
             finalPrompt, 
             aiResponse, 
             voiceCostApplied ? 'voice' : (hasImage ? 'image' : 'education'),

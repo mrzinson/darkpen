@@ -1,7 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
-const whatsappBot = require('../services/whatsappBot');
+
 const whatsappCloudBot = require('../services/whatsappCloudBot');
 const {
     normalizePhoneNumber,
@@ -290,25 +290,12 @@ _Fadlan gal Admin Dashboard si aad u xaqiijiso ama u diido._`;
             let cleanPhone = admin.whatsapp_number.replace(/\D/g, '');
             if (!cleanPhone) continue;
             
-            const adminJid = admin.whatsapp_jid || admin.whatsapp_number;
-            
-            // Try local bot first
-            try {
-                if (whatsappBot.getBotStatus && whatsappBot.getBotStatus() === 'connected') {
-                    await whatsappBot.sendWhatsAppMessage(adminJid, message);
-                    console.log(`[PAYMENT NOTIFICATION] Sent WhatsApp message to admin ${adminJid} via local bot`);
-                    continue; // Skip fallback if successful
-                }
-            } catch (err) {
-                console.warn(`[PAYMENT NOTIFICATION] Local bot failed for admin ${adminJid}:`, err.message);
-            }
-
-            // Fallback to cloud bot
+            // Send via Cloud Bot only
             try {
                 await whatsappCloudBot.sendCloudMessage(cleanPhone, message);
                 console.log(`[PAYMENT NOTIFICATION] Sent WhatsApp message to admin ${cleanPhone} via cloud bot`);
             } catch (err) {
-                console.error(`[PAYMENT NOTIFICATION] Cloud bot failed for admin ${cleanPhone}:`, err.message);
+                console.warn(`[PAYMENT NOTIFICATION] Cloud bot failed for admin ${cleanPhone}:`, err.message);
             }
         }
     } catch (e) {

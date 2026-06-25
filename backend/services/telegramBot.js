@@ -15,9 +15,29 @@ if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+class TimestampedMap extends Map {
+    constructor() {
+        super();
+        this.timestamps = new Map();
+    }
+    set(key, value) {
+        super.set(key, value);
+        this.timestamps.set(key, Date.now());
+        return this;
+    }
+    delete(key) {
+        this.timestamps.delete(key);
+        return super.delete(key);
+    }
+    clear() {
+        this.timestamps.clear();
+        super.clear();
+    }
+}
+
 // States map: chatId -> { step, data }
 // Steps: 'awaiting_password' | 'reg_name' | 'reg_username' | 'reg_password'
-const telegramUserStates = new Map();
+const telegramUserStates = new TimestampedMap();
 const pendingPosts = new Map();
 const groupLimits = new Map();
 let botInfo = { username: '', id: null };
@@ -25,6 +45,43 @@ let botInfo = { username: '', id: null };
 // Rate limiting map for Telegram
 const telegramMsgTimestamps = new Map();
 const groupWarningsSent = new Set();
+
+// Periodically clean up memory leaks in in-memory state & rate limit maps
+setInterval(() => {
+    try {
+        const now = Date.now();
+        const thirtyMinutesAgo = now - 30 * 60000;
+
+        // Clean telegramUserStates
+        for (const [key, timestamp] of telegramUserStates.timestamps.entries()) {
+            if (timestamp < thirtyMinutesAgo) {
+                telegramUserStates.delete(key);
+            }
+        }
+
+        // Clean telegramMsgTimestamps
+        for (const [userId, times] of telegramMsgTimestamps.entries()) {
+            const activeTimes = times.filter(t => t > now - 60000);
+            if (activeTimes.length === 0) {
+                telegramMsgTimestamps.delete(userId);
+            } else {
+                telegramMsgTimestamps.set(userId, activeTimes);
+            }
+        }
+
+        // Clean groupLimits
+        for (const [chatId, times] of groupLimits.entries()) {
+            const activeTimes = times.filter(ts => now - ts < 60000);
+            if (activeTimes.length === 0) {
+                groupLimits.delete(chatId);
+            } else {
+                groupLimits.set(chatId, activeTimes);
+            }
+        }
+    } catch (err) {
+        console.error('[TELEGRAM BOT MEMORY CLEANUP ERROR]:', err.message);
+    }
+}, 5 * 60000).unref();
 
 // Helper to check rate limit for Telegram (10 msgs in 1 min -> 10 min block)
 async function checkTelegramRateLimit(userId, chatId) {
@@ -267,6 +324,7 @@ async function handleIncomingMessage(msg) {
 
     // Ignore all group chats and channel comment groups to save API costs
     if (isGroup) {
+        await handleGroupMessage(msg);
         return;
     }
 
@@ -538,8 +596,7 @@ async function handleIncomingMessage(msg) {
 
     // ── 11. Typing indicator + AI call ───────────────────────────────────────
     await bot.sendChatAction(chatId, 'typing');
-    await new Promise(r => setTimeout(r, Math.floor(Math.random() * 500) + 300));
-
+    await new Promise(r => setTimeout(r, 100));
     const hasCaption = processedText && processedText.trim().length > 0;
     let finalPrompt = attachmentData && !hasCaption
         ? 'Fiiri sawirkan. Haddii sawirku ka kooban yahay suaalo MCQ/saxan/qaldaan: KALIYA soo qor jawaabaha kooban. Haddii ay yihiin suaalo furan ama xisaab: si kooban u xali.'
@@ -557,7 +614,7 @@ Rules:
 8. Be helpful, warm, accommodating. Never redirect the user away frustratingly.`;
 
     try {
-        const aiResp = await askGemini(finalPrompt, 'gemini-2.5-flash', attachmentData, history, systemInstruction);
+        const aiResp = await askGemini(finalPrompt, 'gemini-3.1-flash-lite', attachmentData, history, systemInstruction);
         const formatted = formatResponseForTelegram(aiResp);
         await sendMessageWithFallback(chatId, formatted);
 
@@ -630,41 +687,69 @@ async function handleContactSharing(msg) {
     const contact = msg.contact;
 
     if (!contact || contact.user_id !== msg.from.id) {
-        await bot.sendMessage(chatId, '❌ Fadlan la wadaag *lambarkaaga saxda ah* adigoo gujinaaya badhanka\\.', { parse_mode: 'Markdown' });
+        await bot.sendMessage(chatId, '❌ Fadlan la wadaag *lambarkaaga saxda ah* adigoo gujinaaya badhanka\.', { parse_mode: 'Markdown' });
         return;
     }
 
     // Show loading animation
     const loader = await sendLoadingMessage(chatId,
-        '🔍 _Xaqiijinaya koontadaada\\.\\.\\._'
+        '🔍 _Xaqiijinaya koontadaada\.\.\._'
     );
 
     const rawPhone    = contact.phone_number;
     const normalized  = normalizePhoneNumber(rawPhone);
 
     if (!normalized) {
-        await editLoadingMessage(loader, '❌ Lambarkaagu ma saxna\\. Fadlan isku day mar kale\\.');
+        await editLoadingMessage(loader, '❌ Lambarkaagu ma saxna\. Fadlan isku day mar kale\.');
         return;
     }
 
-    // Step 1: searching DB
-    await editLoadingMessage(loader, '🔍 _Xaqiijinaya koontadaada\\.\\.\\._\n`[██░░░░░░░░] 20%`');
-    await new Promise(r => setTimeout(r, 600));
-    await editLoadingMessage(loader, '🔍 _Xaqiijinaya koontadaada\\.\\.\\._\n`[████░░░░░░] 40%`');
-    await new Promise(r => setTimeout(r, 600));
+    try {
+        // Query DB directly first to check if already registered
+        const [users] = await db.execute(
+            'SELECT id, name, is_suspended FROM users WHERE whatsapp_number=? LIMIT 1',
+            [normalized]
+        );
 
-    const [users] = await db.execute(
-        'SELECT id, name, is_suspended FROM users WHERE whatsapp_number=? LIMIT 1',
-        [normalized]
-    );
+        if (users.length > 0) {
+            const user = users[0];
+            if (user.is_suspended) {
+                await deleteMsg(chatId, loader?.messageId);
+                await bot.sendMessage(chatId,
+                    '🚫 *Koontadaada waa la xanibay\.* Fadlan la xidhiidh taageerada\.',
+                    { parse_mode: 'Markdown', reply_markup: { remove_keyboard: true } }
+                );
+                return;
+            }
 
-    await editLoadingMessage(loader, '🔍 _Xaqiijinaya koontadaada\\.\\.\\._\n`[██████░░░░] 60%`');
-    await new Promise(r => setTimeout(r, 500));
+            // Link to telegram
+            await db.execute(
+                'INSERT INTO telegram_users (telegram_chat_id, user_id) VALUES (?,?) ON DUPLICATE KEY UPDATE user_id=VALUES(user_id)',
+                [chatId.toString(), user.id]
+            );
 
-    if (users.length === 0) {
-        // ── User not found → start registration agent flow ───────────────────
-        await editLoadingMessage(loader, '📋 _Diyaarinaya diiwaan\\-gelinta\\.\\.\\._\n`[████████░░] 80%`');
-        await new Promise(r => setTimeout(r, 500));
+            // Fast animation
+            await editLoadingMessage(loader, '🔍 _Xaqiijinaya koontadaada\.\.\._\n`[██████████] 100%`');
+            await new Promise(r => setTimeout(r, 200));
+            await deleteMsg(chatId, loader?.messageId);
+
+            await bot.sendMessage(chatId,
+                `✅ *Xaqiijin guul leh!* 🎉\n\n` +
+                `Ku soo dhawaada *\${user.name}*!\n\n` +
+                `🤖 Darkpen Bot waa diyaar. Su'aashaada iigu soo dir!`,
+                {
+                    parse_mode: 'Markdown',
+                    reply_markup: { remove_keyboard: true }
+                }
+            );
+            return;
+        }
+
+        // If not registered, run a fast registration flow start animation
+        await editLoadingMessage(loader, '🔍 _Xaqiijinaya koontadaada\.\.\._\n`[████░░░░░░] 40%`');
+        await new Promise(r => setTimeout(r, 200));
+        await editLoadingMessage(loader, '📋 _Diyaarinaya diiwaan-gelinta\.\.\._\n`[████████░░] 80%`');
+        await new Promise(r => setTimeout(r, 200));
         await deleteMsg(chatId, loader?.messageId);
 
         // Store phone + start registration flow
@@ -674,55 +759,21 @@ async function handleContactSharing(msg) {
         });
 
         await bot.sendMessage(chatId,
-            `👋 *Soo dhowow Darkpen\\!*\n\n` +
-            `Lambarkan *${escapeMd(normalized)}* lama helin diiwaanka\\.\n\n` +
-            `📝 *Waxaan kaa caawinayaa inaad diwaangasho hadda\\!*\n\n` +
+            `👋 *Soo dhowow Darkpen!* 🤖📚\n\n` +
+            `Lambarkan *\${escapeMd(normalized)}* lama helin diiwaanka.\n\n` +
+            `📝 *Waxaan kaa caawinayaa inaad diwaangasho hadda!*\n\n` +
             `━━━━━━━━━━━━━━━\n` +
             `*Tallaabada 1 / 3*\n` +
-            `👤 *Magacaaga full\\-name\\-kaaga* maxaa?\n` +
+            `👤 *Magacaaga full-name-kaaga* maxaa?\n` +
             `_\\(Tusaale: Axmed Cali\\)_`,
             {
                 parse_mode: 'Markdown',
                 reply_markup: { remove_keyboard: true }
             }
         );
-        return;
-    }
-
-    const user = users[0];
-
-    await editLoadingMessage(loader, '✅ _La helay\\.\\.\\._\n`[██████████] 100%`');
-    await new Promise(r => setTimeout(r, 400));
-    await deleteMsg(chatId, loader?.messageId);
-
-    if (user.is_suspended) {
-        await bot.sendMessage(chatId,
-            '🚫 *Koontadaada waa la xanibay\\.* Fadlan la xidhiidh taageerada\\.',
-            { parse_mode: 'Markdown', reply_markup: { remove_keyboard: true } }
-        );
-        return;
-    }
-
-    try {
-        await db.execute(
-            'INSERT INTO telegram_users (telegram_chat_id, user_id) VALUES (?,?) ON DUPLICATE KEY UPDATE user_id=VALUES(user_id)',
-            [chatId.toString(), user.id]
-        );
-
-        await bot.sendMessage(chatId,
-            `✅ *Xaqiijin guul leh\\!*\n\n` +
-            `Ku soo dhawaada *${escapeMd(user.name)}*\\! 🎉\n\n` +
-            `🤖 Darkpen Bot waa diyaar\\. Su'aashaada iigu soo dir\\!`,
-            {
-                parse_mode: 'Markdown',
-                reply_markup: { remove_keyboard: true }
-            }
-        );
     } catch (err) {
-        console.error('[TELEGRAM BOT] Link error:', err.message);
-        await bot.sendMessage(chatId, '❌ Darkpen waxaa ku yimid cilad farsamo oo ku meel gaadh ah\\. Si aan hawshaadu u xanibmin\\, fadlan la xidhiidh Maamulaha: +252637930329\\.', {
-            parse_mode: 'Markdown', reply_markup: { remove_keyboard: true }
-        });
+        console.error('[TELEGRAM BOT] Link/Registration initiation error:', err);
+        await editLoadingMessage(loader, '❌ Cilad ayaa ku timid xaqiijinta koontadaada.');
     }
 }
 
@@ -805,7 +856,7 @@ async function handleRegistrationFlow(msg, state) {
 
         // Show loading animation for registration
         const loader = await sendLoadingMessage(chatId, '⚙️ _Koontada la sameynayaa\\.\\.\\._\n`[██░░░░░░░░] 20%`');
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 150));
         await editLoadingMessage(loader, '⚙️ _Koontada la sameynayaa\\.\\.\\._\n`[█████░░░░░] 50%`');
 
         try {
@@ -820,7 +871,7 @@ async function handleRegistrationFlow(msg, state) {
             const newUserId = result.insertId;
 
             await editLoadingMessage(loader, '⚙️ _Koontada la sameynayaa\\.\\.\\._\n`[████████░░] 80%`');
-            await new Promise(r => setTimeout(r, 400));
+            await new Promise(r => setTimeout(r, 150));
 
             // Create wallet
             await db.execute(
@@ -848,18 +899,27 @@ async function handleRegistrationFlow(msg, state) {
             telegramUserStates.delete(`unreg_${chatId}`);
 
             await bot.sendMessage(chatId,
-                `🎉 *Diwaangelintaada waa guul\\!*\n\n` +
+                `🎉 *Diwaangelintaada waa guul!* 🎉\n\n` +
                 `👤 *Magaca:* ${escapeMd(state.name)}\n` +
                 `🆔 *Username:* @${escapeMd(state.username)}\n` +
                 `📱 *Lambarka:* ${escapeMd(state.phone)}\n\n` +
+                `🎁 Waxaad hadiyad ahaan u heysataa *40 Credits oo Free ah* oo aad hadda ku bilaabi karto!\n` +
+                `• *10 Credits* oo fariimaha qoraalka ah (10 Free Text Messages)\n` +
+                `• *30 Credits* oo sawirada ah (3 Free Images)\n\n` +
                 `━━━━━━━━━━━━━━━\n` +
-                `✨ Hadda waad isticmaali kartaa Darkpen Bot\\!\n` +
-                `💳 Ku shubo *$0\\.50* \\(100 credits\\) si aad u bilowdo:\n` +
+                `⚠️ *Ogeysiis iyo Shuruudo (Terms & Conditions):*\n` +
+                `• Haddii aad isticmaasho Telegram-kan, waxay ka dhigan tahay inaad ogolaatay shuruudaha iyo xeerarka (terms and conditions) ee app-ka Darkpen AI.\n` +
+                `• Fadlan ogoow in bot-kan aan loogu talagalin waxyaabaha sharciga ka hor imanaya ee qishka imtixaannada iyo wixii la mid ah. Isticmaalaha (user-ka) ayaa si buuxda mas'uul uga ah wixii uu u isticmaalo.\n` +
+                `• Haddii jawaabta bot-ku dib u dhacdo ama uu soo jawaabi waayo, taasi micnaheedu maaha inuu khaldan yahay, balse waa mashquul aad u badan (jam) oo ka jira qaybta Bilaashka ah (Free tier).\n` +
+                `• Fadlan save gareyso nambarkayaga oo ah *+252637930329* si aad u aragto wararkii ugu dambeeyay iyo warbixinaha status-keena.\n` +
+                `━━━━━━━━━━━━━━━\n\n` +
+                `📚 *Darkpen AI wuxuu kaa caawinayaa waxbarashada, sawirada, xallinta su'aalaha, iyo wax kasta oo aad u baahan tahay!*\n` +
+                `💳 Marka ay kaa dhamaadaan free-gu, waxaad ku shuban kartaa *$0.50* (100 credits):\n` +
                 `EVC Plus: *\\*771\\*637930329\\*lacagta\\#*\n` +
                 `ZAAD: *\\*220\\*637930329\\*lacagta\\#*\n` +
                 `eDahab: *\\*700\\*659119779\\*lacagta\\#*\n` +
-                `Ka dib screenshot WhatsApp\\-ka u dir: *\\+252637930329*\n\n` +
-                `🤖 Su'aashaada iigu soo dir\\!`,
+                `Ka dib screenshot WhatsApp-ka u dir: *\\+252637930329*\n\n` +
+                `🤖 Su'aashaada iigu soo dir qoraal, sawir ama cod!`,
                 { parse_mode: 'Markdown' }
             );
         } catch (err) {
@@ -1077,7 +1137,7 @@ Rules:
     }
     
     try {
-        const aiResp = await askGemini(finalPrompt, 'gemini-2.5-flash', null, [], groupInstruction);
+        const aiResp = await askGemini(finalPrompt, 'gemini-3.1-flash-lite', null, [], groupInstruction);
         const formatted = formatResponseForTelegram(aiResp);
         
         await bot.sendMessage(chatId, formatted, {

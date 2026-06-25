@@ -7,6 +7,10 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const modelCircuitBreaker = new Map(); // modelName -> timestamp when it can be tried again
 
+// Jitter: add randomness to retry delays to prevent "thundering herd" —
+// when 1000 users all get 503 and retry at the exact same millisecond.
+const jitter = (ms) => ms + Math.random() * ms * 0.5; // ±50% random
+
 async function retryWithBackoff(fn, retries = 3, delay = 400) {
     let lastError = null;
     for (let i = 0; i < retries; i++) {
@@ -27,8 +31,9 @@ async function retryWithBackoff(fn, retries = 3, delay = 400) {
                 ));
             
             if (isTransient && i < retries - 1) {
-                console.warn(`[GEMINI RETRY] Retrying due to transient error (attempt ${i + 1}/${retries}). Error: ${error.message}`);
-                await sleep(delay * Math.pow(2, i)); // 600ms, 1200ms, 2400ms...
+                const waitMs = jitter(delay * Math.pow(2, i)); // 400-600ms, 800-1200ms, 1600-2400ms
+                console.warn(`[GEMINI RETRY] Retrying due to transient error (attempt ${i + 1}/${retries}). Waiting ${Math.round(waitMs)}ms. Error: ${error.message}`);
+                await sleep(waitMs);
                 continue;
             }
             throw error;
@@ -46,18 +51,17 @@ function hasImageAttachment(attachment) {
 /**
  * La hadal Gemini
  */
-exports.askGemini = async (prompt, modelName = "gemini-2.5-flash", attachment = null, history = [], systemInstruction = null) => {
+exports.askGemini = async (prompt, modelName = "gemini-3.1-flash-lite", attachment = null, history = [], systemInstruction = null) => {
     let targetModel = modelName;
-    if (targetModel === "gemini-2.5-flash" && !hasImageAttachment(attachment)) {
-        console.log("[GEMINI SERVICE] No image attachment detected. Dynamically downgrading gemini-2.5-flash to gemini-2.5-flash-lite for cost optimization.");
-        targetModel = "gemini-2.5-flash-lite";
+    if ((targetModel === "gemini-2.5-flash" || targetModel === "gemini-3.1-flash-lite") && !hasImageAttachment(attachment)) {
+        targetModel = "gemini-3.1-flash-lite";
     }
 
     const fallbackModels = Array.from(new Set([
         targetModel, 
+        "gemini-3.1-flash-lite",
         "gemini-2.5-flash-lite",
         "gemini-2.5-flash", 
-        "gemini-flash-latest",
         "gemini-flash-lite-latest",
         "gemini-pro-latest"
     ]));
@@ -135,18 +139,17 @@ exports.askGemini = async (prompt, modelName = "gemini-2.5-flash", attachment = 
 /**
  * La hadal Gemini adigoo ku jawaabaya qaab Streaming ah
  */
-exports.askGeminiStream = async (prompt, modelName = "gemini-2.5-flash", attachment = null, history = [], systemInstruction = null) => {
+exports.askGeminiStream = async (prompt, modelName = "gemini-3.1-flash-lite", attachment = null, history = [], systemInstruction = null) => {
     let targetModel = modelName;
-    if (targetModel === "gemini-2.5-flash" && !hasImageAttachment(attachment)) {
-        console.log("[GEMINI SERVICE] No image attachment detected. Dynamically downgrading gemini-2.5-flash to gemini-2.5-flash-lite for cost optimization.");
-        targetModel = "gemini-2.5-flash-lite";
+    if ((targetModel === "gemini-2.5-flash" || targetModel === "gemini-3.1-flash-lite") && !hasImageAttachment(attachment)) {
+        targetModel = "gemini-3.1-flash-lite";
     }
 
     const fallbackModels = Array.from(new Set([
         targetModel, 
+        "gemini-3.1-flash-lite",
         "gemini-2.5-flash-lite",
         "gemini-2.5-flash", 
-        "gemini-flash-latest",
         "gemini-flash-lite-latest",
         "gemini-pro-latest"
     ]));
@@ -367,7 +370,7 @@ exports.transcribeAudio = async (filePath, mimeType = "audio/mp4") => {
     const audioBuffer = fs.readFileSync(filePath);
     const base64Audio = audioBuffer.toString('base64');
 
-    const fallbackModels = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-flash-lite-latest", "gemini-pro-latest"];
+    const fallbackModels = ["gemini-3.1-flash-lite", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-pro-latest"];
 
     // Filter out models that are currently disabled by the circuit breaker due to high demand
     const activeModels = fallbackModels.filter(m => {
