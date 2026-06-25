@@ -6,7 +6,7 @@ const { normalizePhoneNumber, validatePassword } = require('./verificationServic
 const bcrypt = require('bcrypt');
 const { tryUseFreeAI } = require('../utils/freeUsageHelper');
 const { logAIUsage } = require('../utils/aiLogger');
-const TaskQueue = require('../utils/taskQueue');
+const TaskQueue = require('../utils/TaskQueue');
 
 class TimestampedMap extends Map {
     constructor() {
