@@ -13,6 +13,7 @@ interface Message {
 
 interface ShukaansiViewProps {
   onOpenSidebar: () => void;
+  onBack?: () => void;
 }
 
 function renderMarkdown(text: string) {
@@ -22,7 +23,7 @@ function renderMarkdown(text: string) {
   return formatted.split('\n').join('<br />');
 }
 
-export default function ShukaansiView({ onOpenSidebar }: ShukaansiViewProps) {
+export default function ShukaansiView({ onOpenSidebar, onBack }: ShukaansiViewProps) {
   const { language } = useTheme();
   
   const [messages, setMessages] = useState<Message[]>([]);
@@ -140,72 +141,79 @@ export default function ShukaansiView({ onOpenSidebar }: ShukaansiViewProps) {
 
     try {
       const token = localStorage.getItem('userToken');
-      const xhr = new XMLHttpRequest();
-      activeXhr.current = xhr;
-      xhr.open('POST', `https://darkpen-backend.onrender.com/api/chat/ask`);
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      const sendRequest = (isRetry = false) => {
+        if (isRetry) setThinkingStatus('Server-ka ayaa bilaabmaya, sabar yar...');
+        const xhr = new XMLHttpRequest();
+        activeXhr.current = xhr;
+        xhr.open('POST', `https://darkpen-backend.onrender.com/api/chat/ask`);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
-      let accumulatedText = "";
-      let offset = 0;
+        let accumulatedText = "";
+        let offset = 0;
 
-      xhr.onreadystatechange = () => {
-        if (xhr.readyState === 3 || xhr.readyState === 4) {
-          const responseText = xhr.responseText;
-          const chunk = responseText.substring(offset);
-          offset = responseText.length;
+        xhr.onreadystatechange = () => {
+          if (xhr.readyState === 3 || xhr.readyState === 4) {
+            const responseText = xhr.responseText;
+            const chunk = responseText.substring(offset);
+            offset = responseText.length;
 
-          if (chunk) {
-            const lines = chunk.split('\n');
-            for (const line of lines) {
-              const trimmed = line.trim();
-              if (trimmed.startsWith('data: ')) {
-                const dataStr = trimmed.slice(6).trim();
-                if (dataStr === '[DONE]') break;
-                try {
-                  const parsed = JSON.parse(dataStr);
-                  if (parsed.text) {
-                    accumulatedText += parsed.text;
-                    setMessages(prev => prev.map(m => m.id === aiMsgId ? {
-                      ...m,
-                      text: accumulatedText,
-                      status: parsed.status === 'complete' ? 'complete' : 'streaming'
-                    } : m));
+            if (chunk) {
+              const lines = chunk.split('\n');
+              for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed.startsWith('data: ')) {
+                  const dataStr = trimmed.slice(6).trim();
+                  if (dataStr === '[DONE]') break;
+                  try {
+                    const parsed = JSON.parse(dataStr);
+                    if (parsed.text) {
+                      accumulatedText += parsed.text;
+                      setMessages(prev => prev.map(m => m.id === aiMsgId ? {
+                        ...m,
+                        text: accumulatedText,
+                        status: parsed.status === 'complete' ? 'complete' : 'streaming'
+                      } : m));
+                    }
+                  } catch (e) {
+                    // Partial JSON
                   }
-                } catch (e) {
-                  // Partial JSON
                 }
               }
             }
-          }
 
-          if (xhr.readyState === 4) {
-            activeXhr.current = null;
-            if (xhr.status >= 400 && !accumulatedText) {
-              setMessages(prev => prev.map(m => m.id === aiMsgId ? { 
-                ...m, 
-                text: "Cilad ayaa ku dhacday nidaamka. Fadlan mar kale isku day.", 
-                status: 'complete' 
-              } : m));
-            } else {
-              setMessages(prev => prev.map(m => m.id === aiMsgId ? { 
-                ...m, 
-                text: accumulatedText || m.text || "Jawaab ma jiro.", 
-                status: 'complete' 
-              } : m));
-              fetchShukaansiProfile();
+            if (xhr.readyState === 4) {
+              activeXhr.current = null;
+              if (xhr.status >= 400) {
+                let errText = "Cilad ayaa ku dhacday nidaamka. Fadlan mar kale isku day.";
+                try { const j = JSON.parse(xhr.responseText); errText = j.message || errText; } catch {}
+                setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: errText, status: 'complete' } : m));
+                setIsAiTyping(false);
+              } else if (!accumulatedText && !isRetry) {
+                setThinkingStatus('Server-ka ayaa toosaya, sabar yar...');
+                setTimeout(() => sendRequest(true), 3000);
+              } else {
+                setMessages(prev => prev.map(m => m.id === aiMsgId ? { 
+                  ...m, 
+                  text: accumulatedText || m.text || "Jawaab ma jiro.", 
+                  status: 'complete' 
+                } : m));
+                fetchShukaansiProfile();
+                setIsAiTyping(false);
+              }
             }
-            setIsAiTyping(false);
           }
-        }
+        };
+
+        xhr.send(JSON.stringify({
+          message: userText,
+          chatType: 'shukaansi',
+          stream: true,
+          sessionId: `shukaansi_${Date.now()}`
+        }));
       };
 
-      xhr.send(JSON.stringify({
-        message: userText,
-        chatType: 'shukaansi',
-        stream: true,
-        sessionId: `shukaansi_${Date.now()}`
-      }));
+      sendRequest();
 
     } catch (e) {
       setMessages(prev => prev.map(m => m.id === aiMsgId ? { 
@@ -220,12 +228,12 @@ export default function ShukaansiView({ onOpenSidebar }: ShukaansiViewProps) {
   return (
     <div className="flex-1 w-full h-full flex flex-col bg-white dark:bg-[#0D1117] relative select-none">
       
-      {/* Header (Circular buttons + center capsule matching screenshot 4) */}
-      <div className="flex items-center justify-between px-4 py-4 bg-white dark:bg-[#161B22] border-b border-gray-150 dark:border-gray-800 select-none">
-        <div className="flex items-center gap-3">
+      {/* Header (Circular buttons + left-aligned WhatsApp-style partner avatar + name + status) */}
+      <div className="flex items-center justify-between px-3 py-2 bg-white dark:bg-[#161B22] border-b border-gray-150 dark:border-gray-800 select-none">
+        <div className="flex items-center gap-2">
           {/* Back Circular Button */}
           <button 
-            onClick={onOpenSidebar}
+            onClick={onBack || onOpenSidebar}
             className="w-10 h-10 rounded-full flex items-center justify-center bg-white dark:bg-gray-800 shadow border border-gray-150 dark:border-gray-700 text-blue-500 hover:bg-gray-50 dark:hover:bg-gray-750 transition-all active:scale-95 flex-shrink-0"
           >
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-5 h-5">
@@ -233,18 +241,27 @@ export default function ShukaansiView({ onOpenSidebar }: ShukaansiViewProps) {
             </svg>
           </button>
           
-          {/* GACALO Capsule */}
-          <div className="px-6 py-2 rounded-full border-2 border-blue-500/20 dark:border-blue-500/40 bg-blue-500/5 select-none">
-            <h3 className="font-black text-[#0066FF] leading-none text-xs tracking-widest">GACALO</h3>
+          {/* WhatsApp-like Avatar + Name + Online status */}
+          <div className="flex items-center gap-2.5">
+            <div className="relative">
+              <div className="w-10 h-10 rounded-full bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-500 font-extrabold text-xs shadow-inner">
+                G
+              </div>
+              <span className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-white dark:ring-[#161B22] animate-pulse" />
+            </div>
+            <div className="flex flex-col">
+              <span className="font-bold text-gray-800 dark:text-gray-100 text-sm leading-tight">Gacalo</span>
+              <span className="text-[10px] text-green-500 font-medium">Online</span>
+            </div>
           </div>
         </div>
 
         {/* Right Action Buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {/* Phone Call Button */}
           <button 
             onClick={() => alert('Wicitaanka hadda ma shaqaynayo.')}
-            className="w-10 h-10 rounded-full flex items-center justify-center bg-white dark:bg-gray-800 shadow border border-gray-150 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-750 transition-all active:scale-95 flex-shrink-0"
+            className="w-10 h-10 rounded-full flex items-center justify-center bg-white dark:bg-gray-800 shadow border border-gray-150 dark:border-gray-700 text-gray-750 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-750 transition-all active:scale-95 flex-shrink-0"
             title="Call"
           >
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">

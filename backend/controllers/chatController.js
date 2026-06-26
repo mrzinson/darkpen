@@ -421,6 +421,9 @@ exports.askAI = async (req, res) => {
         const startHistory = Date.now();
         let history = [];
         let finalPrompt = message;
+        if (hasImage) {
+            finalPrompt = `[IMAGE ANALYSIS REQUEST: Analyze the attached image very carefully. First, perform OCR to extract all questions, math formulas, text, and tasks. Then, double-check your analysis and calculations step-by-step to ensure 100% accuracy. Provide a detailed, professional, and correct answer. Answer in the same language as the user query or the text in the image.]\n\nUser Question/Instruction: ${message || "Please analyze this image and explain/solve it."}`;
+        }
 
         const historyPromise = chatType === 'shukaansi'
             ? db.execute(
@@ -447,13 +450,27 @@ exports.askAI = async (req, res) => {
         }
         const modelName = "gemini-2.5-flash";
 
-        // Handle streaming response if requested and not shukaansi
-        if (stream === true && chatType !== 'shukaansi') {
-            // Save User message asynchronously in background (do not block stream startup)
-            db.execute(
-                'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "user", ?)',
-                [userId, sessionId || null, message || "[Attachment]"]
-            ).catch(err => console.error("[STREAM] Async user message save error:", err));
+        // Handle streaming response if requested
+        if (stream === true) {
+            let insertedUserMsgId = null;
+            
+            // Save User message
+            try {
+                if (chatType === 'shukaansi') {
+                    const [insertResult] = await db.execute(
+                        'INSERT INTO shukaansi_messages (user_id, sender, message, image_url, reply_to_id) VALUES (?, "user", ?, ?, ?)',
+                        [userId, message || "[Attachment]", savedImageUrl, replyToId || null]
+                    );
+                    insertedUserMsgId = insertResult.insertId;
+                } else {
+                    await db.execute(
+                        'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "user", ?)',
+                        [userId, sessionId || null, message || "[Attachment]"]
+                    );
+                }
+            } catch (err) {
+                console.error("[STREAM] User message save error:", err);
+            }
 
             res.setHeader('Content-Type', 'text/event-stream');
             res.setHeader('Cache-Control', 'no-cache');
@@ -491,13 +508,44 @@ exports.askAI = async (req, res) => {
                 }
                 res.end();
 
-                // Save AI response to messages_private asynchronously in background
+                // Save AI response asynchronously in background
                 (async () => {
                     try {
-                        await db.execute(
-                            'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "ai", ?)',
-                            [userId, sessionId || null, aiResponseText]
-                        );
+                        if (chatType === 'shukaansi') {
+                            await db.execute(
+                                'INSERT INTO shukaansi_messages (user_id, sender, message, reply_to_id) VALUES (?, "ai", ?, ?)',
+                                [userId, aiResponseText, insertedUserMsgId || null]
+                            );
+
+                            // AI reacts to user message sometimes (e.g. 40% of the time)
+                            if (insertedUserMsgId && Math.random() < 0.4) {
+                                const reactions = ['❤️', '😂', '👍', '😮', '😢'];
+                                let chosenReaction = reactions[0];
+                                const lowerMsg = (message || "").toLowerCase();
+                                if (lowerMsg.includes('dhib') || lowerMsg.includes('xun') || lowerMsg.includes('buux') || lowerMsg.includes('tiiraanyo')) {
+                                    chosenReaction = '😢';
+                                } else if (lowerMsg.includes('ha') || lowerMsg.includes('qosol') || lowerMsg.includes('kaftan') || lowerMsg.includes('he')) {
+                                    chosenReaction = '😂';
+                                } else if (lowerMsg.includes('nax') || lowerMsg.includes('yaab') || lowerMsg.includes('mise')) {
+                                    chosenReaction = '😮';
+                                } else if (lowerMsg.includes('fiican') || lowerMsg.includes('haa') || lowerMsg.includes('haye')) {
+                                    chosenReaction = '👍';
+                                } else {
+                                    chosenReaction = reactions[Math.floor(Math.random() * reactions.length)];
+                                }
+                                
+                                await db.execute(
+                                    'UPDATE shukaansi_messages SET ai_reaction = ? WHERE id = ?',
+                                    [chosenReaction, insertedUserMsgId]
+                                );
+                            }
+                        } else {
+                            await db.execute(
+                                'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "ai", ?)',
+                                [userId, sessionId || null, aiResponseText]
+                            );
+                        }
+                        
                         // Log AI usage!
                         const aiLogger = require('../utils/aiLogger');
                         aiLogger.logAIUsage(userId, modelName, message || "[Attachment]", aiResponseText, chatType || 'education');

@@ -1,0 +1,10 @@
+{
+  "name": "darkpen-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "npm install --prefix darkpen-web && npm run build --prefix darkpen-web",
+    "install-backend": "npm install --prefix backend",
+    "start-backend": "npm start --prefix backend"
+  }
+}

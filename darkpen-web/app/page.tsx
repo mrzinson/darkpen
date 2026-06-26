@@ -408,6 +408,7 @@ export default function AppWorkspace() {
                 <ChatView 
                   onOpenSidebar={() => {}}
                   onOpenGroups={() => { setCurrentView('groups'); }}
+                  onBack={() => { setActiveTab('home'); setCurrentView('home'); }}
                 />
               ) : currentView === 'exams' ? (
                 <ExamsView
@@ -417,7 +418,10 @@ export default function AppWorkspace() {
               ) : currentView === 'quiz' ? (
                 <QuizView onOpenSidebar={() => {}} />
               ) : currentView === 'shukaansi' ? (
-                <ShukaansiView onOpenSidebar={() => {}} />
+                <ShukaansiView 
+                  onOpenSidebar={() => {}} 
+                  onBack={() => { setActiveTab('home'); setCurrentView('home'); }}
+                />
               ) : currentView === 'profile' ? (
                 <ProfileView
                   userData={userData}
@@ -487,6 +491,7 @@ export default function AppWorkspace() {
                 <ChatView
                   onOpenSidebar={() => setLeftDrawerOpen(true)}
                   onOpenGroups={() => { setCurrentView('groups'); }}
+                  onBack={() => { setActiveTab('home'); setCurrentView('home'); }}
                 />
               </div>
             )}
@@ -494,7 +499,10 @@ export default function AppWorkspace() {
             {/* Shukaansi — fullscreen, has own header */}
             {!openPdf && currentView === 'shukaansi' && (
               <div className="absolute inset-0 z-30 flex flex-col bg-white dark:bg-[#0D1117]">
-                <ShukaansiView onOpenSidebar={() => setLeftDrawerOpen(true)} />
+                <ShukaansiView 
+                  onOpenSidebar={() => setLeftDrawerOpen(true)} 
+                  onBack={() => { setActiveTab('home'); setCurrentView('home'); }}
+                />
               </div>
             )}
 
