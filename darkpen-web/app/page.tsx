@@ -297,9 +297,16 @@ export default function AppWorkspace() {
                     onClick={() => { setActiveTab('home'); setCurrentView('home'); setOpenPdf(null); }}
                     className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-extrabold transition-all text-left ${activeTab === 'home' && currentView === 'home' && !openPdf ? 'bg-[#0084FF]/10 text-[#0084FF]' : 'text-gray-500 hover:text-gray-950 dark:hover:text-white hover:bg-gray-200/30 dark:hover:bg-gray-800/30'}`}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4.5 h-4.5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
-                    </svg>
+                    {activeTab === 'home' && currentView === 'home' && !openPdf ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4.5 h-4.5">
+                        <path d="M11.47 3.84a.75.75 0 011.06 0l8.69 8.69a.75.75 0 101.06-1.06l-8.689-8.69a2.25 2.25 0 00-3.182 0l-8.69 8.69a.75.75 0 001.061 1.06l8.69-8.69z" />
+                        <path d="M12 5.432l8.159 8.159A2.23 2.23 0 0121 15.2v4.8c0 1.215-.985 2.2-2.2 2.2H15a.75.75 0 01-.75-.75V17.25c0-.414-.336-.75-.75-.75h-3c-.414 0-.75.336-.75.75V21.5a.75.75 0 01-.75.75H5.2A2.2 2.2 0 013 20v-4.8c0-.608.243-1.19.678-1.61L12 5.432z" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4.5 h-4.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                      </svg>
+                    )}
                     <span>{t('home')}</span>
                   </button>
 
@@ -307,39 +314,63 @@ export default function AppWorkspace() {
                     onClick={() => { setActiveTab('chat'); setCurrentView('chat'); setOpenPdf(null); }}
                     className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-extrabold transition-all text-left ${activeTab === 'chat' && currentView === 'chat' && !openPdf ? 'bg-[#0084FF]/10 text-[#0084FF]' : 'text-gray-500 hover:text-gray-950 dark:hover:text-white hover:bg-gray-200/30 dark:hover:bg-gray-800/30'}`}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4.5 h-4.5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025 4.479 4.479 0 0 0-.115-1.68C3.753 15.82 3 13.987 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
-                    </svg>
+                    {activeTab === 'chat' && currentView === 'chat' && !openPdf ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4.5 h-4.5">
+                        <path fillRule="evenodd" d="M4.804 21.644A6.707 6.707 0 006 21.75a6.786 6.786 0 004.5-1.724 9.014 9.014 0 005.196.108 9.02 9.02 0 004.498-3.08 9.018 9.018 0 001.378-5.3 9.017 9.017 0 00-4.498-7.854 9.017 9.017 0 00-8.25 0A9.017 9.017 0 003 11.75a8.995 8.995 0 001.155 4.417 6.7 6.7 0 00-.635 3.327.75.75 0 001.284.55l.004-.004zM10.25 11a1.25 1.25 0 11-2.5 0 1.25 1.25 0 012.5 0zm4 0a1.25 1.25 0 11-2.5 0 1.25 1.25 0 012.5 0zm2.75 1.25a1.25 1.25 0 100-2.5 1.25 1.25 0 000 2.5z" clipRule="evenodd" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4.5 h-4.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025 4.479 4.479 0 00-.115-1.68C3.753 15.82 3 13.987 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+                      </svg>
+                    )}
                     <span>AI Assistant</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveTab('exams'); setCurrentView('exams'); setOpenPdf(null); }}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-extrabold transition-all text-left ${activeTab === 'exams' && currentView === 'exams' && !openPdf ? 'bg-[#0084FF]/10 text-[#0084FF]' : 'text-gray-500 hover:text-gray-950 dark:hover:text-white hover:bg-gray-200/30 dark:hover:bg-gray-800/30'}`}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-extrabold transition-all text-left ${activeTab === 'exams' && currentView === 'exams' && !openPdf ? 'bg-[#0084FF]/10 text-[#0084FF]' : 'text-gray-550 hover:text-gray-950 dark:hover:text-white hover:bg-gray-200/30 dark:hover:bg-gray-800/30'}`}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4.5 h-4.5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
-                    </svg>
+                    {activeTab === 'exams' && currentView === 'exams' && !openPdf ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4.5 h-4.5">
+                        <path d="M11.25 4.533A9.707 9.707 0 006 3.75c-1.8 0-3.473.487-4.912 1.341A.75.75 0 000 5.75v12.25c0 .524.409.96.932 1.012A11.902 11.902 0 016 18.75c1.883 0 3.666.435 5.25 1.208V4.533zM12.75 20v-15.5a11.902 11.902 0 015.25-1.208c1.883 0 3.666.435 5.25 1.208.523.051.932.488.932 1.012v12.25a.75.75 0 01-.688.741c-1.439.854-3.112 1.341-4.912 1.341-1.8 0-3.473-.487-4.912-1.341a.75.75 0 01-.932-.741V20z" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4.5 h-4.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                      </svg>
+                    )}
                     <span>{t('books')} & Exams</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveTab('quiz'); setCurrentView('quiz'); setOpenPdf(null); }}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-extrabold transition-all text-left ${activeTab === 'quiz' && currentView === 'quiz' && !openPdf ? 'bg-[#0084FF]/10 text-[#0084FF]' : 'text-gray-500 hover:text-gray-950 dark:hover:text-white hover:bg-gray-200/30 dark:hover:bg-gray-800/30'}`}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-extrabold transition-all text-left ${activeTab === 'quiz' && currentView === 'quiz' && !openPdf ? 'bg-[#0084FF]/10 text-[#0084FF]' : 'text-gray-550 hover:text-gray-950 dark:hover:text-white hover:bg-gray-200/30 dark:hover:bg-gray-800/30'}`}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4.5 h-4.5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 21l8.982-8.983m-9 9 9-9m-9 9-2.25-2.25m11.25-6.75 2.25-2.25m-13.5 0h13.5M9 7.5h.008v.008H9V7.5Z" />
-                    </svg>
+                    {activeTab === 'quiz' && currentView === 'quiz' && !openPdf ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4.5 h-4.5">
+                        <path fillRule="evenodd" d="M3 6a3 3 0 013-3h12a3 3 0 013 3v8a7.003 7.003 0 01-6 6.917V21h3a.75.75 0 010 1.5h-10a.75.75 0 010-1.5h3v-1.083A7.003 7.003 0 013 14V6zm3.06 1.5a1.5 1.5 0 100 3h.142A7.037 7.037 0 016 7.5zm11.88 3a1.5 1.5 0 100-3c-.097.807-.323 1.58-.665 2.296A1.5 1.5 0 0017.94 10.5z" clipRule="evenodd" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4.5 h-4.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 21.75c-4.5 0-8.25-3.75-8.25-8.25v-3.75A2.25 2.25 0 016 7.5h12a2.25 2.25 0 012.25 2.25v3.75c0 4.5-3.75 8.25-8.25 8.25zm0 0v1.5m-3-1.5h6M3 9.75h1.5m15 0H21m-16.5 0a3.75 3.75 0 013.75-3.75h9.75a3.75 3.75 0 013.75 3.75" />
+                      </svg>
+                    )}
                     <span>Quiz Challenge</span>
                   </button>
 
                   <button
                     onClick={() => { setActiveTab('shukaansi'); setCurrentView('shukaansi'); setOpenPdf(null); }}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-extrabold transition-all text-left ${activeTab === 'shukaansi' && currentView === 'shukaansi' && !openPdf ? 'bg-pink-500/10 text-pink-500' : 'text-gray-500 hover:text-pink-650 hover:bg-gray-200/30 dark:hover:bg-gray-800/30'}`}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-extrabold transition-all text-left ${activeTab === 'shukaansi' && currentView === 'shukaansi' && !openPdf ? 'bg-pink-500/10 text-pink-500' : 'text-gray-550 hover:text-pink-650 hover:bg-gray-200/30 dark:hover:bg-gray-800/30'}`}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4.5 h-4.5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
-                    </svg>
+                    {activeTab === 'shukaansi' && currentView === 'shukaansi' && !openPdf ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4.5 h-4.5">
+                        <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4.5 h-4.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+                      </svg>
+                    )}
                     <span>My Love Chat</span>
                   </button>
                 </nav>
@@ -586,20 +617,33 @@ export default function AppWorkspace() {
                       onClick={() => { setActiveTab('home'); setCurrentView('home'); }}
                       className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-full transition-all ${activeTab === 'home' && currentView === 'home' ? 'text-[#0084FF]' : 'text-gray-400 dark:text-gray-500'}`}
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
-                      </svg>
+                      {activeTab === 'home' && currentView === 'home' ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                          <path d="M11.47 3.84a.75.75 0 011.06 0l8.69 8.69a.75.75 0 101.06-1.06l-8.689-8.69a2.25 2.25 0 00-3.182 0l-8.69 8.69a.75.75 0 001.061 1.06l8.69-8.69z" />
+                          <path d="M12 5.432l8.159 8.159A2.23 2.23 0 0121 15.2v4.8c0 1.215-.985 2.2-2.2 2.2H15a.75.75 0 01-.75-.75V17.25c0-.414-.336-.75-.75-.75h-3c-.414 0-.75.336-.75.75V21.5a.75.75 0 01-.75.75H5.2A2.2 2.2 0 013 20v-4.8c0-.608.243-1.19.678-1.61L12 5.432z" />
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                        </svg>
+                      )}
                       <span className="text-[9px] font-bold">{t('home')}</span>
                     </button>
 
                     {/* Chat */}
                     <button
                       onClick={() => { setActiveTab('chat'); setCurrentView('chat'); }}
-                      className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-full transition-all ${activeTab === 'chat' ? 'text-[#0084FF]' : 'text-gray-400 dark:text-gray-500'}`}
+                      className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-full transition-all ${activeTab === 'chat' ? 'text-[#0084FF]' : 'text-gray-400 dark:text-gray-550'}`}
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025 4.479 4.479 0 0 0-.115-1.68C3.753 15.82 3 13.987 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
-                      </svg>
+                      {activeTab === 'chat' ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                          <path fillRule="evenodd" d="M4.804 21.644A6.707 6.707 0 006 21.75a6.786 6.786 0 004.5-1.724 9.014 9.014 0 005.196.108 9.02 9.02 0 004.498-3.08 9.018 9.018 0 001.378-5.3 9.017 9.017 0 00-4.498-7.854 9.017 9.017 0 00-8.25 0A9.017 9.017 0 003 11.75a8.995 8.995 0 001.155 4.417 6.7 6.7 0 00-.635 3.327.75.75 0 001.284.55l.004-.004zM10.25 11a1.25 1.25 0 11-2.5 0 1.25 1.25 0 012.5 0zm4 0a1.25 1.25 0 11-2.5 0 1.25 1.25 0 012.5 0zm2.75 1.25a1.25 1.25 0 100-2.5 1.25 1.25 0 000 2.5z" clipRule="evenodd" />
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025 4.479 4.479 0 00-.115-1.68C3.753 15.82 3 13.987 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+                        </svg>
+                      )}
                       <span className="text-[9px] font-bold">Chat</span>
                     </button>
 
@@ -608,9 +652,15 @@ export default function AppWorkspace() {
                       onClick={() => { setActiveTab('exams'); setCurrentView('exams'); }}
                       className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-full transition-all ${activeTab === 'exams' && currentView === 'exams' ? 'text-[#0084FF]' : 'text-gray-400 dark:text-gray-500'}`}
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
-                      </svg>
+                      {activeTab === 'exams' && currentView === 'exams' ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                          <path d="M11.25 4.533A9.707 9.707 0 006 3.75c-1.8 0-3.473.487-4.912 1.341A.75.75 0 000 5.75v12.25c0 .524.409.96.932 1.012A11.902 11.902 0 016 18.75c1.883 0 3.666.435 5.25 1.208V4.533zM12.75 20v-15.5a11.902 11.902 0 015.25-1.208c1.883 0 3.666.435 5.25 1.208.523.051.932.488.932 1.012v12.25a.75.75 0 01-.688.741c-1.439.854-3.112 1.341-4.912 1.341-1.8 0-3.473-.487-4.912-1.341a.75.75 0 01-.932-.741V20z" />
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                        </svg>
+                      )}
                       <span className="text-[9px] font-bold">Exams</span>
                     </button>
 
@@ -619,9 +669,15 @@ export default function AppWorkspace() {
                       onClick={() => { setActiveTab('quiz'); setCurrentView('quiz'); }}
                       className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-full transition-all ${activeTab === 'quiz' ? 'text-[#0084FF]' : 'text-gray-400 dark:text-gray-500'}`}
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 21l8.982-8.983m-9 9 9-9m-9 9-2.25-2.25m11.25-6.75 2.25-2.25m-13.5 0h13.5M9 7.5h.008v.008H9V7.5Z" />
-                      </svg>
+                      {activeTab === 'quiz' ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                          <path fillRule="evenodd" d="M3 6a3 3 0 013-3h12a3 3 0 013 3v8a7.003 7.003 0 01-6 6.917V21h3a.75.75 0 010 1.5h-10a.75.75 0 010-1.5h3v-1.083A7.003 7.003 0 013 14V6zm3.06 1.5a1.5 1.5 0 100 3h.142A7.037 7.037 0 016 7.5zm11.88 3a1.5 1.5 0 100-3c-.097.807-.323 1.58-.665 2.296A1.5 1.5 0 0017.94 10.5z" clipRule="evenodd" />
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 21.75c-4.5 0-8.25-3.75-8.25-8.25v-3.75A2.25 2.25 0 016 7.5h12a2.25 2.25 0 012.25 2.25v3.75c0 4.5-3.75 8.25-8.25 8.25zm0 0v1.5m-3-1.5h6M3 9.75h1.5m15 0H21m-16.5 0a3.75 3.75 0 013.75-3.75h9.75a3.75 3.75 0 013.75 3.75" />
+                        </svg>
+                      )}
                       <span className="text-[9px] font-bold">Quiz</span>
                     </button>
 
@@ -630,9 +686,15 @@ export default function AppWorkspace() {
                       onClick={() => { setActiveTab('shukaansi'); setCurrentView('shukaansi'); }}
                       className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-full transition-all ${activeTab === 'shukaansi' ? 'text-pink-500' : 'text-gray-400 dark:text-gray-500'}`}
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
-                      </svg>
+                      {activeTab === 'shukaansi' ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                          <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+                        </svg>
+                      )}
                       <span className="text-[9px] font-bold">Shukaansi</span>
                     </button>
                   </footer>

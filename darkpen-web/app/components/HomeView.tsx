@@ -11,7 +11,7 @@ interface HomeViewProps {
 }
 
 export default function HomeView({ userData, onSelectTab, onOpenPdf }: HomeViewProps) {
-  const { language } = useTheme();
+  const { language, isDark } = useTheme();
   const [promoCards, setPromoCards] = useState<any[]>([]);
   const [activePromoIndex, setActivePromoIndex] = useState(0);
   const [books, setBooks] = useState<any[]>([]);
@@ -139,12 +139,12 @@ export default function HomeView({ userData, onSelectTab, onOpenPdf }: HomeViewP
   };
 
   return (
-    <div className="flex-1 w-full overflow-y-auto px-6 py-6 scrollbar-none flex flex-col gap-6 bg-[#0D1117]">
+    <div className="flex-1 w-full overflow-y-auto px-6 py-6 scrollbar-none flex flex-col gap-6 bg-white dark:bg-[#0D1117] transition-colors duration-200">
       
       {/* Greetings Header */}
       <div className="flex flex-col gap-1 select-none">
-        <h2 className="text-2xl font-extrabold text-white">Kuso dhawaaw Darkpen</h2>
-        <p className="text-xs text-gray-400 font-medium max-w-md">
+        <h2 className="text-2xl font-extrabold text-gray-900 dark:text-white">Kuso dhawaaw Darkpen</h2>
+        <p className="text-xs text-gray-500 dark:text-gray-400 font-medium max-w-md">
           waa madal ka caawinaysa ardayda qaybaha kala duwan ee waxbarshada
         </p>
       </div>
@@ -156,7 +156,9 @@ export default function HomeView({ userData, onSelectTab, onOpenPdf }: HomeViewP
           const displayTitle = language === 'so' ? card.title_so : card.title_en;
           const displayDesc = language === 'so' ? card.desc_so : card.desc_en;
           const displayBtnText = language === 'so' ? card.button_text_so : card.button_text_en;
-          const overlayColor = card.overlay_color_dark || 'rgba(30, 41, 59, 0.75)';
+          const overlayColor = isDark
+            ? (card.overlay_color_dark || 'rgba(30, 41, 59, 0.75)')
+            : (card.overlay_color_light || 'rgba(29, 78, 216, 0.65)');
 
           return (
             <div
@@ -206,7 +208,7 @@ export default function HomeView({ userData, onSelectTab, onOpenPdf }: HomeViewP
       {/* Books Section */}
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold text-white tracking-wide">Books</h3>
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white tracking-wide">Books</h3>
           <button 
             onClick={() => onSelectTab('exams')}
             className="text-xs font-semibold text-blue-500 hover:underline"
@@ -219,7 +221,7 @@ export default function HomeView({ userData, onSelectTab, onOpenPdf }: HomeViewP
           {loadingBooks ? (
             <div className="flex gap-4">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="w-[140px] h-[190px] rounded-2xl bg-gray-800 animate-pulse flex-shrink-0" />
+                <div key={i} className="w-[140px] h-[190px] rounded-2xl bg-gray-200 dark:bg-gray-800 animate-pulse flex-shrink-0" />
               ))}
             </div>
           ) : books.length > 0 ? (
@@ -253,7 +255,7 @@ export default function HomeView({ userData, onSelectTab, onOpenPdf }: HomeViewP
               </div>
             ))
           ) : (
-            <div className="w-full py-6 text-center text-xs text-gray-500 bg-[#161B22] border border-gray-800 rounded-2xl p-4">
+            <div className="w-full py-6 text-center text-xs text-gray-500 bg-gray-50 dark:bg-[#161B22] border border-gray-200 dark:border-gray-800 rounded-2xl p-4">
               Buugaagtii manhajka ee aad u baahan tahay wali kuma jiraan nidaamka.
             </div>
           )}
@@ -263,7 +265,7 @@ export default function HomeView({ userData, onSelectTab, onOpenPdf }: HomeViewP
       {/* Exams Section */}
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold text-white tracking-wide">Exams</h3>
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white tracking-wide">Exams</h3>
           <button 
             onClick={() => onSelectTab('exams')}
             className="text-xs font-semibold text-blue-500 hover:underline"
@@ -276,7 +278,7 @@ export default function HomeView({ userData, onSelectTab, onOpenPdf }: HomeViewP
           {loadingExams ? (
             <div className="flex gap-4">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="w-[140px] h-[190px] rounded-2xl bg-gray-800 animate-pulse flex-shrink-0" />
+                <div key={i} className="w-[140px] h-[190px] rounded-2xl bg-gray-200 dark:bg-gray-800 animate-pulse flex-shrink-0" />
               ))}
             </div>
           ) : exams.length > 0 ? (
@@ -310,7 +312,7 @@ export default function HomeView({ userData, onSelectTab, onOpenPdf }: HomeViewP
               </div>
             ))
           ) : (
-            <div className="w-full py-6 text-center text-xs text-gray-500 bg-[#161B22] border border-gray-800 rounded-2xl p-4">
+            <div className="w-full py-6 text-center text-xs text-gray-500 bg-gray-50 dark:bg-[#161B22] border border-gray-200 dark:border-gray-800 rounded-2xl p-4">
               Imtixaanadii aad u baahan tahay wali kuma jiraan nidaamka.
             </div>
           )}
