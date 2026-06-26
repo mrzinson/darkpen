@@ -42,6 +42,95 @@ async function retryWithBackoff(fn, retries = 3, delay = 400) {
     throw lastError;
 }
 
+function ensureTableTags(text) {
+    if (!text) return text;
+    
+    // Normalize: strip existing <table_data> and </table_data> tags (case-insensitive) to prevent double wrapping
+    let cleaned = text.replace(/<\/?table_data>/gi, '');
+    
+    const lines = cleaned.split('\n');
+    const processedLines = [];
+    let currentTableLines = [];
+    
+    const isTableLine = (line) => {
+        const trimmed = line.trim();
+        if (!trimmed.includes('|')) return false;
+        // Skip code block fences and HTML tags
+        if (trimmed.startsWith('```') || trimmed.startsWith('<')) return false;
+        return true;
+    };
+    
+    const isRealTable = (block) => {
+        if (block.length < 2) return false;
+        
+        let hasHeaderIndicator = false;
+        let hasNumberIndicator = false;
+        let hasSeparatorIndicator = false;
+        
+        for (const line of block) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('#|') || trimmed.includes('|Column') || trimmed.includes('Column|') || trimmed.includes('Column A|')) {
+                hasHeaderIndicator = true;
+            }
+            if (/^\d+\s*\|/.test(trimmed)) {
+                hasNumberIndicator = true;
+            }
+            if (/^[\s:|#-]+$/.test(trimmed.replace(/\|/g, ''))) {
+                hasSeparatorIndicator = true;
+            }
+        }
+        
+        if (hasHeaderIndicator || hasNumberIndicator || hasSeparatorIndicator) {
+            return true;
+        }
+        
+        // Fallback: if all lines have the same number of pipes (>= 1) and are relatively short, it's likely a table
+        const firstPipeCount = block[0].split('|').length - 1;
+        if (firstPipeCount >= 1) {
+            const allSamePipeCount = block.every(l => (l.split('|').length - 1) === firstPipeCount);
+            const allShort = block.every(l => l.length < 150);
+            if (allSamePipeCount && allShort) {
+                return true;
+            }
+        }
+        
+        return false;
+    };
+    
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (isTableLine(line)) {
+            currentTableLines.push(line);
+        } else {
+            if (currentTableLines.length > 0) {
+                if (isRealTable(currentTableLines)) {
+                    processedLines.push('<table_data>');
+                    processedLines.push(...currentTableLines);
+                    processedLines.push('</table_data>');
+                } else {
+                    processedLines.push(...currentTableLines);
+                }
+                currentTableLines = [];
+            }
+            processedLines.push(line);
+        }
+    }
+    
+    if (currentTableLines.length > 0) {
+        if (isRealTable(currentTableLines)) {
+            processedLines.push('<table_data>');
+            processedLines.push(...currentTableLines);
+            processedLines.push('</table_data>');
+        } else {
+            processedLines.push(...currentTableLines);
+        }
+    }
+    
+    return processedLines.join('\n');
+}
+
+exports.ensureTableTags = ensureTableTags;
+
 function hasImageAttachment(attachment) {
     if (!attachment) return false;
     const atts = Array.isArray(attachment) ? attachment : [attachment];
@@ -113,7 +202,7 @@ exports.askGemini = async (prompt, modelName = "gemini-3.1-flash-lite", attachme
                 return response.text();
             });
             
-            return responseText;
+            return ensureTableTags(responseText);
         } catch (error) {
             console.warn(`[GEMINI SERVICE WARNING] Model ${currentModel} failed: ${error.message}`);
             lastError = error;

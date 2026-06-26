@@ -19,6 +19,93 @@ const makeSuperscript = (numStr: string): string => {
   return numStr.split('').map(c => sups[c] || c).join('');
 };
 
+const ensureTableTags = (text: string): string => {
+  if (!text) return text;
+  
+  // Normalize: strip existing <table_data> and </table_data> tags (case-insensitive) to prevent double wrapping
+  let cleaned = text.replace(/<\/?table_data>/gi, '');
+  
+  const lines = cleaned.split('\n');
+  const processedLines: string[] = [];
+  let currentTableLines: string[] = [];
+  
+  const isTableLine = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed.includes('|')) return false;
+    // Skip code block fences and HTML tags
+    if (trimmed.startsWith('```') || trimmed.startsWith('<')) return false;
+    return true;
+  };
+  
+  const isRealTable = (block: string[]) => {
+    if (block.length < 2) return false;
+    
+    let hasHeaderIndicator = false;
+    let hasNumberIndicator = false;
+    let hasSeparatorIndicator = false;
+    
+    for (const line of block) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('#|') || trimmed.includes('|Column') || trimmed.includes('Column|') || trimmed.includes('Column A|')) {
+        hasHeaderIndicator = true;
+      }
+      if (/^\d+\s*\|/.test(trimmed)) {
+        hasNumberIndicator = true;
+      }
+      if (/^[\s:|#-]+$/.test(trimmed.replace(/\|/g, ''))) {
+        hasSeparatorIndicator = true;
+      }
+    }
+    
+    if (hasHeaderIndicator || hasNumberIndicator || hasSeparatorIndicator) {
+      return true;
+    }
+    
+    // Fallback: if all lines have the same number of pipes (>= 1) and are relatively short, it's likely a table
+    const firstPipeCount = block[0].split('|').length - 1;
+    if (firstPipeCount >= 1) {
+      const allSamePipeCount = block.every(l => (l.split('|').length - 1) === firstPipeCount);
+      const allShort = block.every(l => l.length < 150);
+      if (allSamePipeCount && allShort) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (isTableLine(line)) {
+      currentTableLines.push(line);
+    } else {
+      if (currentTableLines.length > 0) {
+        if (isRealTable(currentTableLines)) {
+          processedLines.push('<table_data>');
+          processedLines.push(...currentTableLines);
+          processedLines.push('</table_data>');
+        } else {
+          processedLines.push(...currentTableLines);
+        }
+        currentTableLines = [];
+      }
+      processedLines.push(line);
+    }
+  }
+  
+  if (currentTableLines.length > 0) {
+    if (isRealTable(currentTableLines)) {
+      processedLines.push('<table_data>');
+      processedLines.push(...currentTableLines);
+      processedLines.push('</table_data>');
+    } else {
+      processedLines.push(...currentTableLines);
+    }
+  }
+  
+  return processedLines.join('\n');
+};
+
 export const preprocessLaTeX = (text: string): string => {
   if (!text) return text;
   
@@ -46,6 +133,7 @@ export const preprocessLaTeX = (text: string): string => {
 
 export const renderFormattedText = (text: string, isDark: boolean, colors: any, defaultTextColor?: string) => {
   if (!text) return null;
+  text = ensureTableTags(text);
   text = preprocessLaTeX(text);
   const textColor = defaultTextColor || colors.text;
 
@@ -154,7 +242,10 @@ export const renderFormattedText = (text: string, isDark: boolean, colors: any, 
       return (
         <View key={blockKey} style={{ borderWidth: 1, borderColor: colors.border || '#e5e7eb', borderRadius: 8, marginVertical: 8, overflow: 'hidden', width: '100%' }}>
           {rows.map((row, rIndex) => {
-            const cols = row.split('|');
+            let cleanRow = row.trim();
+            if (cleanRow.startsWith('|')) cleanRow = cleanRow.substring(1);
+            if (cleanRow.endsWith('|')) cleanRow = cleanRow.substring(0, cleanRow.length - 1);
+            const cols = cleanRow.split('|');
             return (
               <View key={rIndex} style={{ flexDirection: 'row', backgroundColor: rIndex === 0 ? (isDark ? '#27282c' : '#f3f4f6') : (isDark ? '#1e1f22' : '#ffffff'), borderBottomWidth: rIndex < rows.length - 1 ? 1 : 0, borderBottomColor: colors.border || '#e5e7eb' }}>
                 {cols.map((col, cIndex) => (

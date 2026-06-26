@@ -544,10 +544,11 @@ Answer in the same language as the user query or the text in the image.]\n\nUser
                 // Save AI response asynchronously in background
                 (async () => {
                     try {
+                        const finalSavedText = aiService.ensureTableTags(aiResponseText);
                         if (chatType === 'shukaansi') {
                             await db.execute(
                                 'INSERT INTO shukaansi_messages (user_id, sender, message, reply_to_id) VALUES (?, "ai", ?, ?)',
-                                [userId, aiResponseText, insertedUserMsgId || null]
+                                [userId, finalSavedText, insertedUserMsgId || null]
                             );
 
                             // AI reacts to user message sometimes (e.g. 40% of the time)
@@ -575,13 +576,13 @@ Answer in the same language as the user query or the text in the image.]\n\nUser
                         } else {
                             await db.execute(
                                 'INSERT INTO messages_private (user_id, session_id, sender, message) VALUES (?, ?, "ai", ?)',
-                                [userId, sessionId || null, aiResponseText]
+                                [userId, sessionId || null, finalSavedText]
                             );
                         }
                         
                         // Log AI usage!
                         const aiLogger = require('../utils/aiLogger');
-                        aiLogger.logAIUsage(userId, modelName, message || "[Attachment]", aiResponseText, chatType || 'education');
+                        aiLogger.logAIUsage(userId, modelName, message || "[Attachment]", finalSavedText, chatType || 'education');
                     } catch (dbErr) {
                         console.error("[STREAM] Async AI response save/log error:", dbErr);
                     }

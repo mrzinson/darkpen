@@ -27,16 +27,109 @@ interface ChatViewProps {
   onBack?: () => void;
 }
 
+function ensureTableTags(text: string): string {
+  if (!text) return text;
+  
+  // Normalize: strip existing <table_data> and </table_data> tags (case-insensitive) to prevent double wrapping
+  let cleaned = text.replace(/<\/?table_data>/gi, '');
+  
+  const lines = cleaned.split('\n');
+  const processedLines: string[] = [];
+  let currentTableLines: string[] = [];
+  
+  const isTableLine = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed.includes('|')) return false;
+    // Skip code block fences and HTML tags
+    if (trimmed.startsWith('```') || trimmed.startsWith('<')) return false;
+    return true;
+  };
+  
+  const isRealTable = (block: string[]) => {
+    if (block.length < 2) return false;
+    
+    let hasHeaderIndicator = false;
+    let hasNumberIndicator = false;
+    let hasSeparatorIndicator = false;
+    
+    for (const line of block) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('#|') || trimmed.includes('|Column') || trimmed.includes('Column|') || trimmed.includes('Column A|')) {
+        hasHeaderIndicator = true;
+      }
+      if (/^\d+\s*\|/.test(trimmed)) {
+        hasNumberIndicator = true;
+      }
+      if (/^[\s:|#-]+$/.test(trimmed.replace(/\|/g, ''))) {
+        hasSeparatorIndicator = true;
+      }
+    }
+    
+    if (hasHeaderIndicator || hasNumberIndicator || hasSeparatorIndicator) {
+      return true;
+    }
+    
+    // Fallback: if all lines have the same number of pipes (>= 1) and are relatively short, it's likely a table
+    const firstPipeCount = block[0].split('|').length - 1;
+    if (firstPipeCount >= 1) {
+      const allSamePipeCount = block.every(l => (l.split('|').length - 1) === firstPipeCount);
+      const allShort = block.every(l => l.length < 150);
+      if (allSamePipeCount && allShort) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (isTableLine(line)) {
+      currentTableLines.push(line);
+    } else {
+      if (currentTableLines.length > 0) {
+        if (isRealTable(currentTableLines)) {
+          processedLines.push('<table_data>');
+          processedLines.push(...currentTableLines);
+          processedLines.push('</table_data>');
+        } else {
+          processedLines.push(...currentTableLines);
+        }
+        currentTableLines = [];
+      }
+      processedLines.push(line);
+    }
+  }
+  
+  if (currentTableLines.length > 0) {
+    if (isRealTable(currentTableLines)) {
+      processedLines.push('<table_data>');
+      processedLines.push(...currentTableLines);
+      processedLines.push('</table_data>');
+    } else {
+      processedLines.push(...currentTableLines);
+    }
+  }
+  
+  return processedLines.join('\n');
+}
+
 // Simple markdown formatter
 function renderMarkdown(text: string) {
   if (!text) return '';
 
+  // Auto-wrap tables that are missing tags
+  const textWithTags = ensureTableTags(text);
+
   // 1. Process <table_data>...</table_data> blocks FIRST (before any line splitting)
-  let processed = text.replace(/<table_data>([\s\S]*?)<\/table_data>/gi, (match, inner) => {
+  let processed = textWithTags.replace(/<table_data>([\s\S]*?)<\/table_data>/gi, (match, inner) => {
     const rows = inner.trim().split('\n').filter((r: string) => r.trim() !== '');
     if (rows.length === 0) return '';
     const tableRows = rows.map((row: string, rIdx: number) => {
-      const cols = row.split('|');
+      let cleanRow = row.trim();
+      if (cleanRow.startsWith('|')) cleanRow = cleanRow.substring(1);
+      if (cleanRow.endsWith('|')) cleanRow = cleanRow.substring(0, cleanRow.length - 1);
+      const cols = cleanRow.split('|');
       const isHeader = rIdx === 0;
       const cells = cols.map((col: string, cIdx: number) => {
         const cellClass = isHeader
