@@ -58,5 +58,9 @@ backend/check_users.js
 backend/test_gemini.js
 
 # Untracked Web Projects
-darkpen-web/
-web-app/
+web-app/
+
+# Darkpen Web build artifacts
+darkpen-web/node_modules/
+darkpen-web/.next/
+
