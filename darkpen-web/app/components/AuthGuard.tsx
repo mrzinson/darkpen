@@ -17,13 +17,19 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
     const checkAuth = () => {
       try {
         const token = localStorage.getItem('userToken');
-        setIsAuthenticated(!!token);
+        if (token) {
+          setIsAuthenticated(true);
+        } else {
+          setIsAuthenticated(false);
+          router.replace('/login');
+        }
       } catch (err) {
         setIsAuthenticated(false);
+        router.replace('/login');
       }
     };
     checkAuth();
-  }, []);
+  }, [router]);
 
   if (isAuthenticated === null) {
     return (

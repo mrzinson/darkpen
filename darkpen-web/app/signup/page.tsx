@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useTheme } from '../context/ThemeContext';
@@ -8,6 +8,13 @@ import { useTheme } from '../context/ThemeContext';
 export default function SignUpScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+
+  useEffect(() => {
+    const token = localStorage.getItem('userToken');
+    if (token) {
+      router.replace('/');
+    }
+  }, [router]);
 
   const [name, setName] = useState('');
   const [whatsappNumber, setWhatsappNumber] = useState('');

@@ -9,6 +9,13 @@ export default function LoginScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
 
+  useEffect(() => {
+    const token = localStorage.getItem('userToken');
+    if (token) {
+      router.replace('/');
+    }
+  }, [router]);
+
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
