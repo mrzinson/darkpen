@@ -436,8 +436,10 @@ export default function AppWorkspace() {
           {/* ========================================================================= */}
           <div className="flex lg:hidden flex-col flex-1 w-full h-full overflow-hidden select-none relative">
             
-            {/* Render PDF Reader Fullscreen Overlay for mobile */}
-            {openPdf ? (
+            {/* ── FULLSCREEN OVERLAYS (no header/bottomnav) ── */}
+
+            {/* PDF Reader fullscreen */}
+            {openPdf && (
               <div className="absolute inset-0 z-50 bg-[#0D1117]">
                 <PdfReader
                   pdfUrl={openPdf.url}
@@ -446,149 +448,192 @@ export default function AppWorkspace() {
                   onClose={() => setOpenPdf(null)}
                 />
               </div>
-            ) : (
+            )}
+
+            {/* Chat — fullscreen, has own header */}
+            {!openPdf && currentView === 'chat' && (
+              <div className="absolute inset-0 z-30 flex flex-col bg-white dark:bg-[#0D1117]">
+                <ChatView
+                  onOpenSidebar={() => setLeftDrawerOpen(true)}
+                  onOpenGroups={() => { setCurrentView('groups'); }}
+                />
+              </div>
+            )}
+
+            {/* Shukaansi — fullscreen, has own header */}
+            {!openPdf && currentView === 'shukaansi' && (
+              <div className="absolute inset-0 z-30 flex flex-col bg-white dark:bg-[#0D1117]">
+                <ShukaansiView onOpenSidebar={() => setLeftDrawerOpen(true)} />
+              </div>
+            )}
+
+            {/* Quiz — fullscreen */}
+            {!openPdf && currentView === 'quiz' && (
+              <div className="absolute inset-0 z-30 flex flex-col bg-white dark:bg-[#0D1117]">
+                <QuizView onOpenSidebar={() => setLeftDrawerOpen(true)} />
+              </div>
+            )}
+
+            {/* Profile — fullscreen sub-page */}
+            {!openPdf && currentView === 'profile' && (
+              <div className="absolute inset-0 z-30 flex flex-col bg-white dark:bg-[#0D1117]">
+                <ProfileView
+                  userData={userData}
+                  onUpdateUser={(updated) => setUserData(updated)}
+                  onClose={() => setCurrentView(activeTab)}
+                />
+              </div>
+            )}
+
+            {/* Exam Generator — fullscreen */}
+            {!openPdf && currentView === 'exam-generator' && (
+              <div className="absolute inset-0 z-30 flex flex-col bg-white dark:bg-[#0D1117]">
+                <ExamGeneratorView
+                  userData={userData}
+                  onUpdateUser={(updated) => setUserData(updated)}
+                  onOpenPdf={(url, title, type) => setOpenPdf({ url, title, type })}
+                  onClose={() => setCurrentView(activeTab)}
+                />
+              </div>
+            )}
+
+            {/* Groups — fullscreen */}
+            {!openPdf && currentView === 'groups' && (
+              <div className="absolute inset-0 z-30 flex flex-col bg-white dark:bg-[#0D1117]">
+                <GroupsView onClose={() => setCurrentView(activeTab)} />
+              </div>
+            )}
+
+            {/* Billing — fullscreen */}
+            {!openPdf && currentView === 'billing' && (
+              <div className="absolute inset-0 z-30 flex flex-col bg-white dark:bg-[#0D1117]">
+                <BillingView onClose={() => setCurrentView(activeTab)} />
+              </div>
+            )}
+
+            {/* Usage — fullscreen */}
+            {!openPdf && currentView === 'usage' && (
+              <div className="absolute inset-0 z-30 flex flex-col bg-white dark:bg-[#0D1117]">
+                <UsageView
+                  onClose={() => setCurrentView(activeTab)}
+                  onGoToBilling={() => setCurrentView('billing')}
+                />
+              </div>
+            )}
+
+            {/* Settings — fullscreen */}
+            {!openPdf && currentView === 'settings' && (
+              <div className="absolute inset-0 z-30 flex flex-col bg-white dark:bg-[#0D1117]">
+                <SettingsView onClose={() => setCurrentView(activeTab)} />
+              </div>
+            )}
+
+            {/* About — fullscreen */}
+            {!openPdf && currentView === 'about' && (
+              <div className="absolute inset-0 z-30 flex flex-col bg-white dark:bg-[#0D1117]">
+                <AboutView onClose={() => setCurrentView(activeTab)} />
+              </div>
+            )}
+
+            {/* ── SHELL VIEWS (show header + bottom nav) ── */}
+            {!openPdf && (currentView === 'home' || currentView === 'exams') && (
               <>
                 {/* Header */}
-                <header className="flex items-center justify-between px-4 py-3 bg-white dark:bg-[#161B22] border-b border-gray-150 dark:border-gray-800 select-none">
-                  {/* Left drawer trigger */}
+                <header className="flex items-center justify-between px-4 py-3 bg-white dark:bg-[#161B22] border-b border-gray-200 dark:border-gray-800 shrink-0">
                   <button 
                     onClick={() => setLeftDrawerOpen(true)}
-                    className="w-10 h-10 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-800 transition-all"
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 transition-all"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
                     </svg>
                   </button>
 
-                  {/* App Name */}
                   <h1 className="text-base font-extrabold text-[#0084FF] tracking-widest uppercase">DARKPEN</h1>
 
-                  {/* Settings redirect shortcut */}
                   <button 
                     onClick={() => setCurrentView('settings')}
-                    className="w-10 h-10 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-950 bg-gray-100 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-800 transition-all"
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 transition-all"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.43l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.991l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                     </svg>
                   </button>
                 </header>
 
-                {/* Content Area */}
-                <main className="flex-1 w-full overflow-hidden flex flex-col bg-white dark:bg-[#0D1117] pb-22">
+                {/* Content — padded bottom for tab bar */}
+                <main className="flex-1 w-full overflow-hidden flex flex-col bg-white dark:bg-[#0D1117]" style={{ paddingBottom: '88px' }}>
                   {currentView === 'home' ? (
                     <HomeView
                       userData={userData}
                       onSelectTab={(tab) => { setActiveTab(tab as any); setCurrentView(tab); }}
                       onOpenPdf={(url, title, type) => setOpenPdf({ url, title, type })}
                     />
-                  ) : currentView === 'chat' ? (
-                    <ChatView 
-                      onOpenSidebar={() => setLeftDrawerOpen(true)}
-                      onOpenGroups={() => { setCurrentView('groups'); }}
-                    />
                   ) : currentView === 'exams' ? (
                     <ExamsView
                       onOpenPdf={(url, title, type) => setOpenPdf({ url, title, type })}
                       onOpenSidebar={() => setLeftDrawerOpen(true)}
                     />
-                  ) : currentView === 'quiz' ? (
-                    <QuizView onOpenSidebar={() => setLeftDrawerOpen(true)} />
-                  ) : currentView === 'shukaansi' ? (
-                    <ShukaansiView onOpenSidebar={() => setLeftDrawerOpen(true)} />
-                  ) : currentView === 'profile' ? (
-                    <ProfileView
-                      userData={userData}
-                      onUpdateUser={(updated) => setUserData(updated)}
-                      onClose={() => setCurrentView(activeTab)}
-                    />
-                  ) : currentView === 'exam-generator' ? (
-                    <ExamGeneratorView
-                      userData={userData}
-                      onUpdateUser={(updated) => setUserData(updated)}
-                      onOpenPdf={(url, title, type) => setOpenPdf({ url, title, type })}
-                      onClose={() => setCurrentView(activeTab)}
-                    />
-                  ) : currentView === 'groups' ? (
-                    <GroupsView
-                      onClose={() => setCurrentView(activeTab)}
-                    />
-                  ) : currentView === 'billing' ? (
-                    <BillingView
-                      onClose={() => setCurrentView(activeTab)}
-                    />
-                  ) : currentView === 'usage' ? (
-                    <UsageView
-                      onClose={() => setCurrentView(activeTab)}
-                      onGoToBilling={() => setCurrentView('billing')}
-                    />
-                  ) : currentView === 'settings' ? (
-                    <SettingsView
-                      onClose={() => setCurrentView(activeTab)}
-                    />
-                  ) : currentView === 'about' ? (
-                    <AboutView
-                      onClose={() => setCurrentView(activeTab)}
-                    />
                   ) : null}
                 </main>
 
-                {/* Bottom Navigation Tab Bar (Floating capsule matching screenshot 1) */}
-                <div className="absolute bottom-0 left-0 right-0 z-40 px-4 pb-4 select-none">
-                  <footer className="h-[68px] bg-white/95 dark:bg-[#161B22]/95 border border-gray-150 dark:border-gray-800 rounded-full flex items-center justify-around px-4 shadow-lg backdrop-blur">
+                {/* Bottom Tab Bar — floating capsule */}
+                <div className="absolute bottom-0 left-0 right-0 z-40 px-4 pb-5 pointer-events-none">
+                  <footer className="pointer-events-auto h-[64px] bg-white dark:bg-[#161B22] border border-gray-200 dark:border-gray-700 rounded-full flex items-center justify-around px-2 shadow-2xl">
                     {/* Home */}
                     <button
                       onClick={() => { setActiveTab('home'); setCurrentView('home'); }}
-                      className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'home' && currentView === 'home' ? 'text-[#0084FF] scale-105' : 'text-gray-400 dark:text-gray-500'}`}
+                      className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-full transition-all ${activeTab === 'home' && currentView === 'home' ? 'text-[#0084FF]' : 'text-gray-400 dark:text-gray-500'}`}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
                         <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
                       </svg>
-                      <span className="text-[10px] font-bold">{t('home')}</span>
+                      <span className="text-[9px] font-bold">{t('home')}</span>
                     </button>
 
                     {/* Chat */}
                     <button
                       onClick={() => { setActiveTab('chat'); setCurrentView('chat'); }}
-                      className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'chat' && currentView === 'chat' ? 'text-[#0084FF] scale-105' : 'text-gray-400 dark:text-gray-500'}`}
+                      className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-full transition-all ${activeTab === 'chat' ? 'text-[#0084FF]' : 'text-gray-400 dark:text-gray-500'}`}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025 4.479 4.479 0 0 0-.115-1.68C3.753 15.82 3 13.987 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
                       </svg>
-                      <span className="text-[10px] font-bold">Chat</span>
+                      <span className="text-[9px] font-bold">Chat</span>
                     </button>
 
                     {/* Exams */}
                     <button
                       onClick={() => { setActiveTab('exams'); setCurrentView('exams'); }}
-                      className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'exams' && currentView === 'exams' ? 'text-[#0084FF] scale-105' : 'text-gray-400 dark:text-gray-500'}`}
+                      className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-full transition-all ${activeTab === 'exams' && currentView === 'exams' ? 'text-[#0084FF]' : 'text-gray-400 dark:text-gray-500'}`}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
                       </svg>
-                      <span className="text-[10px] font-bold">Exams</span>
+                      <span className="text-[9px] font-bold">Exams</span>
                     </button>
 
                     {/* Quiz */}
                     <button
                       onClick={() => { setActiveTab('quiz'); setCurrentView('quiz'); }}
-                      className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'quiz' && currentView === 'quiz' ? 'text-[#0084FF] scale-105' : 'text-gray-400 dark:text-gray-500'}`}
+                      className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-full transition-all ${activeTab === 'quiz' ? 'text-[#0084FF]' : 'text-gray-400 dark:text-gray-500'}`}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 21l8.982-8.983m-9 9 9-9m-9 9-2.25-2.25m11.25-6.75 2.25-2.25m-13.5 0h13.5M9 7.5h.008v.008H9V7.5Z" />
                       </svg>
-                      <span className="text-[10px] font-bold">Quiz</span>
+                      <span className="text-[9px] font-bold">Quiz</span>
                     </button>
 
                     {/* Shukaansi */}
                     <button
                       onClick={() => { setActiveTab('shukaansi'); setCurrentView('shukaansi'); }}
-                      className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'shukaansi' && currentView === 'shukaansi' ? 'text-pink-500 scale-105' : 'text-gray-400 dark:text-gray-500'}`}
+                      className={`flex flex-col items-center gap-0.5 px-4 py-2 rounded-full transition-all ${activeTab === 'shukaansi' ? 'text-pink-500' : 'text-gray-400 dark:text-gray-500'}`}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
                       </svg>
-                      <span className="text-[10px] font-bold">Shukaansi</span>
+                      <span className="text-[9px] font-bold">Shukaansi</span>
                     </button>
                   </footer>
                 </div>

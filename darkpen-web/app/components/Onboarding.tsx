@@ -16,16 +16,22 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
   const [errorMsg, setErrorMsg] = useState('');
 
   const COUNTRIES = [
-    { name: 'Somalia', flag: '🇸🇴' },
-    { name: 'Kenya', flag: '🇰🇪' },
-    { name: 'Ethiopia', flag: '🇪🇹' },
-    { name: 'Djibouti', flag: '🇩🇯' },
-    { name: 'Uganda', flag: '🇺🇬' },
-    { name: 'United Kingdom', flag: '🇬🇧' },
-    { name: 'United States', flag: '🇺🇸' },
-    { name: 'Sweden', flag: '🇸🇪' },
-    { name: 'Norway', flag: '🇳🇴' },
-    { name: 'Finland', flag: '🇫🇮' }
+    { name: 'Somaliland', code: 'SL', flag: '🏴' },
+    { name: 'Puntland', code: 'PL', flag: '🏴' },
+    { name: 'Somalia', code: 'SO', flag: '🇸🇴' },
+    { name: 'Kenya', code: 'KE', flag: '🇰🇪' },
+    { name: 'Ethiopia', code: 'ET', flag: '🇪🇹' },
+    { name: 'Djibouti', code: 'DJ', flag: '🇩🇯' },
+    { name: 'Uganda', code: 'UG', flag: '🇺🇬' },
+    { name: 'United Kingdom', code: 'GB', flag: '🇬🇧' },
+    { name: 'United States', code: 'US', flag: '🇺🇸' },
+    { name: 'Sweden', code: 'SE', flag: '🇸🇪' },
+    { name: 'Norway', code: 'NO', flag: '🇳🇴' },
+    { name: 'Finland', code: 'FI', flag: '🇫🇮' },
+    { name: 'Canada', code: 'CA', flag: '🇨🇦' },
+    { name: 'Netherlands', code: 'NL', flag: '🇳🇱' },
+    { name: 'Germany', code: 'DE', flag: '🇩🇪' },
+    { name: 'Other', code: '??', flag: '🌍' },
   ];
 
   const handleGenderSelect = (selectedGender: 'male' | 'female') => {
@@ -153,17 +159,17 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
                 : 'Select the country you currently reside in.'}
             </p>
 
-            <div className="w-full flex flex-col gap-2 overflow-y-auto max-h-[300px] pr-1 scrollbar-thin">
+            <div className="w-full flex flex-col gap-2 overflow-y-auto max-h-[320px] pr-1">
               {COUNTRIES.map((c) => (
                 <button
                   key={c.name}
                   onClick={() => handleCountrySelect(c.name)}
-                  className="w-full flex items-center justify-between py-3.5 px-4 bg-[#0D1117] hover:bg-gray-800 border border-gray-850 rounded-xl transition-all text-left"
+                  className="w-full flex items-center gap-3 py-3.5 px-4 bg-[#0D1117] hover:bg-[#0084FF]/10 hover:border-[#0084FF]/40 border border-gray-800 rounded-xl transition-all text-left active:scale-[0.98]"
                 >
-                  <span className="text-sm font-semibold text-white flex items-center gap-3">
-                    <span className="text-lg leading-none">{c.flag}</span>
-                    <span>{c.name}</span>
+                  <span className="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-xs font-black text-gray-300 shrink-0">
+                    {c.flag === '🏴' ? c.code : <span className="text-lg">{c.flag}</span>}
                   </span>
+                  <span className="text-sm font-semibold text-white">{c.name}</span>
                 </button>
               ))}
             </div>

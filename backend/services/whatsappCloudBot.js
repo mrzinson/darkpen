@@ -483,43 +483,30 @@ async function processIncomingMessage(from, messageId, type, messageText, mediaI
             return;
         }
 
-        // Step 2: Collect name
+        // Step 2: Collect name → auto-generate username → go straight to password
         if (regState.step === 'awaiting_name') {
             const name = messageText.trim();
             if (!name || name.length < 2 || name.length > 100) {
                 await sendCloudMessage(from, `Magacaagu waa inuu ahaado 2 xaraf ama ka badan. Fadlan mar kale qor magacaaga:`);
                 return;
             }
-            userStates.set(`reg_${from}`, { step: 'awaiting_username', name });
-            await sendCloudMessage(from, `👌 Wanaagsan, *${name}*!\n\n🔤 Hadda dooro *username* (magaca gaarka ah) ee aad rabto:\n_(Waa inuu ahaado 3-30 xaraf: a-z, 0-9, ama _)_\n\nTusaale: axmed_2026`);
+
+            // Auto-generate a unique username: first word of name (a-z only) + 4 random digits
+            const baseUsername = name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12) || 'user';
+            let username = baseUsername + Math.floor(1000 + Math.random() * 9000);
+            // Ensure uniqueness — retry up to 5 times if taken
+            for (let i = 0; i < 5; i++) {
+                const [taken] = await db.execute('SELECT id FROM users WHERE username = ? LIMIT 1', [username]);
+                if (taken.length === 0) break;
+                username = baseUsername + Math.floor(1000 + Math.random() * 9000);
+            }
+
+            userStates.set(`reg_${from}`, { step: 'awaiting_reg_password', name, username });
+            await sendCloudMessage(from, `👌 Wanaagsan, *${name}*!\n\n🔒 Hadda samee *password* adag:\n_(Ugu yaraan 8 xaraf, ugu badnaan 100 xaraf)_`);
             return;
         }
 
-        // Step 3: Collect username
-        if (regState.step === 'awaiting_username') {
-            const username = messageText.trim().toLowerCase().replace(/^@+/, '');
-            const usernameError = (() => {
-                if (!username || username.length < 3 || username.length > 30) return 'Username-ku waa inuu ahaadaa 3-30 xaraf.';
-                if (!/^[a-z0-9_]+$/.test(username)) return 'Username-ku waa inuu ahaadaa xaraf: a-z, 0-9 ama _.';
-                if (/^_+$/.test(username)) return 'Username sax ah dooro.';
-                return null;
-            })();
-            if (usernameError) {
-                await sendCloudMessage(from, `⚠️ ${usernameError}\n\nFadlan mar kale dooro username:`);
-                return;
-            }
-            // Check if username taken
-            const [taken] = await db.execute('SELECT id FROM users WHERE username = ? LIMIT 1', [username]);
-            if (taken.length > 0) {
-                await sendCloudMessage(from, `❌ Username-kan *${username}* hore ayaa la isticmaalaa. Fadlan mid kale dooro:`);
-                return;
-            }
-            userStates.set(`reg_${from}`, { ...regState, step: 'awaiting_reg_password', username });
-            await sendCloudMessage(from, `✅ Username *${username}* waa la helay!\n\n🔒 Hadda samee *password* adag:\n_(Ugu yaraan 8 xaraf)_`);
-            return;
-        }
-
-        // Step 4: Collect password & create account
+        // Step 3: Collect password & create account (username was auto-generated above)
         if (regState.step === 'awaiting_reg_password') {
             const passwordError = validatePassword(messageText);
             if (passwordError) {
