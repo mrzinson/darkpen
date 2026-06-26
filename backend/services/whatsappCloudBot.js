@@ -1245,6 +1245,13 @@ Haddii su'aaluhu yihiin MCQ (doorasho): si kooban u soo koobi kaliya lambarada i
 
 Haddii su'aaluhu yihiin Run/Been (True/False): si kooban u soo koobi kaliya: "1 = Run, 2 = Been, 3 = Run" iwm. Su'aasha ha qorin.
 
+Haddii su'aaluhu yihiin buuxbuuxin (fill-in-the-blank / meelaha banaan ee lagu buuxin lahaa): dib u qor jumladda oo dhan laakiin meeshii bannaanka ahayd ku qor jawaabta saxda ah oo aad uga dhigtay *jawaabta* (bold). Tusaale: "Soomaaliya waxay xorriyaddeeda qaadatay *1 July 1960*". Ha isticmaalin jadwal.
+
+Haddii su'aaluhu yihiin isku-beegbeeg (matching / Column A matches Column B): u soo bandhig si kooban oo qurxoon sidan:
+1. [term] → [matching answer]
+2. [term] → [matching answer]
+(isticmaal → symbol si uu u muuqdo fiican WhatsApp-ka)
+
 Haddii su'aaluhu yihiin furan (open-ended) ama xisaab: su'aal kasta ku soo qaado adigoo bold ka dhigaya, jawaabtana hoos dhig adigoo ka horreysiinaya "Jawaab: " (ama "الجواب: " haddii ay Carabi tahay).
 
 Ku jawaab luuqadda qoraalka sawirka ku dhex jira.`;

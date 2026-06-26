@@ -393,6 +393,16 @@ export default function ChatScreen() {
     };
   }, [isAiTyping]);
 
+  // Helper: check if the message before this AI message was a user message with an image
+  const hasUserSentImage = (aiMsgId: string) => {
+    const idx = messages.findIndex(m => m.id === aiMsgId);
+    if (idx > 0) {
+      const prevMsg = messages[idx - 1];
+      return !!(prevMsg && prevMsg.sender === 'user' && prevMsg.images && prevMsg.images.length > 0);
+    }
+    return false;
+  };
+
   useEffect(() => {
     fetchCredits();
     return () => {
@@ -1077,14 +1087,53 @@ export default function ChatScreen() {
                         {msg.status === 'generating_image' ? null : (
                           <View style={styles.messageBubbleAi}>
                             {msg.status === 'thinking' ? (
-                              <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, gap: 6 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                  <Animated.View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.primary, transform: [{ translateY: thinkingDot1 }] }} />
-                                  <Animated.View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.primary, transform: [{ translateY: thinkingDot2 }] }} />
-                                  <Animated.View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.primary, transform: [{ translateY: thinkingDot3 }] }} />
+                              hasUserSentImage(msg.id) ? (
+                                /* Blurry "Reading books..." card for image queries */
+                                <View style={{
+                                  flexDirection: 'column',
+                                  gap: 10,
+                                  minWidth: 220,
+                                  maxWidth: 280,
+                                  backgroundColor: isDark ? 'rgba(30,41,59,0.85)' : 'rgba(241,245,249,0.90)',
+                                  borderRadius: 16,
+                                  padding: 14,
+                                  borderWidth: 1,
+                                  borderColor: isDark ? 'rgba(99,115,145,0.3)' : 'rgba(203,213,225,0.6)',
+                                  shadowColor: '#000',
+                                  shadowOpacity: 0.12,
+                                  shadowRadius: 8,
+                                  elevation: 3,
+                                }}>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                    <View style={{
+                                      width: 36, height: 36, borderRadius: 10,
+                                      backgroundColor: isDark ? 'rgba(55,65,81,0.8)' : 'rgba(226,232,240,0.9)',
+                                      alignItems: 'center', justifyContent: 'center'
+                                    }}>
+                                      <Ionicons name="book-outline" size={18} color={isDark ? '#94A3B8' : '#64748B'} />
+                                    </View>
+                                    <Text style={{ fontSize: 13, fontWeight: '700', color: isDark ? '#CBD5E1' : '#475569', letterSpacing: 0.3 }}>
+                                      Reading books...
+                                    </Text>
+                                  </View>
+                                  {/* Skeleton lines */}
+                                  <View style={{ gap: 6, marginTop: 2 }}>
+                                    <Animated.View style={{ height: 8, borderRadius: 4, backgroundColor: isDark ? 'rgba(71,85,105,0.7)' : 'rgba(203,213,225,0.8)', opacity: skeletonAnim, width: '100%' }} />
+                                    <Animated.View style={{ height: 8, borderRadius: 4, backgroundColor: isDark ? 'rgba(71,85,105,0.7)' : 'rgba(203,213,225,0.8)', opacity: skeletonAnim, width: '83%' }} />
+                                    <Animated.View style={{ height: 8, borderRadius: 4, backgroundColor: isDark ? 'rgba(71,85,105,0.7)' : 'rgba(203,213,225,0.8)', opacity: skeletonAnim, width: '67%' }} />
+                                  </View>
                                 </View>
-                                <Text style={{ fontSize: 13, color: colors.textLight || '#9CA3AF', fontStyle: 'italic' }}>Thinking...</Text>
-                              </View>
+                              ) : (
+                                /* Normal thinking dots for text queries */
+                                <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4, gap: 6 }}>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                    <Animated.View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.primary, transform: [{ translateY: thinkingDot1 }] }} />
+                                    <Animated.View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.primary, transform: [{ translateY: thinkingDot2 }] }} />
+                                    <Animated.View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.primary, transform: [{ translateY: thinkingDot3 }] }} />
+                                  </View>
+                                  <Text style={{ fontSize: 13, color: colors.textLight || '#9CA3AF', fontStyle: 'italic' }}>Thinking...</Text>
+                                </View>
+                              )
                             ) : (
                               <View style={styles.aiTextContainer}>
                                 <View style={{ flex: 1 }}>

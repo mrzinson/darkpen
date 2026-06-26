@@ -30,11 +30,41 @@ interface ChatViewProps {
 // Simple markdown formatter
 function renderMarkdown(text: string) {
   if (!text) return '';
-  let out = text
+
+  // 1. Process <table_data>...</table_data> blocks FIRST (before any line splitting)
+  let processed = text.replace(/<table_data>([\s\S]*?)<\/table_data>/gi, (match, inner) => {
+    const rows = inner.trim().split('\n').filter((r: string) => r.trim() !== '');
+    if (rows.length === 0) return '';
+    const tableRows = rows.map((row: string, rIdx: number) => {
+      const cols = row.split('|');
+      const isHeader = rIdx === 0;
+      const cells = cols.map((col: string, cIdx: number) => {
+        const cellClass = isHeader
+          ? 'px-3 py-2 text-xs font-bold text-left text-white bg-[#1e293b] border-r border-white/10 last:border-r-0'
+          : cIdx === 0
+            ? 'px-3 py-2 text-xs font-semibold text-left text-[#10B981] border-r border-gray-700/40 last:border-r-0'
+            : 'px-3 py-2 text-xs text-left text-gray-200 border-r border-gray-700/40 last:border-r-0';
+        return `<td class="${cellClass}">${col.trim()}</td>`;
+      }).join('');
+      const rowClass = isHeader
+        ? ''
+        : rIdx % 2 === 0
+          ? 'bg-[#0f172a]/60'
+          : 'bg-[#1e293b]/40';
+      return `<tr class="${rowClass} border-b border-gray-700/30 last:border-b-0">${cells}</tr>`;
+    }).join('');
+    return `<div class="my-3 rounded-xl overflow-hidden border border-gray-700/50 shadow-sm"><table class="w-full border-collapse text-sm">${tableRows}</table></div>`;
+  });
+
+  // 2. Apply inline formatting (green/red tags, code blocks, bold, inline code)
+  let out = processed
+    .replace(/<green>(.*?)<\/green>/gi, '<span class="text-[#10B981] dark:text-[#34D399] font-bold">$1</span>')
+    .replace(/<red>(.*?)<\/red>/gi, '<span class="text-[#EF4444] dark:text-[#F87171] font-bold">$1</span>')
     .replace(/```([\s\S]*?)```/g, '<pre class="bg-gray-900/70 rounded-xl p-3 my-2 text-xs font-mono text-green-300 overflow-x-auto leading-relaxed">$1</pre>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/`(.*?)`/g, '<code class="bg-gray-800/60 px-1.5 py-0.5 rounded text-xs font-mono text-blue-300">$1</code>');
 
+  // 3. Process line by line (but skip already-rendered HTML blocks)
   const lines = out.split('\n');
   const result: string[] = [];
   for (const line of lines) {
@@ -49,6 +79,7 @@ function renderMarkdown(text: string) {
   }
   return result.join('');
 }
+
 
 export default function ChatView({ onOpenSidebar, onOpenGroups, onBack }: ChatViewProps) {
   const { language } = useTheme();
@@ -68,6 +99,15 @@ export default function ChatView({ onOpenSidebar, onOpenGroups, onBack }: ChatVi
   const activeXhr = useRef<XMLHttpRequest | null>(null);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+
+  const hasUserSentImage = (aiMsgId: string) => {
+    const idx = messages.findIndex(m => m.id === aiMsgId);
+    if (idx > 0) {
+      const prevMsg = messages[idx - 1];
+      return !!(prevMsg && prevMsg.sender === 'user' && prevMsg.images && prevMsg.images.length > 0);
+    }
+    return false;
+  };
 
   useEffect(() => { scrollToBottom(); }, [messages, isAiTyping]);
 
@@ -441,14 +481,32 @@ export default function ChatView({ onOpenSidebar, onOpenGroups, onBack }: ChatVi
               ) : (
                 /* AI bubble — NO border, NO avatar, plain text */
                 <div className="max-w-[84%] flex flex-col items-start gap-1.5">
-                  {/* Thinking dots */}
+                  {/* Thinking dots or Blurry Reading Books Box */}
                   {msg.status === 'thinking' && (
-                    <div className="flex items-center gap-2 px-1 py-2">
-                      <span className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{animationDelay:'0ms'}}></span>
-                      <span className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{animationDelay:'150ms'}}></span>
-                      <span className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{animationDelay:'300ms'}}></span>
-                      <span className="text-xs text-gray-400 font-medium ml-1">{thinkingStatus}</span>
-                    </div>
+                    hasUserSentImage(msg.id) ? (
+                      <div className="flex flex-col gap-3 w-full min-w-[260px] max-w-[320px] bg-gray-100/60 dark:bg-gray-800/40 backdrop-blur-md rounded-2xl p-4 border border-gray-200/50 dark:border-gray-800/60 animate-pulse shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-xl bg-gray-200/80 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 animate-spin">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+                            </svg>
+                          </div>
+                          <span className="text-xs text-gray-600 dark:text-gray-300 font-extrabold tracking-wide">Reading books...</span>
+                        </div>
+                        <div className="space-y-2 mt-1">
+                          <div className="h-2 bg-gray-300/70 dark:bg-gray-700/60 rounded w-full" />
+                          <div className="h-2 bg-gray-300/70 dark:bg-gray-700/60 rounded w-5/6" />
+                          <div className="h-2 bg-gray-300/70 dark:bg-gray-700/60 rounded w-2/3" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 px-1 py-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{animationDelay:'0ms'}}></span>
+                        <span className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{animationDelay:'150ms'}}></span>
+                        <span className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{animationDelay:'300ms'}}></span>
+                        <span className="text-xs text-gray-400 font-medium ml-1">{thinkingStatus}</span>
+                      </div>
+                    )
                   )}
 
                   {/* Generating image skeleton */}

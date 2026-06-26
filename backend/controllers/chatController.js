@@ -97,8 +97,15 @@ Core Guidelines:
 1 = A
 2 = B
 3 = B
+- For Fill-in-the-blank questions (su'aalaha buuxbuuxinta ah), rewrite the full sentence/question, but replace the blank space (the dashes/lines) with the correct answer wrapped in <green>...</green> tags (e.g. 'Soomaaliya waxay xorriyaddeeda qaadatay <green>1960</green>'). Do NOT use a table for these — just rewrite each sentence with the answer in green.
+- For matching/relating questions (Column A / Column B type), ALWAYS use a table in EXACTLY this format:
+<table_data>
+#|Column A|Column B
+1|[item from col A]|[matching item from col B]
+2|[item from col A]|[matching item from col B]
+</table_data>
 - For direct questions, return only the direct answer (like a Telegram bot).
-- For matching or comparisons, use a clean and beautiful table/shaxan.
+- For general comparisons, use a clean and beautiful table/shaxan with the <table_data> format.
 - Keep all responses extremely concise, short, and to the point.
 - For casual or friendly chats, keep replies concise and friendly.
 4. FORMATTING RULES:
@@ -429,13 +436,24 @@ exports.askAI = async (req, res) => {
         let finalPrompt = message;
         if (hasImage) {
             finalPrompt = `[IMAGE ANALYSIS REQUEST: Analyze the attached image very carefully. First, perform OCR to extract all questions, math formulas, text, and tasks.
-Solve them accurately and format the output strictly as follow:
+Solve them accurately and format the output strictly as follows:
 - If the image contains Multiple Choice Questions (MCQs/Goobo geli), solve them and format the output strictly as a highly concise list, e.g.:
 1 = A
 2 = B
 3 = B
+- If the image contains Fill-in-the-blank questions (su'aalaha buuxbuuxinta ah / the ones with blank spaces/dashes), rewrite EACH full sentence but replace the blank space (the dashes/underscores/lines) with the correct answer wrapped in <green>...</green> tags. Example: 'Soomaaliya waxay xorriyaddeeda qaadatay <green>1 July 1960</green>'. Do NOT use a table for fill-in-the-blank, just rewrite each sentence.
+- If it is a matching/relating task (Column A matches Column B using numbers), format the answer as a table using EXACTLY this format:
+<table_data>
+#|Column A|Column B
+1|[term from col A]|[matching description from col B]
+2|[term from col A]|[matching description from col B]
+</table_data>
 - If the image contains direct questions, provide only the direct and concise answers (like a Telegram bot), without long explanations.
-- If it is a matching or comparison task, use a beautiful table format.
+- If it is a general comparison or side-by-side task, use a clean table:
+<table_data>
+Header1|Header2
+Value1|Value2
+</table_data>
 - Under no circumstances should you provide a long explanation or step-by-step details unless explicitly asked by the user. Keep it extremely brief, direct, and professional.
 Answer in the same language as the user query or the text in the image.]\n\nUser Question/Instruction: ${message || "Please analyze this image and explain/solve it."}`;
         }
