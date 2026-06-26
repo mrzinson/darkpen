@@ -51,8 +51,11 @@ function hasImageAttachment(attachment) {
 /**
  * La hadal Gemini
  */
-exports.askGemini = async (prompt, modelName = "gemini-2.5-flash", attachment = null, history = [], systemInstruction = null) => {
+exports.askGemini = async (prompt, modelName = "gemini-3.1-flash-lite", attachment = null, history = [], systemInstruction = null) => {
     let targetModel = modelName;
+    if ((targetModel === "gemini-2.5-flash" || targetModel === "gemini-3.1-flash-lite") && !hasImageAttachment(attachment)) {
+        targetModel = "gemini-3.1-flash-lite";
+    }
 
     const fallbackModels = Array.from(new Set([
         targetModel, 
@@ -136,8 +139,11 @@ exports.askGemini = async (prompt, modelName = "gemini-2.5-flash", attachment = 
 /**
  * La hadal Gemini adigoo ku jawaabaya qaab Streaming ah
  */
-exports.askGeminiStream = async (prompt, modelName = "gemini-2.5-flash", attachment = null, history = [], systemInstruction = null) => {
+exports.askGeminiStream = async (prompt, modelName = "gemini-3.1-flash-lite", attachment = null, history = [], systemInstruction = null) => {
     let targetModel = modelName;
+    if ((targetModel === "gemini-2.5-flash" || targetModel === "gemini-3.1-flash-lite") && !hasImageAttachment(attachment)) {
+        targetModel = "gemini-3.1-flash-lite";
+    }
 
     const fallbackModels = Array.from(new Set([
         targetModel, 

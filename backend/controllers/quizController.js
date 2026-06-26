@@ -103,7 +103,7 @@ exports.generateQuiz = async (req, res) => {
 
         // 4. Generate 10-subject multilingual questions via Gemini
         const model = genAI.getGenerativeModel({ 
-            model: "gemini-2.5-flash-lite",
+            model: "gemini-3.1-flash-lite",
             generationConfig: { responseMimeType: "application/json" }
         });
 
