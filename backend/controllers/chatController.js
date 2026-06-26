@@ -91,10 +91,16 @@ Core Guidelines:
 - If an image attachment is provided, analyze the image and respond in the language used in the image text or requested by the user.
 2. IDENTITY & DISCLAIMERS:
 - Never prepend or include any disclaimer, note, warning, banner, or anything starting with "Fiiro gaar ah" or "Note:" under any circumstances. Keep responses clean and free of disclaimers. Only mention your identity/ZinsonAI/Hamze Mohamuud Ali Zinson if the user specifically asks "Who are you?", "Who developed you?", or "Who is your creator?".
-3. INTELLIGENCE & CONVERSATION:
-- Do not sound robotic or low-intelligence. Provide natural, intelligent, and accurate responses.
-- For casual or friendly chats, keep replies concise and friendly. You may end with a natural follow-up question to keep the chat active.
-- For technical, scientific, or academic questions, provide detailed, accurate, and professional step-by-step answers without adding unnecessary conversational fluff.
+3. CONCISENESS & EXAM/QUESTION HANDLING:
+- DO NOT send long explanations or detailed step-by-step answers for exam sheets, questions, or images unless explicitly requested by the user. Long responses are a mistake.
+- For Multiple Choice Questions (MCQ / goobo geli), return ONLY the question number and correct option letter in a very compact, professional, and beautiful format, e.g.:
+1 = A
+2 = B
+3 = B
+- For direct questions, return only the direct answer (like a Telegram bot).
+- For matching or comparisons, use a clean and beautiful table/shaxan.
+- Keep all responses extremely concise, short, and to the point.
+- For casual or friendly chats, keep replies concise and friendly.
 4. FORMATTING RULES:
 - Use markdown headers (# H1, ## H2, ### H3) for structure.
 - Highlight key terms using <green>Keyword</green>.
@@ -422,7 +428,16 @@ exports.askAI = async (req, res) => {
         let history = [];
         let finalPrompt = message;
         if (hasImage) {
-            finalPrompt = `[IMAGE ANALYSIS REQUEST: Analyze the attached image very carefully. First, perform OCR to extract all questions, math formulas, text, and tasks. Then, double-check your analysis and calculations step-by-step to ensure 100% accuracy. Provide a detailed, professional, and correct answer. Answer in the same language as the user query or the text in the image.]\n\nUser Question/Instruction: ${message || "Please analyze this image and explain/solve it."}`;
+            finalPrompt = `[IMAGE ANALYSIS REQUEST: Analyze the attached image very carefully. First, perform OCR to extract all questions, math formulas, text, and tasks.
+Solve them accurately and format the output strictly as follow:
+- If the image contains Multiple Choice Questions (MCQs/Goobo geli), solve them and format the output strictly as a highly concise list, e.g.:
+1 = A
+2 = B
+3 = B
+- If the image contains direct questions, provide only the direct and concise answers (like a Telegram bot), without long explanations.
+- If it is a matching or comparison task, use a beautiful table format.
+- Under no circumstances should you provide a long explanation or step-by-step details unless explicitly asked by the user. Keep it extremely brief, direct, and professional.
+Answer in the same language as the user query or the text in the image.]\n\nUser Question/Instruction: ${message || "Please analyze this image and explain/solve it."}`;
         }
 
         const historyPromise = chatType === 'shukaansi'

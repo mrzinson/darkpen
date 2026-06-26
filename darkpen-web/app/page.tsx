@@ -40,12 +40,40 @@ export default function AppWorkspace() {
 
   // Load User Data
   useEffect(() => {
-    const cached = localStorage.getItem('userData');
-    if (cached) {
-      setUserData(JSON.parse(cached));
-    }
-    setIsLoaded(true);
-  }, []);
+    const loadUser = async () => {
+      const cached = localStorage.getItem('userData');
+      if (cached) {
+        try {
+          setUserData(JSON.parse(cached));
+        } catch (e) {}
+      }
+      
+      const token = localStorage.getItem('userToken');
+      if (token) {
+        try {
+          const res = await fetch('https://darkpen-backend.onrender.com/api/user/profile', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.user) {
+              setUserData(data.user);
+              localStorage.setItem('userData', JSON.stringify(data.user));
+            }
+          } else if (res.status === 401) {
+            localStorage.removeItem('userToken');
+            localStorage.removeItem('userData');
+            setUserData(null);
+            router.push('/login');
+          }
+        } catch (e) {
+          console.error("Error fetching profile on mount:", e);
+        }
+      }
+      setIsLoaded(true);
+    };
+    loadUser();
+  }, [router]);
 
   const handleLogout = () => {
     localStorage.removeItem('userToken');
