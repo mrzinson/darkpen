@@ -288,90 +288,110 @@ export default function ChatView({ onOpenSidebar, onOpenGroups }: ChatViewProps)
 
     try {
       const token = localStorage.getItem('userToken');
-      const xhr = new XMLHttpRequest();
-      activeXhr.current = xhr;
-      xhr.open('POST', `https://darkpen-backend.onrender.com/api/chat/ask`);
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      if (!token) {
+        setMessages(prev => prev.map(m => m.id === aiMsgId ? { 
+          ...m, text: 'Fadlan gal akoonkaaga ka hor.', status: 'complete' 
+        } : m));
+        setIsAiTyping(false);
+        return;
+      }
 
-      let accumulatedText = "";
-      let offset = 0;
+      const sendRequest = (isRetry = false) => {
+        if (isRetry) {
+          setThinkingStatus('Server-ka ayaa bilaabmaya, sabar yar...');
+        }
+        const xhr = new XMLHttpRequest();
+        activeXhr.current = xhr;
+        xhr.open('POST', `https://darkpen-backend.onrender.com/api/chat/ask`);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
-      xhr.onreadystatechange = () => {
-        if (xhr.readyState === 3 || xhr.readyState === 4) {
-          const responseText = xhr.responseText;
-          const chunk = responseText.substring(offset);
-          offset = responseText.length;
+        let accumulatedText = "";
+        let offset = 0;
 
-          if (chunk) {
-            const lines = chunk.split('\n');
-            for (const line of lines) {
-              const trimmed = line.trim();
-              if (trimmed.startsWith('data: ')) {
-                const dataStr = trimmed.slice(6).trim();
-                if (dataStr === '[DONE]') break;
-                try {
-                  const parsed = JSON.parse(dataStr);
-                  if (parsed.status === 'reading_books') {
-                    setThinkingStatus('Reading books...');
-                  } else if (parsed.status === 'thinking') {
-                    setThinkingStatus('Thinking...');
-                  } else if (parsed.status === 'generating_image') {
-                    setThinkingStatus('Generating image...');
-                    setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, status: 'generating_image' } : m));
-                  } else if (parsed.error) {
-                    const errorTxt = parsed.text || "Qorshahan sawir laguma generate gareyn karo.";
-                    setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: errorTxt, status: 'complete' } : m));
-                    break;
-                  } else if (parsed.text || parsed.image) {
-                    if (parsed.text) accumulatedText += parsed.text;
-                    const imageUrl = parsed.image ? (parsed.image.startsWith('http') ? parsed.image : `https://darkpen-backend.onrender.com${parsed.image}`) : undefined;
-                    setMessages(prev => prev.map(m => m.id === aiMsgId ? {
-                      ...m,
-                      text: accumulatedText,
-                      image: imageUrl || m.image,
-                      status: parsed.status === 'complete' ? 'complete' : 'streaming'
-                    } : m));
+        xhr.onreadystatechange = () => {
+          if (xhr.readyState === 3 || xhr.readyState === 4) {
+            const responseText = xhr.responseText;
+            const chunk = responseText.substring(offset);
+            offset = responseText.length;
+
+            if (chunk) {
+              const lines = chunk.split('\n');
+              for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed.startsWith('data: ')) {
+                  const dataStr = trimmed.slice(6).trim();
+                  if (dataStr === '[DONE]') break;
+                  try {
+                    const parsed = JSON.parse(dataStr);
+                    if (parsed.status === 'reading_books') {
+                      setThinkingStatus('Reading books...');
+                    } else if (parsed.status === 'thinking') {
+                      setThinkingStatus('Thinking...');
+                    } else if (parsed.status === 'generating_image') {
+                      setThinkingStatus('Generating image...');
+                      setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, status: 'generating_image' } : m));
+                    } else if (parsed.error) {
+                      const errorTxt = parsed.text || "Qorshahan sawir laguma generate gareyn karo.";
+                      setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: errorTxt, status: 'complete' } : m));
+                      break;
+                    } else if (parsed.text || parsed.image) {
+                      if (parsed.text) accumulatedText += parsed.text;
+                      const imageUrl = parsed.image ? (parsed.image.startsWith('http') ? parsed.image : `https://darkpen-backend.onrender.com${parsed.image}`) : undefined;
+                      setMessages(prev => prev.map(m => m.id === aiMsgId ? {
+                        ...m,
+                        text: accumulatedText,
+                        image: imageUrl || m.image,
+                        status: parsed.status === 'complete' ? 'complete' : 'streaming'
+                      } : m));
+                    }
+                  } catch (e) {
+                    // Partial JSON — skip
                   }
-                } catch (e) {
-                  // Partial JSON
                 }
               }
             }
-          }
 
-          if (xhr.readyState === 4) {
-            activeXhr.current = null;
-            if (xhr.status >= 400 && !accumulatedText) {
-              setMessages(prev => prev.map(m => m.id === aiMsgId ? { 
-                ...m, 
-                text: "Cilad ayaa ku dhacday nidaamka. Fadlan mar kale isku day.", 
-                status: 'complete' 
-              } : m));
-            } else {
-              setMessages(prev => prev.map(m => m.id === aiMsgId ? { 
-                ...m, 
-                text: accumulatedText || m.text || "Jawaab ma jiro.", 
-                status: 'complete' 
-              } : m));
-              fetchCredits();
+            if (xhr.readyState === 4) {
+              activeXhr.current = null;
+              if (xhr.status >= 400) {
+                let errText = "Cilad ayaa ku dhacday. Fadlan mar kale isku day.";
+                try { const j = JSON.parse(xhr.responseText); errText = j.message || errText; } catch {}
+                setMessages(prev => prev.map(m => m.id === aiMsgId ? {
+                  ...m, text: errText, status: 'complete'
+                } : m));
+                setIsAiTyping(false);
+              } else if (!accumulatedText && !isRetry) {
+                // Empty response — Render cold start, retry once after 3s
+                setThinkingStatus('Server-ka ayaa toosaya, sabar yar...');
+                setTimeout(() => sendRequest(true), 3000);
+              } else {
+                setMessages(prev => prev.map(m => m.id === aiMsgId ? {
+                  ...m,
+                  text: accumulatedText || 'Server-ka wuu toosay, mar kale weydii.',
+                  status: 'complete'
+                } : m));
+                fetchCredits();
+                setIsAiTyping(false);
+              }
             }
-            setIsAiTyping(false);
           }
-        }
-      };
+        };
 
-      xhr.send(JSON.stringify({
-        message: userText,
-        chatType: 'education',
-        stream: true,
-        sessionId: sessionId,
-        attachment: currentAttachments.length > 0 ? currentAttachments.map(att => ({
-          base64: att.base64,
-          mimeType: att.mimeType,
-          name: att.name
-        })) : null
-      }));
+        xhr.send(JSON.stringify({
+          message: userText,
+          chatType: 'education',
+          stream: true,
+          sessionId: sessionId,
+          attachment: currentAttachments.length > 0 ? currentAttachments.map(att => ({
+            base64: att.base64,
+            mimeType: att.mimeType,
+            name: att.name
+          })) : null
+        }));
+      }; // end sendRequest
+
+      sendRequest();
 
     } catch (e) {
       setMessages(prev => prev.map(m => m.id === aiMsgId ? { 
