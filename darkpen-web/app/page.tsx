@@ -225,9 +225,10 @@ export default function AppWorkspace() {
               </div>
               <button
                 onClick={() => setTheme(isDark ? 'light' : 'dark')}
-                className="w-10 h-5.5 rounded-full bg-blue-500/10 border border-blue-500/20 relative flex items-center p-0.5 transition-all"
+                style={{ width: 40, height: 22 }}
+                className={`rounded-full relative flex items-center p-0.5 transition-all border ${isDark ? 'bg-[#0084FF] border-blue-600' : 'bg-gray-200 border-gray-300'}`}
               >
-                <div className={`w-4.5 h-4.5 rounded-full bg-[#0084FF] transition-all ${isDark ? 'translate-x-4.5' : 'translate-x-0'}`} />
+                <div style={{ width: 16, height: 16 }} className={`rounded-full bg-white shadow transition-all duration-300 ${isDark ? 'translate-x-[18px]' : 'translate-x-0'}`} />
               </button>
             </div>
 
@@ -241,9 +242,10 @@ export default function AppWorkspace() {
               </div>
               <button
                 onClick={() => setLanguage(language === 'en' ? 'so' : 'en')}
-                className="w-10 h-5.5 rounded-full bg-blue-500/10 border border-blue-500/20 relative flex items-center p-0.5 transition-all"
+                style={{ width: 40, height: 22 }}
+                className={`rounded-full relative flex items-center p-0.5 transition-all border ${language === 'so' ? 'bg-[#0084FF] border-blue-600' : 'bg-gray-200 border-gray-300'}`}
               >
-                <div className={`w-4.5 h-4.5 rounded-full bg-[#0084FF] transition-all ${language === 'so' ? 'translate-x-4.5' : 'translate-x-0'}`} />
+                <div style={{ width: 16, height: 16 }} className={`rounded-full bg-white shadow transition-all duration-300 ${language === 'so' ? 'translate-x-[18px]' : 'translate-x-0'}`} />
               </button>
             </div>
           </div>
@@ -254,9 +256,9 @@ export default function AppWorkspace() {
       {/* Log Out */}
       <button
         onClick={handleLogout}
-        className="flex items-center gap-3 px-3 py-3.5 rounded-xl text-xs font-bold text-red-500 hover:bg-red-500/10 transition-all border border-red-500/10 text-left mt-6"
+        className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-red-500 hover:bg-red-500/10 transition-all border border-red-500/10 w-fit mt-4"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4.5 h-4.5">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 shrink-0">
           <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
         </svg>
         <span>{t('logout')}</span>
@@ -379,9 +381,9 @@ export default function AppWorkspace() {
               {/* Logout Button */}
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-red-500 hover:bg-red-500/10 transition-all text-left"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-red-500 hover:bg-red-500/10 transition-all border border-red-500/10 w-fit"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 shrink-0">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
                 </svg>
                 <span>{t('logout')}</span>
@@ -416,7 +418,7 @@ export default function AppWorkspace() {
                   onOpenSidebar={() => {}}
                 />
               ) : currentView === 'quiz' ? (
-                <QuizView onOpenSidebar={() => {}} />
+                <QuizView onOpenSidebar={() => {}} onBack={() => { setActiveTab('home'); setCurrentView('home'); }} />
               ) : currentView === 'shukaansi' ? (
                 <ShukaansiView 
                   onOpenSidebar={() => {}} 
@@ -509,7 +511,7 @@ export default function AppWorkspace() {
             {/* Quiz — fullscreen */}
             {!openPdf && currentView === 'quiz' && (
               <div className="absolute inset-0 z-30 flex flex-col bg-white dark:bg-[#0D1117]">
-                <QuizView onOpenSidebar={() => setLeftDrawerOpen(true)} />
+                <QuizView onOpenSidebar={() => setLeftDrawerOpen(true)} onBack={() => { setActiveTab('home'); setCurrentView('home'); }} />
               </div>
             )}
 

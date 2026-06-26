@@ -5,9 +5,10 @@ import { useTheme } from '../context/ThemeContext';
 
 interface QuizViewProps {
   onOpenSidebar: () => void;
+  onBack?: () => void;
 }
 
-export default function QuizView({ onOpenSidebar }: QuizViewProps) {
+export default function QuizView({ onOpenSidebar, onBack }: QuizViewProps) {
   const { language } = useTheme();
   
   const [optedIn, setOptedIn] = useState(false);
@@ -170,23 +171,46 @@ export default function QuizView({ onOpenSidebar }: QuizViewProps) {
   };
 
   return (
-    <div className="flex-1 w-full overflow-y-auto px-6 py-6 scrollbar-none flex flex-col gap-6 bg-[#0D1117]">
-      
+    <div className="flex-1 w-full overflow-y-auto scrollbar-none flex flex-col bg-white dark:bg-[#0D1117]">
+
       {/* Header */}
-      <div className="flex items-center gap-3 select-none">
-        <button 
+      <div className="flex items-center justify-between px-3 py-2 bg-white dark:bg-[#161B22] border-b border-gray-200 dark:border-gray-800 shrink-0">
+        <div className="flex items-center gap-2">
+          {/* Back arrow */}
+          <button
+            onClick={onBack || onOpenSidebar}
+            className="w-9 h-9 rounded-full flex items-center justify-center bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-blue-500 transition-all active:scale-95 shrink-0"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+            </svg>
+          </button>
+          {/* Icon + Title */}
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4.5 h-4.5 text-blue-500">
+                <path fillRule="evenodd" d="M3 6a3 3 0 013-3h12a3 3 0 013 3v8a7.003 7.003 0 01-6 6.917V21h3a.75.75 0 010 1.5h-10a.75.75 0 010-1.5h3v-1.083A7.003 7.003 0 013 14V6zm3.06 1.5a1.5 1.5 0 100 3h.142A7.037 7.037 0 016 7.5zm11.88 3a1.5 1.5 0 100-3c-.097.807-.323 1.58-.665 2.296A1.5 1.5 0 0017.94 10.5z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="flex flex-col">
+              <span className="font-bold text-gray-800 dark:text-gray-100 text-sm leading-tight">Quiz Challenge</span>
+              <span className="text-[10px] text-blue-500 font-medium">Daily · Educational</span>
+            </div>
+          </div>
+        </div>
+        {/* Right: menu toggle (desktop hidden) */}
+        <button
           onClick={onOpenSidebar}
-          className="w-10 h-10 rounded-full flex lg:hidden items-center justify-center bg-gray-850 hover:bg-gray-800 text-blue-500 transition-all"
+          className="w-9 h-9 rounded-full flex lg:hidden items-center justify-center bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-blue-500 transition-all active:scale-95 shrink-0"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5" />
           </svg>
         </button>
-        <div>
-          <h2 className="text-2xl font-extrabold text-white">QUIZ CHALLENGE</h2>
-          <p className="text-xs text-gray-500 font-medium">Daily educational challenge to test your skills.</p>
-        </div>
       </div>
+
+      {/* Body content */}
+      <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-6">
 
       {loading ? (
         <div className="flex flex-col gap-4 py-8 items-center justify-center">
@@ -315,6 +339,7 @@ export default function QuizView({ onOpenSidebar }: QuizViewProps) {
             ))
           )}
         </div>
+      </div>
       </div>
 
     </div>

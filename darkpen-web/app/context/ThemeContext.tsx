@@ -166,7 +166,7 @@ interface ThemeContextData {
 const ThemeContext = createContext<ThemeContextData>({} as ThemeContextData);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setThemeState] = useState<ThemeType>('dark'); // Default to dark
+  const [theme, setThemeState] = useState<ThemeType>('light'); // Default to light
   const [language, setLanguageState] = useState<LanguageType>('en'); // Default to English
   const [isReady, setIsReady] = useState(false);
 
@@ -176,7 +176,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (savedTheme) {
       setThemeState(savedTheme as ThemeType);
     } else {
-      setThemeState('dark');
+      setThemeState('light');
     }
 
     const savedLang = localStorage.getItem('appLanguage');
