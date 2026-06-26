@@ -420,7 +420,12 @@ export default function ChatView({ onOpenSidebar, onOpenGroups, onBack }: ChatVi
                       {msg.images.map((uri, i) => (
                         <div key={i} className="w-[140px] h-[140px] rounded-2xl overflow-hidden border-2 border-blue-500/30 shadow-md">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={uri} alt="attachment" className="w-full h-full object-cover" />
+                          <img
+                            src={uri}
+                            alt="attachment"
+                            className="w-full h-full object-cover cursor-pointer"
+                            onClick={() => window.open(uri, '_blank')}
+                          />
                         </div>
                       ))}
                     </div>

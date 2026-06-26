@@ -338,7 +338,8 @@ export default function GroupsView({ onClose }: GroupsViewProps) {
                       <img 
                         src={getMediaUrl(msg.message)} 
                         alt="Group Image" 
-                        className="max-w-full max-h-[220px] rounded-xl object-cover shadow-sm select-none" 
+                        className="max-w-full max-h-[220px] rounded-xl object-cover shadow-sm select-none cursor-pointer" 
+                        onClick={() => window.open(getMediaUrl(msg.message), '_blank')}
                       />
                     ) : (
                       <span className="select-text">{msg.message}</span>
