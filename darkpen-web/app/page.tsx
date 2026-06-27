@@ -21,11 +21,10 @@ import SettingsView     from './components/SettingsView';
 import AboutView        from './components/AboutView';
 
 /* ─────────────────── constants ─────────────────── */
-const DP_BG    = 'linear-gradient(155deg,#07071A 0%,#0E0D2E 40%,#0D1240 70%,#07071A 100%)';
-const DP_SIDE  = '#0C0B22';
-const DP_BORD  = 'rgba(255,255,255,0.07)';
-const DP_PURP  = '#5B3CE5';
-const DP_PURP2 = '#7C5CF0';
+const DP_BG    = '#090B10'; // Slate-black solid background
+const DP_SIDE  = '#0E1118'; // Dark sidebar background
+const DP_BORD  = 'rgba(255,255,255,0.06)'; // Soft border
+const DP_ACCENT = '#0084FF'; // Bright Blue accent (mockup 4)
 
 /* ─────────────────── icon helpers ─────────────────── */
 const Ico = ({ d, cls = 'w-4 h-4' }: { d: string; cls?: string }) => (
@@ -39,13 +38,13 @@ const PATHS = {
   books:  'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25',
   quiz:   'M12 21.75c-4.5 0-8.25-3.75-8.25-8.25v-3.75A2.25 2.25 0 016 7.5h12a2.25 2.25 0 012.25 2.25v3.75c0 4.5-3.75 8.25-8.25 8.25zm0 0v1.5m-3-1.5h6M3 9.75h1.5m15 0H21m-16.5 0a3.75 3.75 0 013.75-3.75h9.75a3.75 3.75 0 013.75 3.75',
   heart:  'M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z',
-  groups: 'M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0Zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0Zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0Z',
-  person: 'M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0ZM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632Z',
+  groups: 'M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z',
+  person: 'M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z',
   exam:   'M9.813 15.904 9 21l8.982-8.983m-9 9 9-9m-9 9-2.25-2.25m11.25-6.75 2.25-2.25m-13.5 0h13.5M9 7.5h.008v.008H9V7.5Z',
-  billing:'M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-5.625-10.125h16.5a2.25 2.25 0 012.25 2.25v10.5A2.25 2.25 0 0121 21.75H3a2.25 2.25 0 01-2.25-2.25V5.625a2.25 2.25 0 012.25-2.25Z',
-  usage:  'M10.5 6a7.5 7.5 0 107.5 7.5h-7.5V6Z',
-  settings:'M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.43l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.991l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.28Z',
-  about:  'M11.25 11.25l.041-.02a.75.75 0 111.063.852l-.708.283a.75.75 0 00-.475.695v.283m0-.005H12m-.25-4.125h.008v.008h-.008V7.5Z',
+  billing:'M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-5.625-10.125h16.5a2.25 2.25 0 0 1 2.25 2.25v10.5A2.25 2.25 0 0 1 21 21.75H3a2.25 2.25 0 0 1-2.25-2.25V5.625a2.25 2.25 0 0 1 2.25-2.25Z',
+  usage:  'M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z',
+  settings:'M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.43l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.991l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.28Z',
+  about:  'M11.25 11.25l.041-.02a.75.75 0 1 1 1.063.852l-.708.283a.75.75 0 00-.475.695v.283m0-.005H12m-.25-4.125h.008v.008h-.008V7.5Z',
   logout: 'M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75',
   moon:   'M21.752 15.002A9.72 9.72 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998Z',
   lang:   'M10.5 21l5.25-11.25L21 21m-9-3h7.5M3 5.621a48.474 48.474 0 016-.371m0 0c1.12 0 2.233.038 3.334.114M9 5.25V3m3.334 2.364C11.176 10.658 7.69 15.08 3 17.502m9.334-12.138A14.25 14.25 0 0010.5 9.75',
@@ -56,11 +55,11 @@ const PATHS = {
 function SideItem({ icon, label, active, badge, onClick }: { icon: string; label: string; active?: boolean; badge?: string; onClick: () => void }) {
   return (
     <button onClick={onClick} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all text-left group ${active ? 'text-white' : 'text-white/40 hover:text-white/80 hover:bg-white/5'}`}
-      style={active ? { background: `linear-gradient(135deg,${DP_PURP}22,${DP_PURP2}15)`, border: `1px solid ${DP_PURP}40`, color: 'white' } : {}}>
-      <Ico d={icon} cls={`w-4 h-4 shrink-0 transition-all ${active ? 'text-purple-400' : 'text-white/30 group-hover:text-white/60'}`} />
+      style={active ? { background: 'rgba(255,255,255,0.06)', border: `1px solid ${DP_BORD}`, color: 'white' } : {}}>
+      <Ico d={icon} cls={`w-4 h-4 shrink-0 transition-all ${active ? 'text-blue-400' : 'text-white/30 group-hover:text-white/60'}`} />
       <span className="flex-1">{label}</span>
-      {badge && <span className="px-1.5 py-0.5 rounded text-[8px] font-black text-white" style={{ background: DP_PURP }}>{badge}</span>}
-      {active && <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />}
+      {badge && <span className="px-1.5 py-0.5 rounded text-[8px] font-black text-white" style={{ background: DP_ACCENT }}>{badge}</span>}
+      {active && <span className="w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />}
     </button>
   );
 }
@@ -70,7 +69,7 @@ function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
   return (
     <button onClick={onChange}
       className="rounded-full relative flex items-center p-0.5 transition-all"
-      style={{ width: 38, height: 20, background: on ? DP_PURP : 'rgba(255,255,255,0.1)', border: `1px solid ${on ? DP_PURP2 : 'rgba(255,255,255,0.12)'}` }}>
+      style={{ width: 38, height: 20, background: on ? DP_ACCENT : 'rgba(255,255,255,0.1)', border: `1px solid ${on ? DP_ACCENT : 'rgba(255,255,255,0.12)'}` }}>
       <div style={{ width: 14, height: 14 }} className={`rounded-full bg-white shadow transition-all duration-300 ${on ? 'translate-x-[18px]' : 'translate-x-0'}`} />
     </button>
   );
@@ -83,32 +82,30 @@ export default function AppWorkspace() {
 
   const [currentView,    setCurrentView]    = useState<string>('chat');
   const [userData,       setUserData]       = useState<any>(null);
-  const [isLoaded,       setIsLoaded]       = useState(false);
   const [leftOpen,       setLeftOpen]       = useState(false);
   const [navOpen,        setNavOpen]        = useState(false);
   const [openPdf,        setOpenPdf]        = useState<{ url: string; title: string; type: string } | null>(null);
 
-  /* ── load user ── */
+  /* ── load user instantly from localcache first, then sync ── */
   useEffect(() => {
-    const load = async () => {
-      const cached = localStorage.getItem('userData');
-      if (cached) { try { setUserData(JSON.parse(cached)); } catch {} }
-      const token = localStorage.getItem('userToken');
-      if (token) {
-        try {
-          const res  = await fetch('https://darkpen-backend.onrender.com/api/user/profile', { headers: { Authorization: `Bearer ${token}` } });
-          if (res.ok) {
-            const d = await res.json();
-            if (d.user) { setUserData(d.user); localStorage.setItem('userData', JSON.stringify(d.user)); }
-          } else if (res.status === 401) {
+    const cached = localStorage.getItem('userData');
+    if (cached) { try { setUserData(JSON.parse(cached)); } catch {} }
+
+    const token = localStorage.getItem('userToken');
+    if (token) {
+      fetch('https://darkpen-backend.onrender.com/api/user/profile', { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => {
+          if (res.ok) return res.json();
+          if (res.status === 401) {
             localStorage.removeItem('userToken'); localStorage.removeItem('userData');
             setUserData(null); router.push('/login');
           }
-        } catch {}
-      }
-      setIsLoaded(true);
-    };
-    load();
+        })
+        .then(d => {
+          if (d?.user) { setUserData(d.user); localStorage.setItem('userData', JSON.stringify(d.user)); }
+        })
+        .catch(() => {});
+    }
   }, [router]);
 
   const logout = () => {
@@ -120,12 +117,12 @@ export default function AppWorkspace() {
 
   /* ── left sidebar (full info + settings) ── */
   const LeftSidebar = () => (
-    <div className="flex flex-col h-full py-6 px-4 gap-5 overflow-y-auto">
+    <div className="flex flex-col h-full py-6 px-4 gap-5 overflow-y-auto scrollbar-none">
 
       {/* Logo + close on mobile */}
       <div className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(135deg,${DP_PURP},${DP_PURP2})`, boxShadow: `0 0 14px ${DP_PURP}60` }}>
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: DP_ACCENT, boxShadow: `0 0 14px ${DP_ACCENT}50` }}>
             <span className="text-white font-black text-[10px]">DP</span>
           </div>
           <span className="text-white font-black text-sm tracking-widest">DARKPEN</span>
@@ -136,17 +133,17 @@ export default function AppWorkspace() {
       </div>
 
       {/* User card */}
-      <div className="shrink-0 rounded-2xl p-4 flex flex-col items-center text-center gap-3" style={{ background: 'rgba(255,255,255,0.04)', border: `1px solid ${DP_BORD}` }}>
-        <div className="w-14 h-14 rounded-full flex items-center justify-center text-white text-xl font-black shadow-lg" style={{ background: `linear-gradient(135deg,${DP_PURP},${DP_PURP2})`, boxShadow: `0 0 20px ${DP_PURP}50` }}>
+      <div className="shrink-0 rounded-2xl p-4 flex flex-col items-center text-center gap-3" style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${DP_BORD}` }}>
+        <div className="w-14 h-14 rounded-full flex items-center justify-center text-white text-xl font-black shadow-lg" style={{ background: DP_ACCENT, boxShadow: `0 0 20px ${DP_ACCENT}40` }}>
           {userData?.name ? userData.name.substring(0, 2).toUpperCase() : 'DP'}
         </div>
         <div>
           <p className="text-white text-sm font-bold">@{userData?.username || 'Darkpen User'}</p>
           <p className="text-white/40 text-[10px] mt-0.5">{userData?.whatsapp_number || ''}</p>
         </div>
-        <button onClick={() => nav('billing')} className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-white text-[10px] font-black shadow-md hover:opacity-90 transition-all"
-          style={{ background: `linear-gradient(135deg,${DP_PURP},${DP_PURP2})`, boxShadow: `0 4px 12px ${DP_PURP}40` }}>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
+        <button onClick={() => nav('billing')} className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-white text-[10px] font-black shadow-md hover:opacity-90 transition-all animate-pulse"
+          style={{ background: DP_ACCENT, boxShadow: `0 4px 12px ${DP_ACCENT}30` }}>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
             <path d="M12 7.5a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z" />
             <path fillRule="evenodd" d="M1.5 4.875C1.5 3.839 2.34 3 3.375 3h17.25c1.035 0 1.875.84 1.875 1.875v9.75c0 1.036-.84 1.875-1.875 1.875H3.375A1.875 1.875 0 0 1 1.5 14.625v-9.75ZM8.25 9.75a3.75 3.75 0 1 1 7.5 0 3.75 3.75 0 0 1-7.5 0ZM18.75 9a.75.75 0 0 0-.75.75v.008c0 .414.336.75.75.75h.008a.75.75 0 0 0 .75-.75V9.75a.75.75 0 0 0-.75-.75h-.008ZM4.5 9.75A.75.75 0 0 1 5.25 9h.008a.75.75 0 0 1 .75.75v.008a.75.75 0 0 1-.75.75H5.25a.75.75 0 0 1-.75-.75V9.75Z" clipRule="evenodd" />
             <path d="M2.25 18a.75.75 0 0 0 0 1.5c5.4 0 10.63.722 15.6 2.117a.75.75 0 0 0 .9-1.336 48.46 48.46 0 0 0-16.5-2.28Z" />
@@ -158,6 +155,7 @@ export default function AppWorkspace() {
       {/* Navigation */}
       <div className="flex flex-col gap-1">
         <p className="text-white/25 text-[9px] font-black uppercase tracking-widest px-2 mb-1">WAXBARASHADA & AI</p>
+        <SideItem icon={PATHS.chat}    label="AI Assistant"       active={currentView==='chat'}           onClick={() => nav('chat')} />
         <SideItem icon={PATHS.person}  label={t('profile')}       active={currentView==='profile'}        onClick={() => nav('profile')} />
         <SideItem icon={PATHS.exam}    label="AI Exam Generator"  active={currentView==='exam-generator'} onClick={() => nav('exam-generator')} badge="NEW" />
         <SideItem icon={PATHS.books}   label={t('books')}         active={currentView==='exams'}          onClick={() => nav('exams')} />
@@ -173,7 +171,7 @@ export default function AppWorkspace() {
       </div>
 
       {/* Toggles */}
-      <div className="flex flex-col gap-4 px-2 py-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${DP_BORD}` }}>
+      <div className="flex flex-col gap-4 px-2 py-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.02)', border: `1px solid ${DP_BORD}` }}>
         <div className="flex items-center justify-between text-xs font-bold text-white/50">
           <div className="flex items-center gap-2"><Ico d={PATHS.moon} /><span>Dark Mode</span></div>
           <Toggle on={isDark} onChange={() => setTheme(isDark ? 'light' : 'dark')} />
@@ -194,7 +192,7 @@ export default function AppWorkspace() {
 
   /* ── nav panel (right drawer) ── */
   const NavPanel = () => (
-    <div className="flex flex-col h-full py-6 px-4 gap-4 overflow-y-auto">
+    <div className="flex flex-col h-full py-6 px-4 gap-4 overflow-y-auto scrollbar-none">
       <div className="flex items-center justify-between shrink-0 mb-2">
         <p className="text-white/80 text-sm font-bold">Navigation</p>
         <button onClick={() => setNavOpen(false)} className="text-white/30 hover:text-white/80 p-1">
@@ -203,7 +201,7 @@ export default function AppWorkspace() {
       </div>
 
       {[
-        { icon: PATHS.chat,  label: 'AI Assistant',  view: 'chat',      accent: DP_PURP },
+        { icon: PATHS.chat,  label: 'AI Assistant',  view: 'chat',      accent: DP_ACCENT },
         { icon: PATHS.heart, label: 'My Love Chat',  view: 'shukaansi', accent: '#E5436F' },
         { icon: PATHS.books, label: t('books'),      view: 'exams',     accent: '#3CADA0' },
         { icon: PATHS.quiz,  label: 'Quiz Challenge', view: 'quiz',     accent: '#E5963C' },
@@ -212,16 +210,16 @@ export default function AppWorkspace() {
         const active = currentView === item.view;
         return (
           <button key={item.view} onClick={() => nav(item.view)}
-            className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-left transition-all hover:scale-[1.02] active:scale-[0.98]"
+            className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
             style={{
-              background: active ? `linear-gradient(135deg,${item.accent}22,${item.accent}11)` : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${active ? item.accent+'50' : DP_BORD}`,
+              background: active ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
+              border: `1px solid ${active ? DP_ACCENT+'50' : DP_BORD}`,
             }}>
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: active ? `${item.accent}30` : 'rgba(255,255,255,0.07)' }}>
-              <Ico d={item.icon} cls="w-4 h-4" />
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: active ? `${DP_ACCENT}25` : 'rgba(255,255,255,0.04)' }}>
+              <Ico d={item.icon} cls="w-4.5 h-4.5" />
             </div>
             <span className={`text-sm font-bold ${active ? 'text-white' : 'text-white/50'}`}>{item.label}</span>
-            {active && <span className="ml-auto w-2 h-2 rounded-full" style={{ background: item.accent }} />}
+            {active && <span className="ml-auto w-2 h-2 rounded-full" style={{ background: DP_ACCENT }} />}
           </button>
         );
       })}
@@ -246,16 +244,6 @@ export default function AppWorkspace() {
       default:              return <ChatView onOpenLeftSidebar={() => setLeftOpen(true)} onOpenNavPanel={() => setNavOpen(true)} />;
     }
   };
-
-  /* ── loading ── */
-  if (!isLoaded) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: DP_BG }}>
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: `${DP_PURP} transparent ${DP_PURP} ${DP_PURP}` }} />
-        <p className="text-white/30 text-xs font-semibold">Loading Darkpen…</p>
-      </div>
-    </div>
-  );
 
   const sideStyle: React.CSSProperties = { background: DP_SIDE, borderRight: `1px solid ${DP_BORD}` };
   const navStyle: React.CSSProperties  = { background: DP_SIDE, borderLeft: `1px solid ${DP_BORD}` };

@@ -10,13 +10,13 @@ interface Message {
   sender: 'user' | 'ai';
   status?: 'thinking' | 'streaming' | 'complete' | 'generating_image';
   image?: string;
-  images?: string[];   // base64 data-URLs (persistent)
+  images?: string[];   // base64 data-URLs
   timestamp?: string;
 }
 
 interface Attachment {
-  dataUrl: string;   // full "data:image/jpeg;base64,..." for display
-  base64: string;    // raw base64 for API
+  dataUrl: string;
+  base64: string;
   mimeType: string;
   name: string;
 }
@@ -80,7 +80,7 @@ function renderMarkdown(text: string): string {
         const cls = isH
           ? 'px-3 py-2 text-xs font-bold text-left text-white bg-white/10 border-r border-white/10 last:border-r-0'
           : cIdx === 0
-            ? 'px-3 py-2 text-xs font-semibold text-left text-purple-300 border-r border-white/8 last:border-r-0'
+            ? 'px-3 py-2 text-xs font-semibold text-left text-blue-400 border-r border-white/8 last:border-r-0'
             : 'px-3 py-2 text-xs text-left text-white/80 border-r border-white/8 last:border-r-0';
         return `<td class="${cls}">${col.trim()}</td>`;
       }).join('');
@@ -91,18 +91,18 @@ function renderMarkdown(text: string): string {
   });
 
   let out = processed
-    .replace(/<green>(.*?)<\/green>/gi, '<span class="text-emerald-400 font-bold">$1</span>')
+    .replace(/<green>(.*?)<\/green>/gi, '<span class="text-blue-400 font-bold">$1</span>')
     .replace(/<red>(.*?)<\/red>/gi,     '<span class="text-rose-400 font-bold">$1</span>')
-    .replace(/```([\s\S]*?)```/g, '<pre class="bg-black/40 rounded-xl p-3 my-2 text-xs font-mono text-emerald-300 overflow-x-auto leading-relaxed border border-white/8">$1</pre>')
+    .replace(/```([\s\S]*?)```/g, '<pre class="bg-black/40 rounded-xl p-3 my-2 text-xs font-mono text-blue-300 overflow-x-auto leading-relaxed border border-white/8">$1</pre>')
     .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-white">$1</strong>')
-    .replace(/`(.*?)`/g, '<code class="bg-white/10 px-1.5 py-0.5 rounded text-xs font-mono text-purple-300">$1</code>');
+    .replace(/`(.*?)`/g, '<code class="bg-white/10 px-1.5 py-0.5 rounded text-xs font-mono text-blue-350">$1</code>');
 
   const lines = out.split('\n');
   const result: string[] = [];
   for (const line of lines) {
     const t = line.trim();
     if (t.startsWith('- ') || t.startsWith('* '))
-      result.push(`<div class="flex gap-2 my-0.5"><span class="text-purple-400 mt-0.5 shrink-0">•</span><span>${t.slice(2)}</span></div>`);
+      result.push(`<div class="flex gap-2 my-0.5"><span class="text-blue-400 mt-0.5 shrink-0">•</span><span>${t.slice(2)}</span></div>`);
     else if (t === '')
       result.push('<div class="h-1.5"></div>');
     else
@@ -111,46 +111,15 @@ function renderMarkdown(text: string): string {
   return result.join('');
 }
 
-/* ─────────────────── blob background ─────────────────── */
-const BlobScene = () => (
-  <div className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none select-none">
-    <div className="relative" style={{ width: 300, height: 300 }}>
-      {/* outer haze */}
-      <div className="dp-blob-1 absolute" style={{
-        inset: '-30px',
-        background: 'radial-gradient(ellipse at 45% 45%, rgba(110,75,230,0.75) 0%, rgba(70,50,180,0.4) 45%, transparent 75%)',
-        filter: 'blur(32px)',
-      }} />
-      {/* mid glow */}
-      <div className="dp-blob-2 absolute" style={{
-        inset: '0px',
-        background: 'radial-gradient(ellipse at 55% 60%, rgba(90,65,210,0.65) 0%, rgba(55,38,150,0.3) 55%, transparent 80%)',
-        filter: 'blur(40px)',
-      }} />
-      {/* core */}
-      <div className="dp-blob-3 absolute" style={{
-        inset: '50px',
-        background: 'radial-gradient(ellipse at 35% 35%, rgba(170,140,255,0.8) 0%, rgba(120,90,230,0.4) 50%, transparent 80%)',
-        filter: 'blur(20px)',
-      }} />
-      {/* specular */}
-      <div className="dp-pulse-glow absolute" style={{
-        inset: '85px',
-        background: 'radial-gradient(ellipse at 30% 25%, rgba(220,200,255,0.55) 0%, transparent 65%)',
-        filter: 'blur(12px)',
-        borderRadius: '50%',
-      }} />
-    </div>
-  </div>
-);
-
-/* ─────────────────── empty state ─────────────────── */
+/* ─────────────────── empty state (clean black & white) ─────────────────── */
 const EmptyState = ({ language }: { language: string }) => (
-  <div className="absolute inset-0 flex flex-col items-center justify-center">
-    <BlobScene />
-    <div className="relative z-10 dp-float text-center px-6">
-      <p className="text-white/90 text-xl font-bold tracking-wide mt-4">Darkpen AI</p>
-      <p className="text-white/40 text-sm mt-1.5">
+  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
+    <div className="text-center px-6 dp-float">
+      <div className="w-12 h-12 rounded-2xl mx-auto flex items-center justify-center bg-white/5 border border-white/10" style={{ boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>
+        <span className="text-white font-black text-sm">DP</span>
+      </div>
+      <p className="text-white/80 text-base font-bold tracking-wide mt-4">Darkpen AI</p>
+      <p className="text-white/30 text-xs mt-1.5">
         {language === 'so' ? 'Wax i weydii, kaa caawin doonaa…' : 'Ask me anything, I\'m ready to help…'}
       </p>
     </div>
@@ -199,10 +168,6 @@ const IconCopy = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
   </svg>
 );
-
-/* ─────────────────── button style ─────────────────── */
-const glassBtn = "flex items-center justify-center rounded-full transition-all active:scale-90 select-none";
-const glassBtnSm = `${glassBtn} w-9 h-9`;
 
 /* ─────────────────── main component ─────────────────── */
 export default function ChatView({ onOpenLeftSidebar, onOpenNavPanel, onBack }: ChatViewProps) {
@@ -296,7 +261,7 @@ export default function ChatView({ onOpenLeftSidebar, onOpenNavPanel, onBack }: 
     } catch {}
   };
 
-  /* ── image select (camera or gallery) ── */
+  /* ── image select ── */
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || !files.length) return;
@@ -363,7 +328,7 @@ export default function ChatView({ onOpenLeftSidebar, onOpenNavPanel, onBack }: 
       id:        Date.now().toString(),
       text:      userText,
       sender:    'user',
-      images:    curAttach.length ? curAttach.map(a => a.dataUrl) : undefined,  // data-URLs persist!
+      images:    curAttach.length ? curAttach.map(a => a.dataUrl) : undefined,
       status:    'complete',
       timestamp: new Date().toISOString(),
     };
@@ -482,49 +447,48 @@ export default function ChatView({ onOpenLeftSidebar, onOpenNavPanel, onBack }: 
 
   /* ─────── render ─────── */
   return (
-    <div className="flex flex-col w-full h-full select-none overflow-hidden relative" style={{ background: 'linear-gradient(155deg,#07071A 0%,#0E0D2E 40%,#0D1240 70%,#07071A 100%)' }}>
+    <div className="flex flex-col w-full h-full select-none overflow-hidden relative" style={{ background: '#090B10' }}>
 
-      {/* ── HEADER ── */}
-      <div className="shrink-0 flex items-center justify-between px-4 py-3" style={{ background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+      {/* ── HEADER (EXACTLY MATCHES MOCKUP 5) ── */}
+      <div className="shrink-0 flex items-center justify-between px-4 py-3 bg-[#0E1118]" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         
-        {/* Left: hamburger + title */}
+        {/* Left: circular hamburger button + pill name badge */}
         <div className="flex items-center gap-3">
-          <button onClick={onOpenLeftSidebar} className={`${glassBtnSm} text-white/70 hover:text-white hover:bg-white/10`} style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <button onClick={onOpenLeftSidebar} className="w-10 h-10 rounded-full flex items-center justify-center text-white/80 bg-white/5 border transition-all active:scale-95" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
             <IconHamburger />
           </button>
-          <div className="flex items-center gap-2.5">
-            <div className="relative w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#5B3CE5,#8B5CF6)', boxShadow: '0 0 16px rgba(91,60,229,0.5)' }}>
-              <span className="text-white font-black text-xs">DP</span>
-              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2" style={{ borderColor: '#0E0D2E' }} />
-            </div>
-            <div>
-              <p className="text-white font-bold text-sm leading-tight">Darkpen AI</p>
-              <p className="text-emerald-400 text-[10px] font-medium">Online</p>
-            </div>
+          
+          {/* Pill name badge */}
+          <div className="px-4 py-2 rounded-full bg-white/5 border flex items-center justify-center gap-2" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-white font-extrabold text-xs tracking-wider select-none">Darkpen</span>
           </div>
         </div>
 
-        {/* Right: credits + clear history + nav panel */}
-        <div className="flex items-center gap-2">
+        {/* Right: combined pill containing: Trash | Settings */}
+        <div className="flex items-center gap-3">
           {credits !== null && (
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-white/70 text-[10px] font-bold" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block" />
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-white/70 text-[10px] font-black border" style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.08)' }}>
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />
               {credits}
             </div>
           )}
-          <button onClick={clearHistory} className={`${glassBtnSm} text-white/50 hover:text-rose-400 hover:bg-rose-500/10`} style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }} title="Clear history">
-            <IconTrash />
-          </button>
-          <button onClick={onOpenNavPanel} className={`${glassBtnSm} text-white/70 hover:text-purple-400 hover:bg-purple-500/10`} style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }} title="Navigation">
-            <IconNav />
-          </button>
+
+          {/* Unified combined pill */}
+          <div className="flex items-center rounded-full bg-white/5 border px-1 py-1" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+            <button onClick={clearHistory} className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-rose-400 hover:bg-white/5 transition-all active:scale-90" title="Clear history">
+              <IconTrash />
+            </button>
+            <div className="w-[1px] h-4 bg-white/20 mx-1" />
+            <button onClick={onOpenNavPanel} className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-blue-400 hover:bg-white/5 transition-all active:scale-90" title="Navigation">
+              <IconNav />
+            </button>
+          </div>
         </div>
       </div>
 
       {/* ── MESSAGES ── */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5 relative">
-        
-        {/* Blob background when chat is empty */}
         {isEmpty && <EmptyState language={language} />}
 
         {messages.map((msg) => {
@@ -535,56 +499,50 @@ export default function ChatView({ onOpenLeftSidebar, onOpenNavPanel, onBack }: 
               {isUser ? (
                 /* USER bubble */
                 <div className="max-w-[82%] flex flex-col items-end gap-2">
-                  {/* Attached images */}
                   {msg.images && msg.images.length > 0 && (
                     <div className="flex flex-wrap gap-2 justify-end">
                       {msg.images.map((src, i) => (
-                        <div key={i} className="w-[130px] h-[130px] rounded-2xl overflow-hidden shadow-lg" style={{ border: '2px solid rgba(91,60,229,0.4)' }}>
+                        <div key={i} className="w-[130px] h-[130px] rounded-2xl overflow-hidden shadow-lg border" style={{ borderColor: 'rgba(0,132,255,0.3)' }}>
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={src} alt="attachment" className="w-full h-full object-cover cursor-pointer transition-transform hover:scale-105" onClick={() => window.open(src, '_blank')} />
                         </div>
                       ))}
                     </div>
                   )}
-                  {/* Text */}
                   {msg.text && (
-                    <div className="px-4 py-3 rounded-2xl rounded-tr-sm text-white text-sm leading-relaxed shadow-lg" style={{ background: 'linear-gradient(135deg,#5B3CE5,#7C5CF0)', boxShadow: '0 4px 20px rgba(91,60,229,0.35)' }}>
+                    <div className="px-4 py-3 rounded-2xl rounded-tr-sm text-white text-sm leading-relaxed shadow-lg font-medium" style={{ background: '#0084FF', boxShadow: '0 4px 16px rgba(0,132,255,0.25)' }}>
                       {msg.text}
                     </div>
                   )}
                 </div>
 
               ) : (
-                /* AI message */
+                /* AI bubble - bright white, clean */
                 <div className="max-w-[88%] flex flex-col items-start gap-2">
                   
-                  {/* Thinking dots */}
                   {msg.status === 'thinking' && (
                     <div className="flex items-center gap-2 px-2 py-2">
                       {[0, 150, 300].map(d => (
-                        <span key={d} className="w-2 h-2 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: `${d}ms` }} />
+                        <span key={d} className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: `${d}ms` }} />
                       ))}
                       <span className="text-xs text-white/40 font-medium ml-1">{thinkingStatus}</span>
                     </div>
                   )}
 
-                  {/* Generating image skeleton */}
                   {msg.status === 'generating_image' && !msg.image && (
                     <div className="flex flex-col gap-2">
-                      <div className="w-[200px] h-[150px] rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.07)' }} />
+                      <div className="w-[200px] h-[150px] rounded-2xl animate-pulse bg-white/5" />
                       <span className="text-xs text-white/40">{thinkingStatus}</span>
                     </div>
                   )}
 
-                  {/* AI text — bright white, clean */}
                   {msg.text && msg.status !== 'thinking' && (
                     <div
-                      className="text-sm leading-relaxed text-white/90 select-text"
+                      className="text-sm leading-relaxed text-white/90 select-text font-medium"
                       dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }}
                     />
                   )}
 
-                  {/* Generated image */}
                   {msg.image && (
                     <div className="mt-1 rounded-2xl overflow-hidden shadow-lg max-w-[240px]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -592,9 +550,8 @@ export default function ChatView({ onOpenLeftSidebar, onOpenNavPanel, onBack }: 
                     </div>
                   )}
 
-                  {/* Copy button */}
                   {msg.text && msg.status !== 'thinking' && (
-                    <button onClick={() => handleCopy(msg.text, msg.id)} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-white/30 hover:text-white/70 text-[10px] font-semibold transition-all hover:bg-white/5 mt-0.5">
+                    <button onClick={() => handleCopy(msg.text, msg.id)} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-white/30 hover:text-white/70 text-[10px] font-bold transition-all hover:bg-white/5 mt-0.5">
                       <IconCopy />
                       {copiedId === msg.id ? 'Copied!' : 'Copy'}
                     </button>
@@ -609,16 +566,16 @@ export default function ChatView({ onOpenLeftSidebar, onOpenNavPanel, onBack }: 
       </div>
 
       {/* ── INPUT ── */}
-      <div className="shrink-0 px-4 pb-5 pt-3 relative" style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="shrink-0 px-4 pb-5 pt-3 relative" style={{ background: 'rgba(255,255,255,0.02)', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
 
         {/* Attachment previews */}
         {attachments.length > 0 && (
           <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
             {attachments.map((att, idx) => (
-              <div key={idx} className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 shadow-md" style={{ border: '2px solid rgba(91,60,229,0.5)' }}>
+              <div key={idx} className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 shadow-md border" style={{ borderColor: 'rgba(0,132,255,0.3)' }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={att.dataUrl} alt="" className="w-full h-full object-cover" />
-                <button type="button" onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))} className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/70 flex items-center justify-center text-white text-[9px]">
+                <button type="button" onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))} className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/80 flex items-center justify-center text-white text-[9px]">
                   ✕
                 </button>
               </div>
@@ -630,14 +587,14 @@ export default function ChatView({ onOpenLeftSidebar, onOpenNavPanel, onBack }: 
         {showAttachMenu && (
           <div className="absolute bottom-full mb-3 left-4 flex gap-3 dp-fade-up z-20">
             <button type="button" onClick={() => { cameraRef.current?.click(); setShowAttachMenu(false); }}
-              className="flex flex-col items-center gap-2 px-5 py-3.5 rounded-2xl text-white text-xs font-semibold transition-all hover:scale-105 active:scale-95"
-              style={{ background: 'rgba(91,60,229,0.25)', backdropFilter: 'blur(20px)', border: '1px solid rgba(91,60,229,0.4)', boxShadow: '0 8px 24px rgba(91,60,229,0.2)' }}>
+              className="flex flex-col items-center gap-2 px-5 py-3.5 rounded-2xl text-white text-xs font-bold transition-all hover:scale-105 active:scale-95"
+              style={{ background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>
               <IconCamera />
               <span>Camera</span>
             </button>
             <button type="button" onClick={() => { galleryRef.current?.click(); setShowAttachMenu(false); }}
-              className="flex flex-col items-center gap-2 px-5 py-3.5 rounded-2xl text-white text-xs font-semibold transition-all hover:scale-105 active:scale-95"
-              style={{ background: 'rgba(91,60,229,0.25)', backdropFilter: 'blur(20px)', border: '1px solid rgba(91,60,229,0.4)', boxShadow: '0 8px 24px rgba(91,60,229,0.2)' }}>
+              className="flex flex-col items-center gap-2 px-5 py-3.5 rounded-2xl text-white text-xs font-bold transition-all hover:scale-105 active:scale-95"
+              style={{ background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>
               <IconGallery />
               <span>Gallery</span>
             </button>
@@ -653,8 +610,8 @@ export default function ChatView({ onOpenLeftSidebar, onOpenNavPanel, onBack }: 
 
           {/* + button */}
           <button type="button" onClick={() => setShowAttachMenu(v => !v)}
-            className={`${glassBtn} w-10 h-10 text-white/80 hover:text-white transition-all ${showAttachMenu ? 'rotate-45 bg-purple-500/30' : 'bg-white/8 hover:bg-white/12'}`}
-            style={{ border: '1px solid rgba(255,255,255,0.12)', boxShadow: showAttachMenu ? '0 0 16px rgba(91,60,229,0.4)' : 'none' }}>
+            className={`w-10 h-10 rounded-full flex items-center justify-center text-white/80 hover:text-white transition-all ${showAttachMenu ? 'rotate-45 bg-blue-500/20 text-blue-400' : 'bg-white/5 hover:bg-white/10'}`}
+            style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
@@ -667,13 +624,12 @@ export default function ChatView({ onOpenLeftSidebar, onOpenNavPanel, onBack }: 
             value={inputText}
             onChange={e => setInputText(e.target.value)}
             disabled={isAiTyping || isTranscribing}
-            className="flex-1 min-w-0 text-sm text-white placeholder-white/25 focus:outline-none bg-transparent"
+            className="flex-1 min-w-0 text-sm text-white placeholder-white/20 focus:outline-none bg-transparent"
             style={{
-              background: 'rgba(255,255,255,0.07)',
-              border: '1px solid rgba(255,255,255,0.1)',
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.08)',
               borderRadius: '999px',
               padding: '10px 18px',
-              boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.2)',
             }}
             onFocus={() => setShowAttachMenu(false)}
           />
@@ -683,14 +639,14 @@ export default function ChatView({ onOpenLeftSidebar, onOpenNavPanel, onBack }: 
             <button type="button"
               onMouseDown={startRecording} onMouseUp={stopRecording}
               onTouchStart={startRecording} onTouchEnd={stopRecording}
-              className={`${glassBtn} w-10 h-10 text-white/80 transition-all ${isRecording ? 'bg-rose-500 text-white animate-pulse scale-110' : 'bg-white/8 hover:bg-white/14'}`}
-              style={{ border: `1px solid ${isRecording ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.12)'}`, boxShadow: isRecording ? '0 0 20px rgba(239,68,68,0.4)' : 'none' }}>
+              className={`w-10 h-10 rounded-full flex items-center justify-center text-white/80 transition-all ${isRecording ? 'bg-rose-600 text-white scale-110' : 'bg-white/5 hover:bg-white/10'}`}
+              style={{ border: `1px solid ${isRecording ? 'rgba(239,68,68,0.4)' : 'rgba(255,255,255,0.08)'}` }}>
               <IconMic />
             </button>
           ) : (
             <button type="submit" disabled={isAiTyping}
-              className={`${glassBtn} w-10 h-10 text-white transition-all disabled:opacity-40 hover:scale-105`}
-              style={{ background: 'linear-gradient(135deg,#5B3CE5,#8B5CF6)', boxShadow: '0 4px 16px rgba(91,60,229,0.45)', border: '1px solid rgba(139,92,246,0.5)' }}>
+              className="w-10 h-10 rounded-full flex items-center justify-center text-white transition-all disabled:opacity-40 hover:scale-105 active:scale-95"
+              style={{ background: '#0084FF', border: '1px solid rgba(0,132,255,0.5)' }}>
               <IconSend />
             </button>
           )}

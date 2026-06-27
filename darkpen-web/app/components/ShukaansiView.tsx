@@ -242,7 +242,7 @@ export default function ShukaansiView({ onOpenSidebar, onBack }: ShukaansiViewPr
   const glassBtnSm = `${glassBtn} w-9 h-9`;
 
   return (
-    <div className="flex-1 w-full h-full flex flex-col relative select-none overflow-hidden" style={{ background: 'linear-gradient(155deg,#07071A 0%,#0E0D2E 40%,#150D32 70%,#07071A 100%)' }}>
+    <div className="flex-1 w-full h-full flex flex-col relative select-none overflow-hidden" style={{ background: '#090B10' }}>
 
       {/* Payment Modal */}
       {showPaymentModal && (
@@ -278,7 +278,7 @@ export default function ShukaansiView({ onOpenSidebar, onBack }: ShukaansiViewPr
       )}
 
       {/* HEADER */}
-      <div className="shrink-0 flex items-center justify-between px-4 py-3" style={{ background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+      <div className="shrink-0 flex items-center justify-between px-4 py-3 bg-[#0E1118]" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="flex items-center gap-3">
           <button onClick={onBack || onOpenSidebar} className={`${glassBtnSm} text-white/70 hover:text-white hover:bg-white/10`} style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
             <IconBack />
@@ -298,7 +298,7 @@ export default function ShukaansiView({ onOpenSidebar, onBack }: ShukaansiViewPr
 
         <div className="flex items-center gap-2">
           {coins !== null && (
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-white/70 text-[10px] font-bold" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-white/70 text-[10px] font-bold border" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
               <span className="w-1.5 h-1.5 rounded-full bg-pink-400 inline-block" />
               {coins} Coins
             </div>
@@ -320,7 +320,6 @@ export default function ShukaansiView({ onOpenSidebar, onBack }: ShukaansiViewPr
             <div key={msg.id} className={`dp-fade-up flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
               <div className={`max-w-[82%] flex flex-col ${isUser ? 'items-end' : 'items-start'} gap-1`}>
                 
-                {/* Quote block */}
                 {showQuote && (
                   <div className="border-l-3 border-pink-500 px-2.5 py-1.5 rounded-r-lg text-[11px] text-left text-white/50 select-none max-w-[90%] mb-1" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)', borderLeft: '3px solid #EC4899' }}>
                     <span className="font-extrabold text-pink-400 block text-[9px] uppercase">Adiga</span>
@@ -328,7 +327,6 @@ export default function ShukaansiView({ onOpenSidebar, onBack }: ShukaansiViewPr
                   </div>
                 )}
 
-                {/* Text bubble */}
                 <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-lg ${isUser ? 'rounded-tr-sm text-white' : 'rounded-tl-sm text-white/90 bg-white/4'}`}
                   style={isUser ? { background: 'linear-gradient(135deg,#E5436F,#F05C8A)', boxShadow: '0 4px 18px rgba(229,67,111,0.3)' } : { border: '1px solid rgba(255,255,255,0.06)' }}>
                   
@@ -351,7 +349,7 @@ export default function ShukaansiView({ onOpenSidebar, onBack }: ShukaansiViewPr
       </div>
 
       {/* INPUT */}
-      <div className="shrink-0 px-4 pb-5 pt-3 relative" style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="shrink-0 px-4 pb-5 pt-3 relative" style={{ background: 'rgba(255,255,255,0.02)', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
         <form onSubmit={handleSend} className="flex items-center gap-2.5">
           <input
             type="text"
@@ -359,20 +357,19 @@ export default function ShukaansiView({ onOpenSidebar, onBack }: ShukaansiViewPr
             value={inputText}
             onChange={e => setInputText(e.target.value)}
             disabled={isAiTyping}
-            className="flex-1 min-w-0 text-sm text-white placeholder-white/25 focus:outline-none bg-transparent"
+            className="flex-1 min-w-0 text-sm text-white placeholder-white/20 focus:outline-none bg-transparent"
             style={{
-              background: 'rgba(255,255,255,0.07)',
-              border: '1px solid rgba(255,255,255,0.1)',
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.08)',
               borderRadius: '999px',
               padding: '10px 18px',
-              boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.2)',
             }}
           />
 
           {inputText.trim() === '' ? (
             <button type="button" onClick={() => alert('Duubista codku hadda ma shaqaynayo.')}
-              className={`${glassBtn} w-10 h-10 text-white/80 bg-white/8 hover:bg-white/14`}
-              style={{ border: '1px solid rgba(255,255,255,0.12)' }}>
+              className={`${glassBtn} w-10 h-10 text-white/80 bg-white/5 hover:bg-white/10`}
+              style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
               <IconMic />
             </button>
           ) : (
