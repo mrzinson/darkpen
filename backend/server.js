@@ -128,44 +128,7 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'API-gu wuu shaqaynayaa!' });
 });
 
-// Diagnostic routes (to be removed after fixing)
-app.get('/api/list-admins-test', async (req, res) => {
-    const db = require('./config/db');
-    try {
-        const [rows] = await db.execute('SELECT id, name, username, email, role, is_suspended FROM users WHERE role = "superadmin" OR role = "admin"');
-        res.json({ status: 'success', data: rows });
-    } catch (error) {
-        res.status(500).json({ status: 'error', error: error.message });
-    }
-});
 
-app.get('/api/create-superadmin-test', async (req, res) => {
-    const db = require('./config/db');
-    const bcrypt = require('bcrypt');
-    try {
-        const superAdminEmail = 'zinsonhamze@gmail.com';
-        const superAdminPass = 'h.zinson.11';
-        const hashedPassword = await bcrypt.hash(superAdminPass, 12);
-        
-        const [existing] = await db.execute('SELECT id FROM users WHERE email = ?', [superAdminEmail]);
-        if (existing.length === 0) {
-            await db.execute(
-                `INSERT INTO users (name, username, email, password, role, is_verified) 
-                 VALUES (?, ?, ?, ?, 'superadmin', TRUE)`,
-                ['Hamze Mohamuud Ali Zinson', 'zinson', superAdminEmail, hashedPassword]
-            );
-            res.json({ status: 'success', message: 'Created superadmin successfully' });
-        } else {
-            await db.execute(
-                `UPDATE users SET role = 'superadmin', password = ?, is_suspended = 0 WHERE id = ?`,
-                [hashedPassword, existing[0].id]
-            );
-            res.json({ status: 'success', message: 'Updated existing user to superadmin successfully' });
-        }
-    } catch (error) {
-        res.status(500).json({ status: 'error', error: error.message });
-    }
-});
 
 
 
