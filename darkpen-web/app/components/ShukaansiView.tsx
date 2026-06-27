@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '../context/ThemeContext';
 
+/* ─────────────────── types ─────────────────── */
 interface Message {
   id: string;
   text: string;
@@ -16,41 +17,64 @@ interface ShukaansiViewProps {
   onBack?: () => void;
 }
 
+/* ─────────────────── icon helpers ─────────────────── */
+const IconBack = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+  </svg>
+);
+const IconHamburger = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5" />
+  </svg>
+);
+const IconSend = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+  </svg>
+);
+const IconMic = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+  </svg>
+);
+const IconHeart = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-white animate-pulse">
+    <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
+  </svg>
+);
+
 function renderMarkdown(text: string) {
   if (!text) return '';
-  let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  formatted = formatted.replace(/`(.*?)`/g, '<code class="bg-gray-800 px-1 py-0.5 rounded text-xs text-pink-400">$1</code>');
+  let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-white">$1</strong>');
+  formatted = formatted.replace(/`(.*?)`/g, '<code class="bg-white/10 px-1 py-0.5 rounded text-xs font-mono text-pink-300">$1</code>');
   return formatted.split('\n').join('<br />');
 }
 
 export default function ShukaansiView({ onOpenSidebar, onBack }: ShukaansiViewProps) {
   const { language } = useTheme();
-  
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inputText, setInputText] = useState('');
-  const [isAiTyping, setIsAiTyping] = useState(false);
-  const [thinkingStatus, setThinkingStatus] = useState('Thinking...');
-  const [coins, setCoins] = useState<number | null>(null);
-  const [deductRate, setDeductRate] = useState<number>(1);
-  const [userData, setUserData] = useState<any>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const activeXhr = useRef<XMLHttpRequest | null>(null);
+  const [messages,         setMessages]         = useState<Message[]>([]);
+  const [inputText,        setInputText]        = useState('');
+  const [isAiTyping,       setIsAiTyping]       = useState(false);
+  const [thinkingStatus,   setThinkingStatus]   = useState('Fikiraya…');
+  const [coins,            setCoins]            = useState<number | null>(null);
+  const [deductRate,       setDeductRate]       = useState<number>(1);
+  const [userData,         setUserData]         = useState<any>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const FREE_TEXT_LIMIT = 10;
+  const messagesEndRef  = useRef<HTMLDivElement>(null);
+  const activeXhr       = useRef<XMLHttpRequest | null>(null);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isAiTyping]);
+  const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  useEffect(() => { scrollToBottom(); }, [messages, isAiTyping]);
 
   useEffect(() => {
     const cachedText = language === 'so'
       ? "Kusoo dhawoow! Anigu waxaan ahay 'My Love'. Maxaan kaa caawin karaa maanta?"
       : "Welcome! I am 'My Love'. How can I help you today?";
-    
-    // Load local history
+
     let uId = 'guest';
     const cachedUser = localStorage.getItem('userData');
     if (cachedUser) {
@@ -58,7 +82,7 @@ export default function ShukaansiView({ onOpenSidebar, onBack }: ShukaansiViewPr
       uId = parsed.id?.toString() || 'guest';
       setUserData(parsed);
     }
-    
+
     const cached = localStorage.getItem(`shukaansi_chat_messages_${uId}`);
     if (cached) {
       setMessages(JSON.parse(cached));
@@ -66,40 +90,34 @@ export default function ShukaansiView({ onOpenSidebar, onBack }: ShukaansiViewPr
       setMessages([{ id: '1', text: cachedText, sender: 'ai', timestamp: new Date().toISOString() }]);
     }
 
-    // Sync from server
     const syncHistory = async () => {
       const token = localStorage.getItem('userToken');
-      if (token) {
-        try {
-          const res = await fetch(`https://darkpen-backend.onrender.com/api/chat/shukaansi-history`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.messages && Array.isArray(data.messages) && data.messages.length > 0) {
-              const mapped: Message[] = data.messages.map((m: any) => ({
-                id: m.id.toString(),
-                text: m.message || m.text || '',
-                sender: m.sender,
-                timestamp: m.created_at || new Date().toISOString()
-              }));
-              setMessages(mapped);
-              localStorage.setItem(`shukaansi_chat_messages_${uId}`, JSON.stringify(mapped));
-            }
+      if (!token) return;
+      try {
+        const res = await fetch(`https://darkpen-backend.onrender.com/api/chat/shukaansi-history`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.messages && Array.isArray(data.messages) && data.messages.length > 0) {
+            const mapped: Message[] = data.messages.map((m: any) => ({
+              id: m.id.toString(),
+              text: m.message || m.text || '',
+              sender: m.sender,
+              timestamp: m.created_at || new Date().toISOString()
+            }));
+            setMessages(mapped);
+            localStorage.setItem(`shukaansi_chat_messages_${uId}`, JSON.stringify(mapped));
           }
-        } catch (e) {
-          console.log(e);
         }
-      }
+      } catch {}
     };
 
     syncHistory();
     fetchShukaansiProfile();
 
-    return () => {
-      if (activeXhr.current) activeXhr.current.abort();
-    };
-  }, [language]);
+    return () => { if (activeXhr.current) activeXhr.current.abort(); };
+  }, [language]); // eslint-disable-line
 
   const fetchShukaansiProfile = async () => {
     const token = localStorage.getItem('userToken');
@@ -113,9 +131,7 @@ export default function ShukaansiView({ onOpenSidebar, onBack }: ShukaansiViewPr
         setCoins(data.profile.balance || 0);
         setDeductRate(data.profile.deduct_rate || 1);
       }
-    } catch (e) {
-      console.log('Error profile:', e);
-    }
+    } catch {}
   };
 
   const handleSend = async (e: React.FormEvent) => {
@@ -126,23 +142,17 @@ export default function ShukaansiView({ onOpenSidebar, onBack }: ShukaansiViewPr
     setInputText('');
     setIsAiTyping(true);
 
-    const newUserMsg: Message = {
-      id: Date.now().toString(),
-      text: userText,
-      sender: 'user',
-      timestamp: new Date().toISOString()
-    };
-
+    const newUserMsg: Message = { id: Date.now().toString(), text: userText, sender: 'user', timestamp: new Date().toISOString() };
     const aiMsgId = (Date.now() + 1).toString();
     const newAiMsg: Message = { id: aiMsgId, text: '', sender: 'ai', status: 'thinking', timestamp: new Date().toISOString() };
 
     setMessages(prev => [...prev, newUserMsg, newAiMsg]);
-    setThinkingStatus('Thinking...');
+    setThinkingStatus('Fikiraya…');
 
     try {
       const token = localStorage.getItem('userToken');
       const sendRequest = (isRetry = false) => {
-        if (isRetry) setThinkingStatus('Server-ka ayaa bilaabmaya, sabar yar...');
+        if (isRetry) setThinkingStatus('Server-ka ayaa toosaya…');
         const xhr = new XMLHttpRequest();
         activeXhr.current = xhr;
         xhr.open('POST', `https://darkpen-backend.onrender.com/api/chat/ask`);
@@ -170,14 +180,11 @@ export default function ShukaansiView({ onOpenSidebar, onBack }: ShukaansiViewPr
                     if (parsed.text) {
                       accumulatedText += parsed.text;
                       setMessages(prev => prev.map(m => m.id === aiMsgId ? {
-                        ...m,
-                        text: accumulatedText,
+                        ...m, text: accumulatedText,
                         status: parsed.status === 'complete' ? 'complete' : 'streaming'
                       } : m));
                     }
-                  } catch (e) {
-                    // Partial JSON
-                  }
+                  } catch {}
                 }
               }
             }
@@ -185,234 +192,198 @@ export default function ShukaansiView({ onOpenSidebar, onBack }: ShukaansiViewPr
             if (xhr.readyState === 4) {
               activeXhr.current = null;
               if (xhr.status >= 400) {
-                let errText = "Cilad ayaa ku dhacday nidaamka. Fadlan mar kale isku day.";
-                try { const j = JSON.parse(xhr.responseText); errText = j.message || errText; } catch {}
-                setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: errText, status: 'complete' } : m));
+                let errText = "Cilad ayaa dhacday. Mar kale isku day.";
+                let isFreeTrialError = false;
+                try {
+                  const j = JSON.parse(xhr.responseText);
+                  errText = j.message || errText;
+                  if (j.freeTrialExhausted || j.error === 'free_trial_exhausted') {
+                    isFreeTrialError = true;
+                  }
+                } catch {}
+                if (isFreeTrialError) {
+                  setMessages(prev => prev.filter(m => m.id !== aiMsgId));
+                  setShowPaymentModal(true);
+                } else {
+                  setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: errText, status: 'complete' } : m));
+                }
                 setIsAiTyping(false);
               } else if (!accumulatedText && !isRetry) {
-                setThinkingStatus('Server-ka ayaa toosaya, sabar yar...');
+                setThinkingStatus('Server toosaya, sabar yar…');
                 setTimeout(() => sendRequest(true), 3000);
               } else {
-                setMessages(prev => prev.map(m => m.id === aiMsgId ? { 
-                  ...m, 
-                  text: accumulatedText || m.text || "Jawaab ma jiro.", 
-                  status: 'complete' 
+                setMessages(prev => prev.map(m => m.id === aiMsgId ? {
+                  ...m, text: accumulatedText || m.text || "Jawaab ma jiro.", status: 'complete'
                 } : m));
                 fetchShukaansiProfile();
                 setIsAiTyping(false);
               }
+              // save local
+              let uId = 'guest';
+              try { const u = JSON.parse(localStorage.getItem('userData') || '{}'); if (u.id) uId = String(u.id); } catch {}
+              setMessages(cur => { localStorage.setItem(`shukaansi_chat_messages_${uId}`, JSON.stringify(cur)); return cur; });
             }
           }
         };
 
         xhr.send(JSON.stringify({
-          message: userText,
-          chatType: 'shukaansi',
-          stream: true,
-          sessionId: `shukaansi_${Date.now()}`
+          message: userText, chatType: 'shukaansi', stream: true, sessionId: `shukaansi_${Date.now()}`
         }));
       };
 
       sendRequest();
-
-    } catch (e) {
-      setMessages(prev => prev.map(m => m.id === aiMsgId ? { 
-        ...m, 
-        text: 'Cilad dhinaca internet-ka ah.', 
-        status: 'complete' 
-      } : m));
+    } catch {
+      setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, text: 'Cilad dhinaca internet-ka ah.', status: 'complete' } : m));
       setIsAiTyping(false);
     }
   };
 
+  const glassBtn = "flex items-center justify-center rounded-full transition-all active:scale-90 select-none";
+  const glassBtnSm = `${glassBtn} w-9 h-9`;
+
   return (
-    <div className="flex-1 w-full h-full flex flex-col bg-white dark:bg-[#0D1117] relative select-none">
-      
-      {/* Header (Circular buttons + left-aligned WhatsApp-style partner avatar + name + status) */}
-      <div className="flex items-center justify-between px-3 py-2 bg-white dark:bg-[#161B22] border-b border-gray-150 dark:border-gray-800 select-none">
-        <div className="flex items-center gap-2">
-          {/* Back Circular Button */}
-          <button 
-            onClick={onBack || onOpenSidebar}
-            className="w-10 h-10 rounded-full flex items-center justify-center bg-white dark:bg-gray-800 shadow border border-gray-150 dark:border-gray-700 text-blue-500 hover:bg-gray-50 dark:hover:bg-gray-750 transition-all active:scale-95 flex-shrink-0"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-            </svg>
+    <div className="flex-1 w-full h-full flex flex-col relative select-none overflow-hidden" style={{ background: 'linear-gradient(155deg,#07071A 0%,#0E0D2E 40%,#150D32 70%,#07071A 100%)' }}>
+
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+          <div className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl border" style={{ background: '#0D0C22', borderColor: 'rgba(255,255,255,0.08)' }}>
+            <div className="relative h-28 bg-gradient-to-br from-pink-600 via-rose-500 to-pink-700 flex flex-col items-center justify-center gap-1.5">
+              <IconHeart />
+              <span className="text-white font-black text-sm tracking-wider uppercase">Free Trial-ku wuu Dhammaaday</span>
+            </div>
+            <div className="px-6 py-5 flex flex-col gap-4">
+              <p className="text-center text-white/80 font-bold text-xs leading-relaxed">
+                Fariimaha bilaashka ah ee Shukaansiga ({FREE_TEXT_LIMIT}) wuu ka dhammaaday akoonkaaga.
+              </p>
+              <div className="rounded-2xl p-4 flex flex-col gap-2 border" style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.06)' }}>
+                <div className="flex items-center justify-between text-xs"><span className="font-bold text-white/60">📅 Monthly Basic</span><span className="text-pink-400 font-black">$3 / 30 Maalmood</span></div>
+                <div className="flex items-center justify-between text-xs"><span className="font-bold text-white/60">⭐ Monthly Premium</span><span className="text-pink-400 font-black">$11 / 30 Maalmood</span></div>
+                <div className="mt-2 pt-2 border-t" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+                  <p className="text-[10px] text-white/40 text-center leading-relaxed">💳 EVC Plus/eDahab: <span className="font-bold text-white/70">637930329</span><br />📸 WhatsApp: <span className="font-bold text-white/70">+252637930329</span></p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setShowPaymentModal(false)} className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white/40 hover:text-white/80 hover:bg-white/5 transition-all">
+                  Khaas
+                </button>
+                <a href="https://wa.me/252637930329?text=Waxaan%20rabaa%20inaan%20iibsado%20Darkpen%20Shukaansi%20subscription" target="_blank" rel="noopener noreferrer"
+                  className="flex-[2] py-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-rose-600 text-white font-black text-xs text-center shadow-lg active:scale-95 transition-all flex items-center justify-center">
+                  💰 Lacag ku Shubo
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HEADER */}
+      <div className="shrink-0 flex items-center justify-between px-4 py-3" style={{ background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+        <div className="flex items-center gap-3">
+          <button onClick={onBack || onOpenSidebar} className={`${glassBtnSm} text-white/70 hover:text-white hover:bg-white/10`} style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <IconBack />
           </button>
           
-          {/* WhatsApp-like Avatar + Name + Online status */}
           <div className="flex items-center gap-2.5">
-            <div className="relative">
-              <div className="w-10 h-10 rounded-full bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-500 font-extrabold text-xs shadow-inner">
-                G
-              </div>
-              <span className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-white dark:ring-[#161B22] animate-pulse" />
+            <div className="relative w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-tr from-pink-500 to-rose-500 shadow-lg">
+              <span className="text-white font-extrabold text-[10px]">ML</span>
+              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2" style={{ borderColor: '#0E0D2E' }} />
             </div>
-            <div className="flex flex-col">
-              <span className="font-bold text-gray-800 dark:text-gray-100 text-sm leading-tight">Gacalo</span>
-              <span className="text-[10px] text-green-500 font-medium">Online</span>
+            <div>
+              <p className="text-white font-bold text-sm leading-tight">Gacalo</p>
+              <p className="text-emerald-400 text-[10px] font-medium">Online</p>
             </div>
           </div>
         </div>
 
-        {/* Right Action Buttons */}
-        <div className="flex items-center gap-1.5">
-          {/* Phone Call Button */}
-          <button 
-            onClick={() => alert('Wicitaanka hadda ma shaqaynayo.')}
-            className="w-10 h-10 rounded-full flex items-center justify-center bg-white dark:bg-gray-800 shadow border border-gray-150 dark:border-gray-700 text-gray-750 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-750 transition-all active:scale-95 flex-shrink-0"
-            title="Call"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-2.824-1.428-5.117-3.72-6.545-6.545l1.293-.97c.362-.272.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
-            </svg>
-          </button>
-
-          {/* Menu Drawer Toggle */}
-          <button 
-            onClick={onOpenSidebar}
-            className="w-10 h-10 rounded-full flex items-center justify-center bg-white dark:bg-gray-800 shadow border border-gray-150 dark:border-gray-700 text-gray-750 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-750 transition-all active:scale-95 flex-shrink-0"
-            title="Menu"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5" />
-            </svg>
+        <div className="flex items-center gap-2">
+          {coins !== null && (
+            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-white/70 text-[10px] font-bold" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <span className="w-1.5 h-1.5 rounded-full bg-pink-400 inline-block" />
+              {coins} Coins
+            </div>
+          )}
+          <button onClick={onOpenSidebar} className={`${glassBtnSm} text-white/70 hover:text-white hover:bg-white/10`} style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }} title="Menu">
+            <IconHamburger />
           </button>
         </div>
       </div>
 
-      {/* Message explain coins */}
-      {coins !== null && (
-        <div className="bg-pink-500/5 border-b border-pink-500/10 p-3 text-center text-[10px] text-pink-400 font-medium select-none">
-          {language === 'so'
-            ? `Waxaad haysataa ${coins} dhibcood oo Shukaansiga ah. Farriin kasta oo aad dirto waxay kaa jaraysaa ${deductRate} dhibco.`
-            : `You have ${coins} coins for dating chat. Each sent message deducts ${deductRate} coins.`}
-        </div>
-      )}
-
-      {/* Messages list */}
-      <div className="flex-1 w-full overflow-y-auto px-6 py-6 space-y-4 scrollbar-thin bg-gray-50/20 dark:bg-[#0D1117]">
+      {/* MESSAGES */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 relative">
         {messages.map((msg, index) => {
           const isUser = msg.sender === 'user';
           const prevMsg = index > 0 ? messages[index - 1] : null;
           const showQuote = !isUser && prevMsg && prevMsg.sender === 'user' && prevMsg.text;
 
           return (
-            <div 
-              key={msg.id}
-              className={`flex items-end gap-2.5 max-w-[85%] ${isUser ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}
-            >
-              {/* Avatar logo */}
-              {!isUser ? (
-                <div className="w-8 h-8 rounded-full bg-pink-550/10 border border-pink-500/20 flex items-center justify-center text-pink-500 text-xs font-black flex-shrink-0 relative shadow-sm">
-                  ML
-                </div>
-              ) : (
-                <div className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center text-white text-[9px] font-black flex-shrink-0 shadow-sm -mb-0.5">
-                  {userData?.username ? userData.username.substring(0, 2).toUpperCase() : 'ME'}
-                </div>
-              )}
+            <div key={msg.id} className={`dp-fade-up flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+              <div className={`max-w-[82%] flex flex-col ${isUser ? 'items-end' : 'items-start'} gap-1`}>
+                
+                {/* Quote block */}
+                {showQuote && (
+                  <div className="border-l-3 border-pink-500 px-2.5 py-1.5 rounded-r-lg text-[11px] text-left text-white/50 select-none max-w-[90%] mb-1" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)', borderLeft: '3px solid #EC4899' }}>
+                    <span className="font-extrabold text-pink-400 block text-[9px] uppercase">Adiga</span>
+                    <span className="block mt-0.5 truncate">{prevMsg.text}</span>
+                  </div>
+                )}
 
-              {/* Message box */}
-              <div className="flex flex-col gap-2">
-                <div 
-                  className={`rounded-2xl px-4 py-3.5 text-sm leading-relaxed shadow-sm ${isUser ? 'bg-red-500 text-white rounded-br-none' : 'bg-white dark:bg-[#161B22] border border-gray-150 dark:border-gray-800 text-gray-800 dark:text-gray-200 rounded-tl-none'}`}
-                >
-                  {/* Quoted user message matching screenshot 4 */}
-                  {showQuote && (
-                    <div className="border-l-4 border-red-500 bg-gray-50 dark:bg-gray-800/80 px-3 py-2 rounded-r-xl mb-2 text-xs text-left border-t border-r border-b border-gray-150 dark:border-gray-800 select-none">
-                      <span className="font-extrabold text-red-500 block text-[10px] uppercase tracking-wide">Adiga</span>
-                      <span className="text-gray-600 dark:text-gray-300 block mt-0.5 text-[11px] truncate">{prevMsg.text}</span>
-                    </div>
-                  )}
-
-                  {/* Thinking Status */}
+                {/* Text bubble */}
+                <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-lg ${isUser ? 'rounded-tr-sm text-white' : 'rounded-tl-sm text-white/90 bg-white/4'}`}
+                  style={isUser ? { background: 'linear-gradient(135deg,#E5436F,#F05C8A)', boxShadow: '0 4px 18px rgba(229,67,111,0.3)' } : { border: '1px solid rgba(255,255,255,0.06)' }}>
+                  
                   {!isUser && msg.status === 'thinking' ? (
-                    <div className="flex items-center gap-2 py-1 select-none">
-                      <div className="flex gap-1 animate-pulse">
-                        <span className="w-2 h-2 rounded-full bg-pink-550 animate-bounce"></span>
-                        <span className="w-2 h-2 rounded-full bg-pink-550 animate-bounce delay-75"></span>
-                        <span className="w-2 h-2 rounded-full bg-pink-550 animate-bounce delay-150"></span>
-                      </div>
-                      <span className="text-xs text-gray-550 font-bold ml-1">{thinkingStatus}</span>
+                    <div className="flex items-center gap-2 py-0.5 select-none">
+                      {[0, 150, 300].map(d => (
+                        <span key={d} className="w-1.5 h-1.5 rounded-full bg-pink-400 animate-bounce" style={{ animationDelay: `${d}ms` }} />
+                      ))}
+                      <span className="text-[10px] text-white/30 font-medium ml-0.5">{thinkingStatus}</span>
                     </div>
                   ) : (
-                    <div 
-                      className="markdown-content space-y-2 select-text selection:bg-pink-500/30"
-                      dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }}
-                    />
+                    <div className="markdown-content select-text" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.text) }} />
                   )}
                 </div>
               </div>
             </div>
           );
         })}
-        {isAiTyping && messages[messages.length - 1]?.sender === 'user' && (
-          <div className="flex items-start gap-3 max-w-[85%] mr-auto animate-pulse">
-            <div className="w-8 h-8 rounded-full bg-pink-550/10 border border-pink-500/20 flex items-center justify-center text-pink-550 text-xs font-black flex-shrink-0">
-              ML
-            </div>
-            <div className="rounded-2xl px-4 py-3.5 bg-white dark:bg-[#161B22] border border-gray-150 dark:border-gray-800 text-gray-800 dark:text-gray-200 rounded-tl-none">
-              <div className="flex items-center gap-2 py-1 select-none">
-                <div className="flex gap-1">
-                  <span className="w-2 h-2 rounded-full bg-pink-550 animate-bounce"></span>
-                  <span className="w-2 h-2 rounded-full bg-pink-550 animate-bounce delay-75"></span>
-                  <span className="w-2 h-2 rounded-full bg-pink-550 animate-bounce delay-150"></span>
-                </div>
-                <span className="text-xs text-gray-550 font-bold ml-1">{thinkingStatus}</span>
-              </div>
-            </div>
-          </div>
-        )}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input panel container */}
-      <div className="p-4 bg-white dark:bg-[#161B22] border-t border-gray-150 dark:border-gray-800">
-        <form onSubmit={handleSend} className="w-full flex items-center gap-3">
-          
-          {/* Plus Add Attachment trigger */}
-          <button
-            type="button"
-            onClick={() => alert('Wada-wadaagga sawirrada shukaansigu hadda ma shaqaynayo.')}
-            className="w-11 h-11 rounded-full flex items-center justify-center bg-white dark:bg-gray-800 shadow border border-gray-150 dark:border-gray-700 text-pink-500 hover:bg-gray-50 dark:hover:bg-gray-750 transition-all active:scale-95 flex-shrink-0"
-            title="Attach Image"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-5 h-5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-          </button>
-
-          {/* Text Input (Rounded Full matching screenshot 4) */}
+      {/* INPUT */}
+      <div className="shrink-0 px-4 pb-5 pt-3 relative" style={{ background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <form onSubmit={handleSend} className="flex items-center gap-2.5">
           <input
             type="text"
             placeholder={language === 'so' ? "U dir farriin My Love..." : "Message My Love..."}
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={e => setInputText(e.target.value)}
             disabled={isAiTyping}
-            className="flex-1 min-w-0 bg-gray-50 dark:bg-[#0D1117] border border-gray-200 dark:border-gray-800 rounded-full px-5 py-3 text-sm text-gray-800 dark:text-white placeholder-gray-550 focus:outline-none focus:border-pink-550 shadow-inner"
+            className="flex-1 min-w-0 text-sm text-white placeholder-white/25 focus:outline-none bg-transparent"
+            style={{
+              background: 'rgba(255,255,255,0.07)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '999px',
+              padding: '10px 18px',
+              boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.2)',
+            }}
           />
 
-          {/* Send/Record Button (Solid Red Microphone Button matching screenshot 4) */}
-          <button
-            type="submit"
-            disabled={isAiTyping}
-            className="w-11 h-11 rounded-full flex items-center justify-center bg-red-500 border border-red-600 hover:bg-red-600 text-white shadow-md transition-all active:scale-95 flex-shrink-0"
-          >
-            {inputText.trim() === '' ? (
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
-              </svg>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-5 h-5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
-              </svg>
-            )}
-          </button>
+          {inputText.trim() === '' ? (
+            <button type="button" onClick={() => alert('Duubista codku hadda ma shaqaynayo.')}
+              className={`${glassBtn} w-10 h-10 text-white/80 bg-white/8 hover:bg-white/14`}
+              style={{ border: '1px solid rgba(255,255,255,0.12)' }}>
+              <IconMic />
+            </button>
+          ) : (
+            <button type="submit" disabled={isAiTyping}
+              className={`${glassBtn} w-10 h-10 text-white transition-all disabled:opacity-40 hover:scale-105`}
+              style={{ background: 'linear-gradient(135deg,#E5436F,#F05C8A)', boxShadow: '0 4px 16px rgba(229,67,111,0.4)', border: '1px solid rgba(240,92,138,0.5)' }}>
+              <IconSend />
+            </button>
+          )}
         </form>
       </div>
-
     </div>
   );
 }
