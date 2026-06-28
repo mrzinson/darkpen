@@ -64,4 +64,28 @@ router.get('/test-gemini', async (req, res) => {
   }
 });
 
+// Temporary List Models Diagnostic Endpoint (Public)
+router.get('/list-models', (req, res) => {
+  const https = require('https');
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: "GEMINI_API_KEY environment variable is missing." });
+  }
+  const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+  
+  https.get(url, (apiRes) => {
+    let data = '';
+    apiRes.on('data', (chunk) => { data += chunk; });
+    apiRes.on('end', () => {
+      try {
+        res.json(JSON.parse(data));
+      } catch (err) {
+        res.status(500).send(data);
+      }
+    });
+  }).on('error', (err) => {
+    res.status(500).json({ error: err.message });
+  });
+});
+
 module.exports = router;
