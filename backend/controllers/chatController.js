@@ -410,10 +410,30 @@ exports.askAI = async (req, res) => {
 
         if (!hasActiveSub && !usedFreeAI) {
             if (!hasBalance || wallet[0].balance < cost) {
-                const errorMsg = `Free-kaagii wuu dhammaaday. Chat-ka ${chatType === 'shukaansi' ? 'Shukaansiga' : 'Caadiga ah'} wuxuu u baahan yahay ${cost} Credits. Fadlan ku shubo credits ama iibso qorshe si aad u sii wadato.`;
+                // Free trial exhausted AND no credits — block the user and require payment
+                const isImageReqBlocked = hasImage;
+                const errorMsg = isImageReqBlocked
+                    ? `✋ Sawirrada bilaashka ah ee free trial-kaagu (2) wey dhammaaday. Sawir falanqayn waxay u baahan tahay credits. Fadlan ku shubo credits ama iibso qorshe si aad u sii wadato.`
+                    : `✋ Fariimaha bilaashka ah ee free trial-kaagu (10) wey dhammaaday. Fadlan ku shubo credits ama iibso qorshe si aad u sii wadato.`;
+                
+                if (stream === true && !res.headersSent) {
+                    res.setHeader('Content-Type', 'text/event-stream');
+                    res.write(`data: ${JSON.stringify({ 
+                        error: 'free_trial_exhausted', 
+                        text: errorMsg, 
+                        needsPayment: true,
+                        freeTrialExhausted: true,
+                        showBillingButton: true
+                    })}\n\n`);
+                    res.end();
+                    return;
+                }
                 return res.status(402).json({ 
                     message: errorMsg, 
-                    needsPayment: true 
+                    needsPayment: true,
+                    freeTrialExhausted: true,
+                    showBillingButton: true,
+                    error: 'free_trial_exhausted'
                 });
             }
 
@@ -481,7 +501,7 @@ Answer in the same language as the user query or the text in the image.]\n\nUser
         if (chatType === 'shukaansi' && aiName) {
             systemInstruction = `Magacaaga waa "${aiName}". Isticmaaluhu wuxuu kuu bixiyay magacan, fadlan u dhaqan sidii magacaaga rasmiga ah markaad la hadlayso.\n\n${shukaansiSystemInstruction}`;
         }
-        const modelName = "gemini-2.5-flash";
+        const modelName = "gemini-1.5-flash";
 
         // Handle streaming response if requested
         if (stream === true) {

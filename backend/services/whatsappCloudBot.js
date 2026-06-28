@@ -1263,7 +1263,7 @@ Ku jawaab luuqadda qoraalka sawirka ku dhex jira.`;
     }
 
     try {
-        const aiResponse = await askGemini(finalPrompt, "gemini-3.1-flash-lite", attachmentData, history, darkpenSystemInstruction);
+        const aiResponse = await askGemini(finalPrompt, "gemini-1.5-flash", attachmentData, history, darkpenSystemInstruction);
 
         let isRunningOut = false;
         const [walletRows] = await db.execute('SELECT balance FROM user_wallet WHERE user_id = ?', [userId]);
@@ -1344,7 +1344,7 @@ Ku jawaab luuqadda qoraalka sawirka ku dhex jira.`;
         // Log usage
         logAIUsage(
             userId, 
-            'gemini-3.1-flash-lite', 
+            'gemini-1.5-flash', 
             finalPrompt, 
             aiResponse, 
             voiceCostApplied ? 'voice' : (hasImage ? 'image' : 'education'),
