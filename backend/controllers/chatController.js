@@ -501,7 +501,7 @@ Answer in the same language as the user query or the text in the image.]\n\nUser
         if (chatType === 'shukaansi' && aiName) {
             systemInstruction = `Magacaaga waa "${aiName}". Isticmaaluhu wuxuu kuu bixiyay magacan, fadlan u dhaqan sidii magacaaga rasmiga ah markaad la hadlayso.\n\n${shukaansiSystemInstruction}`;
         }
-        const modelName = "gemini-2.5-flash";
+        const modelName = "gemini-3.1-flash-lite";
 
         // Handle streaming response if requested
         if (stream === true) {

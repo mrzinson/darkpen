@@ -614,7 +614,7 @@ Rules:
 8. Be helpful, warm, accommodating. Never redirect the user away frustratingly.`;
 
     try {
-        const aiResp = await askGemini(finalPrompt, 'gemini-2.5-flash', attachmentData, history, systemInstruction);
+        const aiResp = await askGemini(finalPrompt, 'gemini-3.1-flash-lite', attachmentData, history, systemInstruction);
         const formatted = formatResponseForTelegram(aiResp);
         await sendMessageWithFallback(chatId, formatted);
 
@@ -1137,7 +1137,7 @@ Rules:
     }
     
     try {
-        const aiResp = await askGemini(finalPrompt, 'gemini-2.5-flash', null, [], groupInstruction);
+        const aiResp = await askGemini(finalPrompt, 'gemini-3.1-flash-lite', null, [], groupInstruction);
         const formatted = formatResponseForTelegram(aiResp);
         
         await bot.sendMessage(chatId, formatted, {

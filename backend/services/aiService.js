@@ -140,17 +140,17 @@ function hasImageAttachment(attachment) {
 /**
  * La hadal Gemini
  */
-exports.askGemini = async (prompt, modelName = "gemini-2.5-flash", attachment = null, history = [], systemInstruction = null) => {
+exports.askGemini = async (prompt, modelName = "gemini-3.1-flash-lite", attachment = null, history = [], systemInstruction = null) => {
     let targetModel = modelName;
-    if (targetModel === "gemini-1.5-flash") {
-        targetModel = "gemini-2.5-flash";
+    if (targetModel === "gemini-1.5-flash" || targetModel === "gemini-1.5-pro") {
+        targetModel = "gemini-3.1-flash-lite";
     }
 
     const fallbackModels = Array.from(new Set([
         targetModel, 
-        "gemini-2.5-flash",
-        "gemini-3.1-flash-lite", 
-        "gemini-2.5-pro"
+        "gemini-3.1-flash-lite",
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash"
     ]));
 
     // Filter out models that are currently disabled by the circuit breaker due to high demand
@@ -226,17 +226,17 @@ exports.askGemini = async (prompt, modelName = "gemini-2.5-flash", attachment = 
 /**
  * La hadal Gemini adigoo ku jawaabaya qaab Streaming ah
  */
-exports.askGeminiStream = async (prompt, modelName = "gemini-2.5-flash", attachment = null, history = [], systemInstruction = null) => {
+exports.askGeminiStream = async (prompt, modelName = "gemini-3.1-flash-lite", attachment = null, history = [], systemInstruction = null) => {
     let targetModel = modelName;
-    if (targetModel === "gemini-1.5-flash") {
-        targetModel = "gemini-2.5-flash";
+    if (targetModel === "gemini-1.5-flash" || targetModel === "gemini-1.5-pro") {
+        targetModel = "gemini-3.1-flash-lite";
     }
 
     const fallbackModels = Array.from(new Set([
         targetModel, 
-        "gemini-2.5-flash",
-        "gemini-3.1-flash-lite", 
-        "gemini-2.5-pro"
+        "gemini-3.1-flash-lite",
+        "gemini-2.5-flash-lite",
+        "gemini-2.5-flash"
     ]));
 
     // Filter out models that are currently disabled by the circuit breaker due to high demand

@@ -58,7 +58,7 @@ async function extractTextWithGemini(filePath, fileName) {
         }
 
         // 3. Extract text
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
         const prompt = "Please extract all text from this PDF. This is an educational book. Extract every lesson, title, and detailed content. Maintain the structure and language (Somali/Arabic/English). Return ONLY the extracted text.";
         
         const result = await model.generateContent([
