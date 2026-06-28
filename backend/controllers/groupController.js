@@ -405,10 +405,12 @@ exports.sendGroupMessage = async (req, res) => {
 
         // Check if user has sufficient credits for this question
         if (cost > 0 && !usedFreeAI && senderBalance < cost) {
-            return res.status(403).json({
+            return res.status(402).json({
                 status: 'error',
                 needsPayment: true,
-                message: `Free-kaagii wuu dhammaaday. Su'aalaha ${isTextQuestion ? 'qoraalka' : 'sawirada'} ah waxay u baahan yihiin ${cost} credits. Fadlan lacag bixi si aad u sii wadato.`
+                freeTrialExhausted: true,
+                error: 'free_trial_exhausted',
+                message: `✋ Free trial-kaagu wuu dhammaaday. Su'aalaha ${isTextQuestion ? 'qoraalka' : 'sawirada'} ah waxay u baahan yihiin ${cost} credits. Fadlan lacag ku shubo si aad u sii wadato.`
             });
         }
 

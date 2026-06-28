@@ -18,14 +18,19 @@ interface ShukaansiViewProps {
 }
 
 /* ─────────────────── icon helpers ─────────────────── */
-const IconBack = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+const IconHamburger = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="#10B981" className="w-5 h-5">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
   </svg>
 );
-const IconHamburger = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5" />
+const IconTrash = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+  </svg>
+);
+const IconNav = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
   </svg>
 );
 const IconSend = () => (
@@ -239,7 +244,22 @@ export default function ShukaansiView({ onOpenSidebar, onBack }: ShukaansiViewPr
   };
 
   const glassBtn = "flex items-center justify-center rounded-full transition-all active:scale-90 select-none";
-  const glassBtnSm = `${glassBtn} w-9 h-9`;
+
+  const clearHistory = async () => {
+    if (!window.confirm('Taariikhda tirtirta?')) return;
+    const token = localStorage.getItem('userToken');
+    let uId = 'guest';
+    try { const u = JSON.parse(localStorage.getItem('userData') || '{}'); if (u.id) uId = String(u.id); } catch {}
+    try {
+      await fetch('https://darkpen-backend.onrender.com/api/chat/history/clear', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ chatType: 'shukaansi' }),
+      });
+    } catch {}
+    setMessages([]);
+    localStorage.removeItem(`shukaansi_chat_messages_${uId}`);
+  };
 
   return (
     <div className="flex-1 w-full h-full flex flex-col relative select-none overflow-hidden" style={{ background: '#090B10' }}>
@@ -277,35 +297,41 @@ export default function ShukaansiView({ onOpenSidebar, onBack }: ShukaansiViewPr
         </div>
       )}
 
-      {/* HEADER */}
+      {/* HEADER — matches mockup 5 style */}
       <div className="shrink-0 flex items-center justify-between px-4 py-3 bg-[#0E1118]" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+
+        {/* Left: circular hamburger + pill name */}
         <div className="flex items-center gap-3">
-          <button onClick={onBack || onOpenSidebar} className={`${glassBtnSm} text-white/70 hover:text-white hover:bg-white/10`} style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <IconBack />
+          <button onClick={onOpenSidebar} className="w-10 h-10 rounded-full flex items-center justify-center bg-white/5 border transition-all active:scale-95" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+            <IconHamburger />
           </button>
-          
-          <div className="flex items-center gap-2.5">
-            <div className="relative w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-tr from-pink-500 to-rose-500 shadow-lg">
-              <span className="text-white font-extrabold text-[10px]">ML</span>
-              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2" style={{ borderColor: '#0E0D2E' }} />
-            </div>
-            <div>
-              <p className="text-white font-bold text-sm leading-tight">Gacalo</p>
-              <p className="text-emerald-400 text-[10px] font-medium">Online</p>
-            </div>
+
+          {/* Pill name badge */}
+          <div className="px-5 py-1.5 rounded-full bg-[#161B22] border flex items-center gap-2" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+            <span className="text-white font-bold text-sm tracking-wide select-none">Gacalo</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Right: coins badge + combined pill */}
+        <div className="flex items-center gap-3">
           {coins !== null && (
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full text-white/70 text-[10px] font-bold border" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-white/70 text-[10px] font-black border" style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.08)' }}>
               <span className="w-1.5 h-1.5 rounded-full bg-pink-400 inline-block" />
-              {coins} Coins
+              {coins}
             </div>
           )}
-          <button onClick={onOpenSidebar} className={`${glassBtnSm} text-white/70 hover:text-white hover:bg-white/10`} style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }} title="Menu">
-            <IconHamburger />
-          </button>
+
+          {/* Unified combined pill */}
+          <div className="flex items-center rounded-full bg-white/5 border px-1 py-1" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+            <button onClick={clearHistory} className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-rose-400 hover:bg-white/5 transition-all active:scale-90" title="Clear history">
+              <IconTrash />
+            </button>
+            <div className="w-[1px] h-4 bg-white/20 mx-1" />
+            <button onClick={onBack || onOpenSidebar} className="w-8 h-8 rounded-full flex items-center justify-center text-white/60 hover:text-pink-400 hover:bg-white/5 transition-all active:scale-90" title="Back / Menu">
+              <IconNav />
+            </button>
+          </div>
         </div>
       </div>
 

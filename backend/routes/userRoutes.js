@@ -534,4 +534,18 @@ router.get('/usage', auth, async (req, res) => {
     }
 });
 
+// GET Free Trial Stats for the logged-in user
+router.get('/free-trial-stats', auth, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { getFreeUsageStats } = require('../utils/freeUsageHelper');
+        const stats = await getFreeUsageStats(userId);
+        if (!stats) return res.status(500).json({ message: 'Cilad ayaa dhacday' });
+        res.json(stats);
+    } catch (error) {
+        console.error('Error fetching free trial stats:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday' });
+    }
+});
+
 module.exports = router;

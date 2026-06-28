@@ -1,54 +1,55 @@
-const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
+const fs = require('fs');
 const storageService = require('../services/storageService');
 
 /**
- * Saves a base64 image string to the uploads directory or uploads to Cloud Storage.
- * @param {string} base64String - The base64 string (e.g., "data:image/jpeg;base64,...")
- * @param {string} folder - The subfolder in uploads (e.g., "groups", "profiles", "chats")
- * @returns {Promise<string|null>} - The Cloud URL, relative URL path, or null if invalid.
+ * Save a base64 image string to disk or cloud storage.
+ * @param {string} base64Str - The full data URL or raw base64 string
+ * @param {string} folder - Subfolder to save into (e.g. 'chats', 'groups', 'screenshots')
+ * @returns {string} The saved URL or file path
  */
-const saveBase64Image = async (base64String, folder = 'general') => {
-    if (!base64String || !base64String.startsWith('data:image')) {
-        return base64String; // Return as is if it's already a URL or invalid
-    }
-
+async function saveBase64Image(base64Str, folder = 'uploads') {
     try {
-        // 1. Try Cloud Storage first if configured
-        if (storageService.isConfigured) {
-            const cloudUrl = await storageService.uploadBase64(base64String, folder);
-            if (cloudUrl) {
-                return cloudUrl;
-            }
+        if (!base64Str) return null;
+
+        // Strip the data URL prefix if present
+        const matches = base64Str.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        let mimeType = 'image/jpeg';
+        let base64Data = base64Str;
+
+        if (matches) {
+            mimeType = matches[1];
+            base64Data = matches[2];
         }
 
-        // 2. Fallback to Local Storage
-        const parts = base64String.split(';base64,');
-        if (parts.length !== 2) {
-            return null;
-        }
+        // Determine extension from mime type
+        const ext = mimeType.split('/')[1] || 'jpg';
 
-        const mimeType = parts[0].split(':')[1] || 'image/jpeg';
-        const base64Data = parts[1];
-        const extension = mimeType.split('/')[1] || 'jpg';
-        
-        const fileName = `${crypto.randomBytes(16).toString('hex')}.${extension}`;
+        // Create a temp file path in the uploads directory
         const uploadDir = path.join(__dirname, '..', 'uploads', folder);
-
-        // Ensure directory exists
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
         }
 
-        const filePath = path.join(uploadDir, fileName);
-        fs.writeFileSync(filePath, base64Data, 'base64');
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
+        const localFilePath = path.join(uploadDir, fileName);
 
-        return `/uploads/${folder}/${fileName}`;
+        // Write base64 to disk
+        fs.writeFileSync(localFilePath, Buffer.from(base64Data, 'base64'));
+
+        // Upload to cloud storage (S3/Cloudinary/etc.) and return URL
+        try {
+            const uploadedUrl = await storageService.uploadFile(localFilePath, folder, true);
+            return uploadedUrl;
+        } catch (uploadErr) {
+            console.error('[fileHelper] Cloud upload failed, using local path:', uploadErr.message);
+            // Fallback: return local relative path
+            return `/uploads/${folder}/${fileName}`;
+        }
     } catch (err) {
-        console.error('Error saving base64 image:', err);
+        console.error('[fileHelper] saveBase64Image error:', err.message);
         return null;
     }
-};
+}
 
 module.exports = { saveBase64Image };

@@ -128,6 +128,30 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'API-gu wuu shaqaynayaa!' });
 });
 
+// Auto-ensure user_free_ai_usage table exists on startup
+(async () => {
+    try {
+        const db = require('./config/db');
+        await db.execute(`
+            CREATE TABLE IF NOT EXISTS user_free_ai_usage (
+                user_id INT PRIMARY KEY,
+                free_text_used INT NOT NULL DEFAULT 0,
+                free_image_used INT NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        `);
+        console.log('[DB] user_free_ai_usage table ensured.');
+    } catch (err) {
+        if (!err.message.includes('already exists')) {
+            console.error('[DB] Failed to ensure user_free_ai_usage table:', err.message);
+        }
+    }
+})();
+
+
+
 
 
 

@@ -1,53 +1,33 @@
 const db = require('../config/db');
 
 /**
- * Log AI request and cost statistics to the database
- * @param {number} userId - The ID of the user who made the request
+ * Log AI usage to ai_usage_logs table.
+ * @param {number} userId - The user ID
  * @param {string} modelName - The AI model name used
- * @param {string} promptText - The prompt text sent to the AI
- * @param {string} completionText - The completion text received from the AI
- * @param {string} chatType - The type of chat (e.g. 'education', 'shukaansi')
+ * @param {string} prompt - The user's prompt/message
+ * @param {string} completion - The AI's response
+ * @param {string} chatType - The chat type ('education', 'shukaansi', 'image', etc.)
  */
-exports.logAIUsage = async (userId, modelName, promptText, completionText, chatType, platform = 'app') => {
+async function logAIUsage(userId, modelName, prompt, completion, chatType = 'education') {
     try {
-        if (!userId) return;
+        // Estimate token counts (rough estimation: 1 token ≈ 4 characters)
+        const promptTokens = Math.ceil((prompt || '').length / 4);
+        const completionTokens = Math.ceil((completion || '').length / 4);
 
-        // Estimate tokens: 1 token is roughly 4 characters
-        const promptTokens = Math.max(1, Math.ceil((promptText || '').length / 4));
-        const completionTokens = Math.max(1, Math.ceil((completionText || '').length / 4));
-
-        // Determine costs based on model pricing (USD per token)
-        let promptCost = 0;
-        let completionCost = 0;
-
-        const model = (modelName || '').toLowerCase();
-
-        if (model.includes('gemini-flash') || model.includes('gemini-1.5-flash') || model.includes('latest')) {
-            // Gemini 1.5 Flash: $0.075 / 1M input tokens, $0.30 / 1M output tokens
-            promptCost = promptTokens * 0.000000075;
-            completionCost = completionTokens * 0.00000030;
-        } else if (model.includes('gpt-4o-mini')) {
-            // GPT-4o-mini: $0.150 / 1M input tokens, $0.60 / 1M output tokens
-            promptCost = promptTokens * 0.00000015;
-            completionCost = completionTokens * 0.00000060;
-        } else if (model.includes('dall-e')) {
-            // OpenAI DALL-E 3 image generation: flat $0.040 per image
-            promptCost = 0.040;
-            completionCost = 0;
-        } else {
-            // Default to Gemini Flash pricing if unspecified
-            promptCost = promptTokens * 0.000000075;
-            completionCost = completionTokens * 0.00000030;
-        }
-
-        const totalCost = promptCost + completionCost;
+        // Cost estimation (in USD):
+        // gemini-2.5-flash: ~$0.00001875 per 1k prompt tokens, ~$0.000075 per 1k completion tokens
+        // For simplicity, use a flat cost per credit deduction
+        const cost = (promptTokens + completionTokens) / 1000 * 0.005;
 
         await db.execute(
-            `INSERT INTO ai_usage_logs (user_id, model_name, prompt_tokens, completion_tokens, cost, chat_type, platform) 
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [userId, modelName || 'unknown', promptTokens, completionTokens, totalCost, chatType || 'general', platform]
+            `INSERT INTO ai_usage_logs (user_id, model_name, prompt_tokens, completion_tokens, cost, chat_type) 
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [userId, modelName, promptTokens, completionTokens, cost, chatType]
         );
-    } catch (error) {
-        console.error('[AI Logger Error]: Failed to log AI usage:', error.message);
+    } catch (err) {
+        // Non-critical: log error but don't crash the app
+        console.error('[AI Logger Error]', err.message);
     }
-};
+}
+
+module.exports = { logAIUsage };
