@@ -1665,5 +1665,181 @@ router.get('/whatsapp/groups', async (req, res) => {
     }
 });
 
+// 4. Telegram Bot Stats
+router.get('/telegram/stats', async (req, res) => {
+    try {
+        const [active24hRow] = await db.execute(`
+            SELECT COUNT(DISTINCT user_id) as count 
+            FROM messages_private 
+            WHERE session_id = 'telegram' AND sender = 'user' AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        `);
+        const active24h = active24hRow[0]?.count || 0;
+
+        const [active7dRow] = await db.execute(`
+            SELECT COUNT(DISTINCT user_id) as count 
+            FROM messages_private 
+            WHERE session_id = 'telegram' AND sender = 'user' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        `);
+        const active7d = active7dRow[0]?.count || 0;
+
+        const [active30dRow] = await db.execute(`
+            SELECT COUNT(DISTINCT user_id) as count 
+            FROM messages_private 
+            WHERE session_id = 'telegram' AND sender = 'user' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+        `);
+        const active30d = active30dRow[0]?.count || 0;
+
+        const [active90dRow] = await db.execute(`
+            SELECT COUNT(DISTINCT user_id) as count 
+            FROM messages_private 
+            WHERE session_id = 'telegram' AND sender = 'user' AND created_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+        `);
+        const active90d = active90dRow[0]?.count || 0;
+
+        const [totalUsersRow] = await db.execute(`
+            SELECT COUNT(*) as count FROM telegram_users
+        `);
+        const totalUsers = totalUsersRow[0]?.count || 0;
+
+        const [messagesRow] = await db.execute(`
+            SELECT 
+                SUM(CASE WHEN sender = 'user' AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN 1 ELSE 0 END) as user_24h,
+                SUM(CASE WHEN sender = 'ai' AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN 1 ELSE 0 END) as ai_24h,
+                SUM(CASE WHEN sender = 'user' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) as user_7d,
+                SUM(CASE WHEN sender = 'ai' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) as ai_7d,
+                SUM(CASE WHEN sender = 'user' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as user_30d,
+                SUM(CASE WHEN sender = 'ai' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as ai_30d
+            FROM messages_private
+            WHERE session_id = 'telegram'
+        `);
+
+        const [geminiCostRow] = await db.execute(`
+            SELECT SUM(cost) as total_cost 
+            FROM ai_usage_logs 
+            WHERE platform = 'telegram'
+        `);
+        const geminiCost = parseFloat(geminiCostRow[0]?.total_cost || 0);
+
+        res.json({
+            totalUsers,
+            activeUsers: {
+                daily: active24h,
+                weekly: active7d,
+                monthly: active30d,
+                quarterly: active90d
+            },
+            messages: messagesRow[0] || {
+                user_24h: 0, ai_24h: 0,
+                user_7d: 0, ai_7d: 0,
+                user_30d: 0, ai_30d: 0
+            },
+            geminiCost
+        });
+    } catch (error) {
+        console.error('Error fetching Telegram admin stats:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday stats-ka bot-ka' });
+    }
+});
+
+// 5. Telegram Users List
+router.get('/telegram/users', async (req, res) => {
+    try {
+        const [users] = await db.execute(`
+            SELECT 
+                u.id, 
+                u.name, 
+                u.username, 
+                u.whatsapp_number, 
+                u.role, 
+                u.is_suspended,
+                tu.telegram_chat_id,
+                tu.created_at as linked_at,
+                COALESCE(uw.balance, 0) as balance,
+                (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id AND session_id = 'telegram' AND sender = 'user') as msg_to_bot,
+                (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id AND session_id = 'telegram' AND sender = 'ai') as msg_from_bot,
+                (SELECT COUNT(*) FROM ai_usage_logs WHERE user_id = u.id AND chat_type = 'image' AND platform = 'telegram') as img_count,
+                (SELECT COUNT(*) FROM ai_usage_logs WHERE user_id = u.id AND chat_type = 'voice' AND platform = 'telegram') as voice_count,
+                (SELECT MAX(created_at) FROM messages_private WHERE user_id = u.id AND session_id = 'telegram') as last_activity
+            FROM telegram_users tu
+            JOIN users u ON tu.user_id = u.id
+            LEFT JOIN user_wallet uw ON u.id = uw.user_id
+            ORDER BY last_activity DESC, tu.created_at DESC
+        `);
+        res.json(users);
+    } catch (error) {
+        console.error('Error fetching Telegram users:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday soo qaadista users-ka' });
+    }
+});
+
+// 6. Credits and Subscriptions List
+router.get('/users/credits-subscriptions', async (req, res) => {
+    try {
+        const [users] = await db.execute(`
+            SELECT 
+                u.id, 
+                u.name, 
+                u.username, 
+                u.email,
+                u.whatsapp_number, 
+                u.role, 
+                u.is_suspended, 
+                u.created_at,
+                COALESCE(uw.balance, 0) AS credits,
+                COALESCE(sw.balance, 0) AS shukaansi_credits,
+                us.type as plan_type,
+                us.expiry_date,
+                (SELECT COUNT(*) FROM messages_private WHERE user_id = u.id AND sender = 'user') AS private_messages_count
+            FROM users u
+            LEFT JOIN user_wallet uw ON u.id = uw.user_id
+            LEFT JOIN shukaansi_wallet sw ON u.id = sw.user_id
+            LEFT JOIN user_subscriptions us ON u.id = us.user_id AND us.expiry_date > NOW()
+            WHERE COALESCE(uw.balance, 0) > 0 
+               OR COALESCE(sw.balance, 0) > 0
+               OR us.id IS NOT NULL
+            ORDER BY COALESCE(uw.balance, 0) DESC, u.created_at DESC
+        `);
+        res.json(users);
+    } catch (error) {
+        console.error('Error fetching credits and subscriptions:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday soo qaadista isticmaalayaasha' });
+    }
+});
+
+// 7. Adjust User Credits
+router.post('/users/:id/adjust-credits', async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const { amount, walletType } = req.body; // walletType: 'general' or 'shukaansi'
+        const table = walletType === 'shukaansi' ? 'shukaansi_wallet' : 'user_wallet';
+        
+        if (typeof amount !== 'number') {
+            return res.status(400).json({ message: 'Amount-ku waa inuu tiro noqdaa' });
+        }
+
+        const [userCheck] = await db.execute('SELECT id FROM users WHERE id = ?', [userId]);
+        if (userCheck.length === 0) {
+            return res.status(404).json({ message: 'Isticmaalaha lama helin' });
+        }
+
+        // Check if wallet entry exists
+        const [walletCheck] = await db.execute(`SELECT user_id FROM ${table} WHERE user_id = ?`, [userId]);
+        if (walletCheck.length === 0) {
+            const startBalance = Math.max(0, amount);
+            await db.execute(`INSERT INTO ${table} (user_id, balance) VALUES (?, ?)`, [userId, startBalance]);
+        } else {
+            await db.execute(`UPDATE ${table} SET balance = GREATEST(0, balance + ?) WHERE user_id = ?`, [amount, userId]);
+        }
+
+        const [newBalanceRow] = await db.execute(`SELECT balance FROM ${table} WHERE user_id = ?`, [userId]);
+        const newBalance = newBalanceRow[0]?.balance || 0;
+
+        res.json({ status: 'success', message: 'Dheelitirka credit-ka waa la cusboonaysiiyay!', newBalance });
+    } catch (error) {
+        console.error('Error adjusting user credits:', error);
+        res.status(500).json({ message: 'Cilad ayaa dhacday beddelista credit-ka' });
+    }
+});
+
 module.exports = router;
 

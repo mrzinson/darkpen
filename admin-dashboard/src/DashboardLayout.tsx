@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { 
-  LogOut, CreditCard, Book, FileText, PieChart, LayoutDashboard, Users, Bot, Settings, Megaphone, CheckSquare, Menu, X, Trophy, Shield, MessageSquare
+  LogOut, CreditCard, Book, FileText, PieChart, LayoutDashboard, Users, Bot, Settings, Megaphone, CheckSquare, Menu, X, Trophy, Shield, MessageSquare, Send
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import './Dashboard.css';
@@ -20,6 +20,8 @@ import AIStatsPanel from './components/AIStatsPanel';
 import SettingsPanel from './components/SettingsPanel';
 import AdminsPanel from './components/AdminsPanel';
 import WhatsAppBotPanel from './components/WhatsAppBotPanel';
+import TelegramBotPanel from './components/TelegramBotPanel';
+import CreditsPanel from './components/CreditsPanel';
 
 import { API_URL } from './config';
 
@@ -152,6 +154,8 @@ export default function DashboardLayout({ onLogout }: LayoutProps) {
     { path: '/tournament', icon: <Trophy size={20} />, label: 'Tournament' },
     { path: '/ai-stats', icon: <Bot size={20} />, label: 'AI Stats' },
     { path: '/whatsapp-bot', icon: <MessageSquare size={20} />, label: 'WhatsApp Bot' },
+    { path: '/telegram-bot', icon: <Send size={20} />, label: 'Telegram Bot' },
+    { path: '/credits-subscriptions', icon: <CreditCard size={20} />, label: 'Credits & Subs' },
     { path: '/groups', icon: <Users size={20} />, label: 'Groups' },
     { path: '/reports', icon: <PieChart size={20} />, label: 'Reports' },
     { path: '/settings', icon: <Settings size={20} />, label: 'Settings' },
@@ -233,8 +237,10 @@ export default function DashboardLayout({ onLogout }: LayoutProps) {
             <Route path="/promo-cards" element={<PromoCardsPanel />} />
             <Route path="/promo-claims" element={<PromoClaimsPanel />} />
             <Route path="/tournament" element={<TournamentPanel />} />
-            <Route path="/ai-stats" element={<AIStatsPanel />} />
+             <Route path="/ai-stats" element={<AIStatsPanel />} />
             <Route path="/whatsapp-bot" element={<WhatsAppBotPanel />} />
+            <Route path="/telegram-bot" element={<TelegramBotPanel />} />
+            <Route path="/credits-subscriptions" element={<CreditsPanel />} />
             <Route path="/groups" element={<GroupsPanel />} />
             <Route path="/reports" element={<ReportsPanel />} />
             <Route path="/settings" element={<SettingsPanel />} />
