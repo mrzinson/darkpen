@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { API_URL } from '../config';
 import {
-  CreditCard, Search, X, Edit, PlusCircle, Check, AlertTriangle,
-  User, Coins, ShieldAlert, BadgeInfo
+  Search, X, Edit, PlusCircle,
+  User, Coins
 } from 'lucide-react';
 
 interface CreditUser {

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { API_URL } from '../config';
 import {
-  Send, Users, Ban, RefreshCw, CheckCircle, AlertTriangle,
-  Search, Eye, X, MessageSquare, TrendingUp, Image, Mic,
-  Activity, Hash, ChevronRight, Clock, UserCheck
+  Ban, RefreshCw,
+  Search, X, TrendingUp,
+  Activity, ChevronRight
 } from 'lucide-react';
 
 interface Stats {
