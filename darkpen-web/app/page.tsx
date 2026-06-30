@@ -122,7 +122,7 @@ export default function AppWorkspace() {
       {/* Logo + close on mobile */}
       <div className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: DP_ACCENT, boxShadow: `0 0 14px ${DP_ACCENT}50` }}>
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: DP_ACCENT }}>
             <span className="text-white font-black text-[10px]">DP</span>
           </div>
           <span className="text-white font-black text-sm tracking-widest">DARKPEN</span>
@@ -134,15 +134,15 @@ export default function AppWorkspace() {
 
       {/* User card */}
       <div className="shrink-0 rounded-2xl p-4 flex flex-col items-center text-center gap-3" style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${DP_BORD}` }}>
-        <div className="w-14 h-14 rounded-full flex items-center justify-center text-white text-xl font-black shadow-lg" style={{ background: DP_ACCENT, boxShadow: `0 0 20px ${DP_ACCENT}40` }}>
+        <div className="w-14 h-14 rounded-full flex items-center justify-center text-white text-xl font-black" style={{ background: DP_ACCENT }}>
           {userData?.name ? userData.name.substring(0, 2).toUpperCase() : 'DP'}
         </div>
         <div>
           <p className="text-white text-sm font-bold">@{userData?.username || 'Darkpen User'}</p>
           <p className="text-white/40 text-[10px] mt-0.5">{userData?.whatsapp_number || ''}</p>
         </div>
-        <button onClick={() => nav('billing')} className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-white text-[10px] font-black shadow-md hover:opacity-90 transition-all animate-pulse"
-          style={{ background: DP_ACCENT, boxShadow: `0 4px 12px ${DP_ACCENT}30` }}>
+        <button onClick={() => nav('billing')} className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-white text-[10px] font-black hover:opacity-90 transition-all animate-pulse"
+          style={{ background: DP_ACCENT }}>
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
             <path d="M12 7.5a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z" />
             <path fillRule="evenodd" d="M1.5 4.875C1.5 3.839 2.34 3 3.375 3h17.25c1.035 0 1.875.84 1.875 1.875v9.75c0 1.036-.84 1.875-1.875 1.875H3.375A1.875 1.875 0 0 1 1.5 14.625v-9.75ZM8.25 9.75a3.75 3.75 0 1 1 7.5 0 3.75 3.75 0 0 1-7.5 0ZM18.75 9a.75.75 0 0 0-.75.75v.008c0 .414.336.75.75.75h.008a.75.75 0 0 0 .75-.75V9.75a.75.75 0 0 0-.75-.75h-.008ZM4.5 9.75A.75.75 0 0 1 5.25 9h.008a.75.75 0 0 1 .75.75v.008a.75.75 0 0 1-.75.75H5.25a.75.75 0 0 1-.75-.75V9.75Z" clipRule="evenodd" />
@@ -270,7 +270,7 @@ export default function AppWorkspace() {
           {/* ── LEFT DRAWER (mobile + desktop overlay) ── */}
           {leftOpen && (
             <div className="fixed inset-0 z-50 flex lg:hidden">
-              <div onClick={() => setLeftOpen(false)} className="absolute inset-0 bg-black/70" />
+              <div onClick={() => setLeftOpen(false)} className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.92)' }} />
               <div className="relative w-[280px] h-full overflow-hidden animate-in slide-in-from-left duration-300" style={sideStyle}>
                 <LeftSidebar />
               </div>
@@ -280,7 +280,7 @@ export default function AppWorkspace() {
           {/* ── NAV PANEL (right drawer, both breakpoints) ── */}
           {navOpen && (
             <div className="fixed inset-0 z-50 flex justify-end">
-              <div onClick={() => setNavOpen(false)} className="absolute inset-0 bg-black/70" />
+              <div onClick={() => setNavOpen(false)} className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.92)' }} />
               <div className="relative w-[290px] h-full overflow-hidden animate-in slide-in-from-right duration-300" style={navStyle}>
                 <NavPanel />
               </div>
