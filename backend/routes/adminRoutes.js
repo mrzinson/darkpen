@@ -350,6 +350,9 @@ router.post('/payments/:id/approve', async (req, res) => {
         if (payment.length === 0) return res.status(404).json({ message: 'Lama helin lacag-bixintan' });
 
         const p = payment[0];
+        if (p.status !== 'pending') {
+            return res.status(400).json({ message: 'Lacag-bixintan mar hore ayaa la go\'aamiyey (mar hore ayaa la ansixiyey ama la diiday).' });
+        }
         console.log(`[PAYMENT] Approving ID: ${id}, User: ${p.user_id}, Amount: ${p.amount}`);
         await db.execute('UPDATE payments SET status = "approved" WHERE id = ?', [id]);
         
@@ -468,6 +471,9 @@ router.post('/payments/:id/reject', async (req, res) => {
         const [payment] = await db.execute('SELECT * FROM payments WHERE id = ?', [id]);
         if (payment.length === 0) return res.status(404).json({ message: 'Lama helin lacag-bixintan' });
         const p = payment[0];
+        if (p.status !== 'pending') {
+            return res.status(400).json({ message: 'Lacag-bixintan mar hore ayaa la go\'aamiyey (mar hore ayaa la ansixiyey ama la diiday).' });
+        }
 
         await db.execute('UPDATE payments SET status = "rejected" WHERE id = ?', [id]);
         await db.execute('UPDATE users SET payment_status = "rejected" WHERE id = ?', [p.user_id]);

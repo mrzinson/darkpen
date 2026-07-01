@@ -269,7 +269,7 @@ export default function AppWorkspace() {
 
           {/* ── LEFT DRAWER (mobile + desktop overlay) ── */}
           {leftOpen && (
-            <div className="fixed inset-0 z-50 flex lg:hidden">
+            <div className="fixed inset-0 z-[9999] flex lg:hidden">
               <div onClick={() => setLeftOpen(false)} className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.92)' }} />
               <div className="relative w-[280px] h-full overflow-hidden animate-in slide-in-from-left duration-300" style={sideStyle}>
                 <LeftSidebar />
@@ -279,7 +279,7 @@ export default function AppWorkspace() {
 
           {/* ── NAV PANEL (right drawer, both breakpoints) ── */}
           {navOpen && (
-            <div className="fixed inset-0 z-50 flex justify-end">
+            <div className="fixed inset-0 z-[9999] flex justify-end">
               <div onClick={() => setNavOpen(false)} className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.92)' }} />
               <div className="relative w-[290px] h-full overflow-hidden animate-in slide-in-from-right duration-300" style={navStyle}>
                 <NavPanel />
